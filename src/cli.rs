@@ -300,7 +300,7 @@ fn parse_search_args(args: Vec<String>) -> Result<(SearchOptions, bool)> {
                 let Some(value) = iter.next() else {
                     return Err(MacEveryError::Cli("--kind requires a value".to_string()));
                 };
-                kind = Some(FileKind::from_str(&value).ok_or_else(|| {
+                kind = Some(FileKind::parse(&value).ok_or_else(|| {
                     MacEveryError::Cli(
                         "--kind must be file, dir, symlink, app, or other".to_string(),
                     )
@@ -316,7 +316,7 @@ fn parse_search_args(args: Vec<String>) -> Result<(SearchOptions, bool)> {
             }
             _ if arg.starts_with("--kind=") => {
                 let value = &arg["--kind=".len()..];
-                kind = Some(FileKind::from_str(value).ok_or_else(|| {
+                kind = Some(FileKind::parse(value).ok_or_else(|| {
                     MacEveryError::Cli(
                         "--kind must be file, dir, symlink, app, or other".to_string(),
                     )

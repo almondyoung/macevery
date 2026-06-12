@@ -132,8 +132,8 @@ pub fn rank_view(record: &RecordView<'_>, options: &SearchOptions) -> Option<i64
     }
 
     let case_sensitive = false;
-    let basename = comparable_record_text(&record.basename, &record.basename_lower, case_sensitive);
-    let path = comparable_record_text(&record.path, &record.path_lower, case_sensitive);
+    let basename = comparable_record_text(record.basename, record.basename_lower, case_sensitive);
+    let path = comparable_record_text(record.path, record.path_lower, case_sensitive);
     let mut score = 0;
 
     for token in tokens {
@@ -226,13 +226,13 @@ fn record_matches_filters(record: &RecordView<'_>, options: &SearchOptions) -> b
     }
 
     for path_filter in &options.path_filters {
-        if !path_filter_matches(&record.path_lower, path_filter) {
+        if !path_filter_matches(record.path_lower, path_filter) {
             return false;
         }
     }
 
     for path_filter in &options.excluded_path_filters {
-        if path_filter_matches(&record.path_lower, path_filter) {
+        if path_filter_matches(record.path_lower, path_filter) {
             return false;
         }
     }

@@ -82,6 +82,7 @@ mod macos_impl {
             run_loop_mode: CFStringRef,
         );
         fn FSEventStreamStart(stream_ref: FSEventStreamRef) -> Boolean;
+        fn FSEventsGetCurrentEventId() -> FSEventStreamEventId;
     }
 
     const UTF8_ENCODING: u32 = 0x0800_0100;
@@ -118,10 +119,9 @@ mod macos_impl {
 
         let db = Database::open(db_path.clone())?;
         let stats = db.stats()?;
-        let since_when = db
+        let stored_event_id = db
             .get_meta(META_LAST_EVENT_ID)?
-            .and_then(|value| value.parse::<FSEventStreamEventId>().ok())
-            .unwrap_or(SINCE_NOW);
+            .and_then(|value| value.parse::<FSEventStreamEventId>().ok());
         drop(db);
 
         if stats.roots.is_empty() {
@@ -136,6 +136,32 @@ mod macos_impl {
             .map(PathBuf::from)
             .collect::<Vec<_>>();
         let excludes = stats.excludes;
+
+        let current_system_id = unsafe { FSEventsGetCurrentEventId() };
+        let decision = resolve_since_when(stored_event_id, current_system_id);
+        let since_when = match decision {
+            CheckpointDecision::UseCheckpoint(id) => id,
+            CheckpointDecision::FullRescan => {
+                eprintln!(
+                    "watch: checkpoint invalid (stored={:?}, system={}), performing full rescan",
+                    stored_event_id, current_system_id
+                );
+                let db = Database::open(db_path.clone())?;
+                match refresh_roots(&db, &roots, &excludes) {
+                    Ok(summary) => {
+                        eprintln!(
+                            "watch: full rescan complete, {} entries, {} stale removed",
+                            summary.indexed, summary.deleted
+                        );
+                    }
+                    Err(err) => {
+                        eprintln!("watch: full rescan failed: {err}");
+                    }
+                }
+                drop(db);
+                current_system_id
+            }
+        };
         let (sender, receiver) = mpsc::channel::<FsEvent>();
         spawn_processor(db_path, roots.clone(), excludes, receiver);
 
@@ -337,6 +363,28 @@ mod macos_impl {
         }
     }
 
+    #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+    enum CheckpointDecision {
+        UseCheckpoint(FSEventStreamEventId),
+        FullRescan,
+    }
+
+    fn resolve_since_when(
+        stored: Option<FSEventStreamEventId>,
+        current_system_id: FSEventStreamEventId,
+    ) -> CheckpointDecision {
+        let Some(stored_id) = stored else {
+            return CheckpointDecision::FullRescan;
+        };
+        if stored_id == 0 || stored_id == SINCE_NOW {
+            return CheckpointDecision::FullRescan;
+        }
+        if stored_id > current_system_id {
+            return CheckpointDecision::FullRescan;
+        }
+        CheckpointDecision::UseCheckpoint(stored_id)
+    }
+
     unsafe extern "C" fn event_callback(
         _stream_ref: ConstFSEventStreamRef,
         client_info: *mut c_void,
@@ -407,6 +455,54 @@ mod macos_impl {
                 },
             ];
             assert_eq!(batch_action(&batch), WatchAction::RescanRoots);
+        }
+
+        #[test]
+        fn checkpoint_none_triggers_full_rescan() {
+            assert_eq!(
+                resolve_since_when(None, 5000),
+                CheckpointDecision::FullRescan
+            );
+        }
+
+        #[test]
+        fn checkpoint_zero_triggers_full_rescan() {
+            assert_eq!(
+                resolve_since_when(Some(0), 5000),
+                CheckpointDecision::FullRescan
+            );
+        }
+
+        #[test]
+        fn checkpoint_since_now_triggers_full_rescan() {
+            assert_eq!(
+                resolve_since_when(Some(SINCE_NOW), 5000),
+                CheckpointDecision::FullRescan
+            );
+        }
+
+        #[test]
+        fn checkpoint_exceeds_current_triggers_full_rescan() {
+            assert_eq!(
+                resolve_since_when(Some(10000), 5000),
+                CheckpointDecision::FullRescan
+            );
+        }
+
+        #[test]
+        fn checkpoint_valid_returns_use_checkpoint() {
+            assert_eq!(
+                resolve_since_when(Some(3000), 5000),
+                CheckpointDecision::UseCheckpoint(3000)
+            );
+        }
+
+        #[test]
+        fn checkpoint_equal_to_current_is_valid() {
+            assert_eq!(
+                resolve_since_when(Some(5000), 5000),
+                CheckpointDecision::UseCheckpoint(5000)
+            );
         }
     }
 }

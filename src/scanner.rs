@@ -213,10 +213,17 @@ fn should_exclude(path: &Path, excludes: &[String]) -> bool {
         if pattern.is_empty() {
             continue;
         }
-        if path.file_name().and_then(|value| value.to_str()) == Some(pattern) {
-            return true;
-        }
-        if path_text.ends_with(pattern) || path_text.contains(&format!("/{pattern}/")) {
+        if pattern.contains('/') {
+            let with_leading_slash = format!("/{pattern}");
+            if path_text.ends_with(&with_leading_slash) {
+                return true;
+            }
+            let mut with_trailing = with_leading_slash;
+            with_trailing.push('/');
+            if path_text.contains(&*with_trailing) {
+                return true;
+            }
+        } else if path_text.split('/').any(|component| component == pattern) {
             return true;
         }
     }
@@ -257,6 +264,89 @@ mod tests {
             &excludes
         ));
         assert!(!should_exclude(Path::new("/tmp/project/src"), &excludes));
+    }
+
+    #[test]
+    fn exclude_does_not_match_partial_names() {
+        let excludes = vec!["build".to_string()];
+        assert!(should_exclude(Path::new("/tmp/project/build"), &excludes));
+        assert!(should_exclude(
+            Path::new("/tmp/project/build/output/file.o"),
+            &excludes
+        ));
+        assert!(!should_exclude(Path::new("/tmp/rebuild"), &excludes));
+        assert!(!should_exclude(
+            Path::new("/tmp/project/rebuilder"),
+            &excludes
+        ));
+        assert!(!should_exclude(
+            Path::new("/tmp/project/prebuild/src"),
+            &excludes
+        ));
+    }
+
+    #[test]
+    fn exclude_multi_segment_pattern() {
+        let excludes = vec!["Library/Caches".to_string(), ".cargo/registry".to_string()];
+        assert!(should_exclude(
+            Path::new("/Users/me/Library/Caches"),
+            &excludes
+        ));
+        assert!(should_exclude(
+            Path::new("/Users/me/Library/Caches/com.apple.foo"),
+            &excludes
+        ));
+        assert!(!should_exclude(
+            Path::new("/Users/me/Library/Preferences"),
+            &excludes
+        ));
+        assert!(should_exclude(
+            Path::new("/Users/me/.cargo/registry/crates"),
+            &excludes
+        ));
+        assert!(!should_exclude(
+            Path::new("/Users/me/.cargo/bin/tool"),
+            &excludes
+        ));
+    }
+
+    #[test]
+    fn exclude_common_defaults() {
+        let excludes = vec![
+            "node_modules".to_string(),
+            ".git".to_string(),
+            "target".to_string(),
+            "DerivedData".to_string(),
+            ".DS_Store".to_string(),
+        ];
+        assert!(should_exclude(
+            Path::new("/home/user/project/node_modules/lodash"),
+            &excludes
+        ));
+        assert!(should_exclude(
+            Path::new("/home/user/project/.git/objects"),
+            &excludes
+        ));
+        assert!(should_exclude(
+            Path::new("/home/user/rust/target/release"),
+            &excludes
+        ));
+        assert!(should_exclude(
+            Path::new("/home/user/ios/DerivedData/Build"),
+            &excludes
+        ));
+        assert!(should_exclude(
+            Path::new("/home/user/folder/.DS_Store"),
+            &excludes
+        ));
+        assert!(!should_exclude(
+            Path::new("/home/user/project/src/main.rs"),
+            &excludes
+        ));
+        assert!(!should_exclude(
+            Path::new("/home/user/targets/readme.md"),
+            &excludes
+        ));
     }
 
     #[test]

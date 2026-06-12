@@ -455,7 +455,7 @@ fn row_to_record_ref<'a>(stmt: &'a crate::sqlite::Statement<'_>) -> Result<DbRec
         ext_lower: stmt.column_str(5),
         kind: stmt
             .column_str(6)
-            .and_then(FileKind::from_str)
+            .and_then(FileKind::parse)
             .unwrap_or(FileKind::Other),
         size: stmt.column_i64(7),
         mtime: stmt.column_i64(8),
@@ -478,7 +478,7 @@ fn expect_done(step: Step) -> Result<()> {
 fn row_to_record(stmt: &crate::sqlite::Statement<'_>) -> Result<FileRecord> {
     let kind = stmt
         .column_text(6)
-        .and_then(|value| FileKind::from_str(&value))
+        .and_then(|value| FileKind::parse(&value))
         .unwrap_or(FileKind::Other);
     let path = stmt.column_text(1).unwrap_or_default();
     let path_lower = stmt

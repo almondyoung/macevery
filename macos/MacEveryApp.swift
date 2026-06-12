@@ -1556,6 +1556,17 @@ struct OnboardingView: View {
                     }
                 }
 
+                if model.permissionStatus == .unknown || model.permissionStatus == .limited {
+                    HStack(spacing: 6) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundStyle(.orange)
+                        Text("Full Disk Access not granted — index may be incomplete.")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.orange)
+                    }
+                    .padding(.leading, 34)
+                }
+
                 OnboardingRow(
                     title: "Index Roots",
                     value: "\(model.settings.roots.count) folders",
@@ -1606,6 +1617,9 @@ struct OnboardingView: View {
             }
         }
         .padding(22)
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            model.refreshPermissionStatus()
+        }
     }
 }
 

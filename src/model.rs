@@ -21,7 +21,7 @@ impl FileKind {
         }
     }
 
-    pub fn from_str(value: &str) -> Option<Self> {
+    pub fn parse(value: &str) -> Option<Self> {
         match value.to_lowercase().as_str() {
             "file" => Some(Self::File),
             "dir" | "dirs" | "directory" | "directories" | "folder" | "folders" => {
@@ -247,7 +247,7 @@ fn parse_inline_filter(token: &str, now: i64) -> InlineFilter {
         },
         "kind" | "type" => match split_filter_values(value)
             .into_iter()
-            .filter_map(|value| FileKind::from_str(&value))
+            .filter_map(|value| FileKind::parse(&value))
             .collect::<Vec<_>>()
         {
             values if values.is_empty() => InlineFilter::None,

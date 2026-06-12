@@ -55,6 +55,10 @@ impl CompactIndex {
         self.records.len()
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.records.is_empty()
+    }
+
     pub fn search(&self, options: &SearchOptions) -> Vec<SearchResult> {
         let options = options.normalized();
         let limit = if options.limit == 0 {

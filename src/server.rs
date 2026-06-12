@@ -25,8 +25,9 @@ const REQUEST_HEADER_LIMIT: usize = 64 * 1024;
 const REQUEST_READ_TIMEOUT: Duration = Duration::from_millis(250);
 const REQUEST_TOTAL_TIMEOUT: Duration = Duration::from_secs(5);
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub enum BackendPreference {
+    #[default]
     Auto,
     Memory,
     Compact,
@@ -41,12 +42,6 @@ impl BackendPreference {
             Self::Compact => "compact",
             Self::Sqlite => "sqlite",
         }
-    }
-}
-
-impl Default for BackendPreference {
-    fn default() -> Self {
-        Self::Auto
     }
 }
 
@@ -309,7 +304,16 @@ fn handle_stream(mut stream: TcpStream, state: Arc<RwLock<ServiceState>>) -> Res
         }
         "/search" => {
             let options = parse_search_options(query)?;
-            {
+            let needs_reload = {
+                let state = state
+                    .read()
+                    .map_err(|_| MacEveryError::Cli("service state lock poisoned".to_string()))?;
+                match state.backend.marker() {
+                    Some(marker) => db_marker(&state.db_path) != marker,
+                    None => false,
+                }
+            };
+            if needs_reload {
                 let mut state = state
                     .write()
                     .map_err(|_| MacEveryError::Cli("service state lock poisoned".to_string()))?;
@@ -481,9 +485,7 @@ fn parse_search_options(query: &str) -> Result<SearchOptions> {
         .get("ext")
         .map(|value| value.trim_start_matches('.').to_lowercase())
         .filter(|value| !value.is_empty());
-    let kind = params
-        .get("kind")
-        .and_then(|value| FileKind::from_str(value));
+    let kind = params.get("kind").and_then(|value| FileKind::parse(value));
     let path_only = params
         .get("path")
         .map(|value| value == "1" || value.eq_ignore_ascii_case("true"))
