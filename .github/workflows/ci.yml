@@ -10,7 +10,7 @@ jobs:
     name: Rust
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
       - name: Check formatting
         run: cargo fmt --check
@@ -23,7 +23,7 @@ jobs:
     name: macOS app package
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
       - name: Build app bundle
         run: make app
