@@ -1057,6 +1057,9 @@ struct ContentView: View {
                 showingOnboarding = true
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            model.refreshPermissionStatus()
+        }
     }
 
     private var topBar: some View {
@@ -1617,9 +1620,6 @@ struct OnboardingView: View {
             }
         }
         .padding(22)
-        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
-            model.refreshPermissionStatus()
-        }
     }
 }
 

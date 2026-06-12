@@ -147,17 +147,12 @@ mod macos_impl {
                     stored_event_id, current_system_id
                 );
                 let db = Database::open(db_path.clone())?;
-                match refresh_roots(&db, &roots, &excludes) {
-                    Ok(summary) => {
-                        eprintln!(
-                            "watch: full rescan complete, {} entries, {} stale removed",
-                            summary.indexed, summary.deleted
-                        );
-                    }
-                    Err(err) => {
-                        eprintln!("watch: full rescan failed: {err}");
-                    }
-                }
+                let summary = refresh_roots(&db, &roots, &excludes)?;
+                db.set_meta(META_LAST_EVENT_ID, &current_system_id.to_string())?;
+                eprintln!(
+                    "watch: full rescan complete, {} entries, {} stale removed",
+                    summary.indexed, summary.deleted
+                );
                 drop(db);
                 current_system_id
             }

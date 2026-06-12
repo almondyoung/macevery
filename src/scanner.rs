@@ -1,9 +1,10 @@
 use crate::db::Database;
 use crate::error::Result;
 use crate::model::{FileKind, FileRecord};
+use std::borrow::Cow;
 use std::fs;
 use std::os::unix::fs::MetadataExt;
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 #[derive(Clone, Debug)]
@@ -207,27 +208,59 @@ fn classify(path: &Path, metadata: &fs::Metadata) -> FileKind {
 }
 
 fn should_exclude(path: &Path, excludes: &[String]) -> bool {
-    let path_text = path.to_string_lossy();
+    let path_components = path
+        .components()
+        .filter_map(component_text)
+        .collect::<Vec<_>>();
     for pattern in excludes {
         let pattern = pattern.trim();
         if pattern.is_empty() {
             continue;
         }
-        if pattern.contains('/') {
-            let with_leading_slash = format!("/{pattern}");
-            if path_text.ends_with(&with_leading_slash) {
+
+        let pattern_components = pattern
+            .split('/')
+            .filter(|component| !component.is_empty())
+            .collect::<Vec<_>>();
+        if pattern_components.is_empty() {
+            continue;
+        }
+
+        if pattern_components.len() == 1 {
+            if path_components
+                .iter()
+                .any(|component| component.as_ref() == pattern_components[0])
+            {
                 return true;
             }
-            let mut with_trailing = with_leading_slash;
-            with_trailing.push('/');
-            if path_text.contains(&*with_trailing) {
-                return true;
-            }
-        } else if path_text.split('/').any(|component| component == pattern) {
+            continue;
+        }
+
+        if path_components
+            .windows(pattern_components.len())
+            .any(|window| components_match(window, &pattern_components))
+        {
             return true;
         }
     }
     false
+}
+
+fn component_text(component: Component<'_>) -> Option<Cow<'_, str>> {
+    match component {
+        Component::Prefix(prefix) => Some(prefix.as_os_str().to_string_lossy()),
+        Component::Normal(value) => Some(value.to_string_lossy()),
+        Component::CurDir => Some(Cow::Borrowed(".")),
+        Component::ParentDir => Some(Cow::Borrowed("..")),
+        Component::RootDir => None,
+    }
+}
+
+fn components_match(path_components: &[Cow<'_, str>], pattern_components: &[&str]) -> bool {
+    path_components
+        .iter()
+        .zip(pattern_components.iter())
+        .all(|(path_component, pattern_component)| path_component.as_ref() == *pattern_component)
 }
 
 fn now_epoch() -> i64 {
@@ -306,6 +339,25 @@ mod tests {
         ));
         assert!(!should_exclude(
             Path::new("/Users/me/.cargo/bin/tool"),
+            &excludes
+        ));
+    }
+
+    #[test]
+    fn exclude_multi_segment_pattern_matches_relative_roots() {
+        let excludes = vec!["Library/Caches".to_string()];
+        assert!(should_exclude(Path::new("Library/Caches"), &excludes));
+        assert!(should_exclude(
+            Path::new("project/Library/Caches/com.apple.foo"),
+            &excludes
+        ));
+        assert!(should_exclude(
+            Path::new("/Library/Caches/"),
+            &["/Library/Caches/".to_string()]
+        ));
+        assert!(!should_exclude(Path::new("Library/Caches-old"), &excludes));
+        assert!(!should_exclude(
+            Path::new("SomeLibrary/Caches/file"),
             &excludes
         ));
     }
