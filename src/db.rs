@@ -154,6 +154,7 @@ impl Database {
         options: &SearchOptions,
         max_candidates: usize,
     ) -> Result<Vec<FileRecord>> {
+        let options = options.normalized();
         let tokens = options.terms();
         let mut sql = String::from(
             "SELECT id, path, basename, basename_lower, ext_lower, kind, size, mtime, ctime, dev, inode, indexed_at
@@ -169,6 +170,20 @@ impl Database {
         if let Some(kind) = &options.kind {
             clauses.push("kind = ?".to_string());
             bindings.push(Binding::Text(kind.as_str().to_string()));
+        }
+        for path_filter in &options.path_filters {
+            clauses.push("lower(path) LIKE ? ESCAPE '\\'".to_string());
+            bindings.push(Binding::Text(
+                if path_filter.contains('*') || path_filter.contains('?') {
+                    glob_to_like(path_filter)
+                } else {
+                    format!("%{}%", escape_like(path_filter))
+                },
+            ));
+        }
+        if let Some(modified_after) = options.modified_after {
+            clauses.push("mtime IS NOT NULL AND mtime >= ?".to_string());
+            bindings.push(Binding::Int(modified_after));
         }
         for token in &tokens {
             let token_lower = token.to_lowercase();

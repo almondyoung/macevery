@@ -207,6 +207,7 @@ fn parse_search_options(query: &str) -> Result<SearchOptions> {
         kind,
         path_only,
         fuzzy,
+        ..SearchOptions::default()
     })
 }
 

@@ -285,6 +285,7 @@ fn parse_search_args(args: Vec<String>) -> Result<(SearchOptions, bool)> {
             kind,
             path_only,
             fuzzy,
+            ..SearchOptions::default()
         },
         json,
     ))
@@ -389,6 +390,7 @@ fn usage_text() -> &'static str {
 Usage:\n\
   macevery index [--rebuild] [--exclude PATTERN...] PATHS...\n\
   macevery search QUERY [--limit N] [--json] [--ext EXT] [--kind file|dir|symlink|app] [--path] [--fuzzy]\n\
+  macevery search \"ext:pdf kind:file path:Downloads mtime:7d invoice\"\n\
   macevery open QUERY\n\
   macevery reveal QUERY\n\
   macevery status [--json]\n\

@@ -34,6 +34,63 @@ struct CommandOutput {
     let exitCode: Int32
 }
 
+enum PermissionStatus {
+    case unknown
+    case likelyGranted
+    case limited
+
+    var label: String {
+        switch self {
+        case .unknown: return "Unknown"
+        case .likelyGranted: return "Likely Granted"
+        case .limited: return "Limited"
+        }
+    }
+
+    var iconName: String {
+        switch self {
+        case .unknown: return "questionmark.circle"
+        case .likelyGranted: return "checkmark.circle"
+        case .limited: return "exclamationmark.triangle"
+        }
+    }
+
+    var color: Color {
+        switch self {
+        case .unknown: return .secondary
+        case .likelyGranted: return .green
+        case .limited: return .orange
+        }
+    }
+}
+
+enum ResultSortColumn {
+    case relevance
+    case name
+    case path
+    case kind
+    case size
+    case modified
+
+    var title: String {
+        switch self {
+        case .relevance: return "Rank"
+        case .name: return "Name"
+        case .path: return "Path"
+        case .kind: return "Kind"
+        case .size: return "Size"
+        case .modified: return "Modified"
+        }
+    }
+
+    var defaultAscending: Bool {
+        switch self {
+        case .relevance, .name, .path, .kind: return true
+        case .size, .modified: return false
+        }
+    }
+}
+
 final class GlobalHotKey {
     private var hotKeyRef: EventHotKeyRef?
     private var handlerRef: EventHandlerRef?
@@ -155,6 +212,9 @@ final class SearchViewModel: ObservableObject {
     @Published var isIndexing = false
     @Published var message = "Ready"
     @Published var settings = IndexSettings.defaultSettings()
+    @Published var permissionStatus: PermissionStatus = .unknown
+    @Published var sortColumn: ResultSortColumn = .relevance
+    @Published var sortAscending = ResultSortColumn.relevance.defaultAscending
 
     private let cli = MacEveryCLI()
     private var pendingSearch: DispatchWorkItem?
@@ -217,6 +277,15 @@ final class SearchViewModel: ObservableObject {
                 } catch {
                     self.message = "Status decode failed: \(error.localizedDescription)"
                 }
+            }
+        }
+    }
+
+    func refreshPermissionStatus() {
+        DispatchQueue.global(qos: .utility).async {
+            let status = Self.detectPermissionStatus()
+            DispatchQueue.main.async {
+                self.permissionStatus = status
             }
         }
     }
@@ -324,6 +393,30 @@ final class SearchViewModel: ObservableObject {
         process.executableURL = URL(fileURLWithPath: "/usr/bin/qlmanage")
         process.arguments = ["-p", result.path]
         try? process.run()
+    }
+
+    func openFullDiskAccessSettings() {
+        let urls = [
+            "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles",
+            "x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension?Privacy_AllFiles"
+        ]
+        for value in urls {
+            guard let url = URL(string: value) else { continue }
+            if NSWorkspace.shared.open(url) {
+                return
+            }
+        }
+        NSWorkspace.shared.open(URL(fileURLWithPath: "/System/Applications/System Settings.app"))
+    }
+
+    func sort(by column: ResultSortColumn) {
+        if sortColumn == column {
+            sortAscending.toggle()
+        } else {
+            sortColumn = column
+            sortAscending = column.defaultAscending
+        }
+        results = sortedResults(results)
     }
 
     func startSearchServiceIfNeeded() {
@@ -493,8 +586,9 @@ final class SearchViewModel: ObservableObject {
                 DispatchQueue.main.async {
                     guard generation == self.searchGeneration else { return }
                     self.isSearching = false
-                    self.results = decoded
-                    self.selectedPath = decoded.first?.path
+                    let sorted = self.sortedResults(decoded)
+                    self.results = sorted
+                    self.selectedPath = sorted.first?.path
                     self.message = "\(decoded.count) results • service"
                 }
             } catch {
@@ -526,8 +620,9 @@ final class SearchViewModel: ObservableObject {
                 }
                 do {
                     let decoded = try JSONDecoder().decode([SearchResult].self, from: Data(output.stdout.utf8))
-                    self.results = decoded
-                    self.selectedPath = decoded.first?.path
+                    let sorted = self.sortedResults(decoded)
+                    self.results = sorted
+                    self.selectedPath = sorted.first?.path
                     self.message = "\(decoded.count) results"
                 } catch {
                     self.message = "Search decode failed: \(error.localizedDescription)"
@@ -547,6 +642,91 @@ final class SearchViewModel: ObservableObject {
             URLQueryItem(name: "limit", value: "300")
         ]
         return components.url
+    }
+
+    private func sortedResults(_ values: [SearchResult]) -> [SearchResult] {
+        values.sorted { lhs, rhs in
+            let primary = compare(lhs, rhs, by: sortColumn, ascending: sortAscending)
+            if primary != 0 {
+                return primary < 0
+            }
+            let score = compareInt(lhs.score, rhs.score, ascending: true)
+            if score != 0 {
+                return score < 0
+            }
+            return lhs.path.localizedCaseInsensitiveCompare(rhs.path) == .orderedAscending
+        }
+    }
+
+    private func compare(_ lhs: SearchResult, _ rhs: SearchResult, by column: ResultSortColumn, ascending: Bool) -> Int {
+        switch column {
+        case .relevance:
+            return compareInt(lhs.score, rhs.score, ascending: ascending)
+        case .name:
+            return compareText(lhs.basename, rhs.basename, ascending: ascending)
+        case .path:
+            return compareText(lhs.path, rhs.path, ascending: ascending)
+        case .kind:
+            return compareText(lhs.kind, rhs.kind, ascending: ascending)
+        case .size:
+            return compareOptionalInt(lhs.size, rhs.size, ascending: ascending)
+        case .modified:
+            return compareOptionalInt(lhs.mtime, rhs.mtime, ascending: ascending)
+        }
+    }
+
+    private func compareText(_ lhs: String, _ rhs: String, ascending: Bool) -> Int {
+        let result = lhs.localizedCaseInsensitiveCompare(rhs)
+        let value: Int
+        switch result {
+        case .orderedAscending: value = -1
+        case .orderedDescending: value = 1
+        case .orderedSame: value = 0
+        }
+        return ascending ? value : -value
+    }
+
+    private func compareInt(_ lhs: Int64, _ rhs: Int64, ascending: Bool) -> Int {
+        let value: Int
+        if lhs < rhs {
+            value = -1
+        } else if lhs > rhs {
+            value = 1
+        } else {
+            value = 0
+        }
+        return ascending ? value : -value
+    }
+
+    private func compareOptionalInt(_ lhs: Int64?, _ rhs: Int64?, ascending: Bool) -> Int {
+        switch (lhs, rhs) {
+        case (nil, nil):
+            return 0
+        case (nil, _):
+            return 1
+        case (_, nil):
+            return -1
+        case let (lhs?, rhs?):
+            return compareInt(lhs, rhs, ascending: ascending)
+        }
+    }
+
+    private static func detectPermissionStatus() -> PermissionStatus {
+        let home = FileManager.default.homeDirectoryForCurrentUser
+        let probes = [
+            home.appendingPathComponent("Library/Mail"),
+            home.appendingPathComponent("Library/Messages"),
+            home.appendingPathComponent("Pictures/Photos Library.photoslibrary")
+        ]
+        let existing = probes.filter { FileManager.default.fileExists(atPath: $0.path) }
+        guard !existing.isEmpty else {
+            return .unknown
+        }
+
+        let accessible = existing.filter { url in
+            (try? FileManager.default.contentsOfDirectory(atPath: url.path)) != nil
+        }
+        return accessible.count == existing.count ? .likelyGranted : .limited
     }
 
     static func formatCount(_ value: Int64) -> String {
@@ -619,6 +799,7 @@ struct MacEveryDesktopApp: App {
                 .frame(minWidth: 980, minHeight: 620)
                 .onAppear {
                     model.installGlobalHotKey()
+                    model.refreshPermissionStatus()
                     model.refreshStatus()
                 }
         }
@@ -735,6 +916,29 @@ struct ContentView: View {
                 .disabled(model.selectedResult == nil)
             }
 
+            VStack(alignment: .leading, spacing: 8) {
+                Label("Permissions", systemImage: "lock.shield")
+                    .font(.headline)
+                Label(model.permissionStatus.label, systemImage: model.permissionStatus.iconName)
+                    .foregroundStyle(model.permissionStatus.color)
+                Text("Full Disk Access helps index protected folders.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                HStack(spacing: 10) {
+                    Button {
+                        model.openFullDiskAccessSettings()
+                    } label: {
+                        Label("Open", systemImage: "gear")
+                    }
+                    Button {
+                        model.refreshPermissionStatus()
+                    } label: {
+                        Label("Check", systemImage: "checkmark.circle")
+                    }
+                }
+            }
+
             Spacer()
 
             VStack(alignment: .leading, spacing: 8) {
@@ -764,7 +968,11 @@ struct ContentView: View {
 
     private var resultsPane: some View {
         VStack(spacing: 0) {
-            ResultHeader()
+            ResultHeader(
+                sortColumn: model.sortColumn,
+                sortAscending: model.sortAscending,
+                onSort: model.sort
+            )
             if model.results.isEmpty {
                 EmptyResultsView(
                     hasQuery: !model.query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
@@ -786,6 +994,9 @@ struct ContentView: View {
                             .onTapGesture(count: 2) {
                                 model.select(result)
                                 model.openSelection()
+                            }
+                            .onDrag {
+                                NSItemProvider(object: URL(fileURLWithPath: result.path) as NSURL)
                             }
                             .contextMenu {
                                 Button {
@@ -883,24 +1094,90 @@ struct MetricLine: View {
 }
 
 struct ResultHeader: View {
+    let sortColumn: ResultSortColumn
+    let sortAscending: Bool
+    let onSort: (ResultSortColumn) -> Void
+
     var body: some View {
         HStack(spacing: 12) {
-            Text("Name")
+            HeaderCell(
+                column: .name,
+                width: 260,
+                alignment: .leading,
+                sortColumn: sortColumn,
+                sortAscending: sortAscending,
+                onSort: onSort
+            )
                 .frame(width: 260, alignment: .leading)
-            Text("Path")
-                .frame(maxWidth: .infinity, alignment: .leading)
-            Text("Kind")
-                .frame(width: 74, alignment: .leading)
-            Text("Size")
-                .frame(width: 96, alignment: .trailing)
-            Text("Modified")
-                .frame(width: 178, alignment: .leading)
+            HeaderCell(
+                column: .path,
+                width: nil,
+                alignment: .leading,
+                sortColumn: sortColumn,
+                sortAscending: sortAscending,
+                onSort: onSort
+            )
+            .frame(maxWidth: .infinity, alignment: .leading)
+            HeaderCell(
+                column: .kind,
+                width: 74,
+                alignment: .leading,
+                sortColumn: sortColumn,
+                sortAscending: sortAscending,
+                onSort: onSort
+            )
+            .frame(width: 74, alignment: .leading)
+            HeaderCell(
+                column: .size,
+                width: 96,
+                alignment: .trailing,
+                sortColumn: sortColumn,
+                sortAscending: sortAscending,
+                onSort: onSort
+            )
+            .frame(width: 96, alignment: .trailing)
+            HeaderCell(
+                column: .modified,
+                width: 178,
+                alignment: .leading,
+                sortColumn: sortColumn,
+                sortAscending: sortAscending,
+                onSort: onSort
+            )
+            .frame(width: 178, alignment: .leading)
         }
         .font(.system(size: 11, weight: .semibold))
         .foregroundStyle(.secondary)
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
         .background(Color(nsColor: .controlBackgroundColor))
+    }
+}
+
+struct HeaderCell: View {
+    let column: ResultSortColumn
+    let width: CGFloat?
+    let alignment: Alignment
+    let sortColumn: ResultSortColumn
+    let sortAscending: Bool
+    let onSort: (ResultSortColumn) -> Void
+
+    var body: some View {
+        Button {
+            onSort(column)
+        } label: {
+            HStack(spacing: 4) {
+                Text(column.title)
+                    .lineLimit(1)
+                if sortColumn == column {
+                    Image(systemName: sortAscending ? "chevron.up" : "chevron.down")
+                        .font(.system(size: 9, weight: .bold))
+                }
+            }
+            .frame(maxWidth: width ?? .infinity, alignment: alignment)
+        }
+        .buttonStyle(.plain)
+        .help("Sort by \(column.title)")
     }
 }
 

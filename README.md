@@ -17,6 +17,10 @@ on every query.
   and Copy File actions.
 - Case-insensitive strict search by default, glob wildcards, and explicit fuzzy
   search.
+- Inline filters such as `ext:pdf`, `kind:dir`, `path:Downloads`, and
+  `mtime:7d`.
+- Sortable result columns, draggable result rows, and a Full Disk Access status
+  shortcut in the GUI.
 
 ## Build
 
@@ -76,6 +80,8 @@ Search:
 ./target/release/macevery search "pdf" --ext pdf
 ./target/release/macevery search "node" --kind dir
 ./target/release/macevery search "Downloads dmg" --path
+./target/release/macevery search "ext:pdf path:Downloads mtime:7d invoice"
+./target/release/macevery search "kind:dir code"
 ./target/release/macevery search "screenshot" --json
 ```
 
@@ -84,6 +90,15 @@ contains matching, so `leetcode` does not fuzzy-match unrelated names such as
 `sqlite_result_code.h`. `*` and `?` work as filename/path wildcards, so
 `*gpt*pdf` matches names such as `ChatGPT notes.PDF`. Fuzzy search is explicit:
 prefix the query with `~` or pass `--fuzzy`.
+
+Inline filters can be typed directly into the GUI search box or CLI query:
+
+- `ext:pdf` or `extension:pdf` limits results to an extension.
+- `kind:file`, `kind:dir`, `kind:folder`, `kind:app`, `kind:symlink`, or
+  `kind:other` limits the file kind.
+- `path:Downloads` requires the path to contain `Downloads`.
+- `mtime:7d`, `mtime:24h`, `mtime:2w`, `mtime:3mo`, or `mtime:1y` limits
+  results to recently modified items.
 
 Open or reveal the top result:
 
@@ -131,7 +146,11 @@ Keyboard and actions:
 - Space opens Quick Look through `qlmanage`.
 - Right-click a result for Open, Reveal, Quick Look, Copy Path, Copy Name, Copy
   Parent Folder, and Copy File.
+- Click column headers to sort by name, path, kind, size, or modified time.
+- Drag a result row into Finder or another app to pass the file URL.
 - Rebuild Index starts a full reindex of configured roots.
+- The sidebar shows a best-effort Full Disk Access status and opens the macOS
+  privacy settings page.
 
 ## Privacy
 

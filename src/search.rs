@@ -7,8 +7,9 @@ const DEFAULT_LIMIT: usize = 50;
 const MAX_CANDIDATES: usize = 20_000;
 
 pub fn search(db: &Database, options: &SearchOptions) -> Result<Vec<SearchResult>> {
+    let options = options.normalized();
     if options.fuzzy_enabled() {
-        return Ok(search_records(&db.all_records()?, options));
+        return Ok(search_records(&db.all_records()?, &options));
     }
 
     let limit = if options.limit == 0 {
@@ -18,10 +19,10 @@ pub fn search(db: &Database, options: &SearchOptions) -> Result<Vec<SearchResult
     };
     let max_candidates = MAX_CANDIDATES.max(limit.saturating_mul(80));
     let mut results = db
-        .candidate_records(options, max_candidates)?
+        .candidate_records(&options, max_candidates)?
         .into_iter()
         .filter_map(|record| {
-            rank_record(&record, options).map(|score| SearchResult { record, score })
+            rank_record(&record, &options).map(|score| SearchResult { record, score })
         })
         .collect::<Vec<_>>();
 
@@ -37,6 +38,7 @@ pub fn search(db: &Database, options: &SearchOptions) -> Result<Vec<SearchResult
 }
 
 pub fn search_records(records: &[FileRecord], options: &SearchOptions) -> Vec<SearchResult> {
+    let options = options.normalized();
     let limit = if options.limit == 0 {
         DEFAULT_LIMIT
     } else {
@@ -44,22 +46,8 @@ pub fn search_records(records: &[FileRecord], options: &SearchOptions) -> Vec<Se
     };
     let mut results = records
         .iter()
-        .filter(|record| {
-            options
-                .ext
-                .as_ref()
-                .map(|ext| record.ext_lower.as_deref() == Some(ext.as_str()))
-                .unwrap_or(true)
-        })
-        .filter(|record| {
-            options
-                .kind
-                .as_ref()
-                .map(|kind| &record.kind == kind)
-                .unwrap_or(true)
-        })
         .filter_map(|record| {
-            rank_record(record, options).map(|score| SearchResult {
+            rank_record(record, &options).map(|score| SearchResult {
                 record: record.clone(),
                 score,
             })
@@ -78,6 +66,10 @@ pub fn search_records(records: &[FileRecord], options: &SearchOptions) -> Vec<Se
 }
 
 pub fn rank_record(record: &FileRecord, options: &SearchOptions) -> Option<i64> {
+    if !record_matches_filters(record, options) {
+        return None;
+    }
+
     let tokens = options.terms();
     if tokens.is_empty() {
         return Some(10_000 - record.mtime.unwrap_or(0).min(9_000));
@@ -124,6 +116,42 @@ pub fn rank_record(record: &FileRecord, options: &SearchOptions) -> Option<i64> 
 
     score += (record.path.len() as i64).min(500);
     Some(score)
+}
+
+fn record_matches_filters(record: &FileRecord, options: &SearchOptions) -> bool {
+    if let Some(ext) = &options.ext {
+        if record.ext_lower.as_deref() != Some(ext.as_str()) {
+            return false;
+        }
+    }
+
+    if let Some(kind) = &options.kind {
+        if &record.kind != kind {
+            return false;
+        }
+    }
+
+    if let Some(modified_after) = options.modified_after {
+        if !record
+            .mtime
+            .map(|mtime| mtime >= modified_after)
+            .unwrap_or(false)
+        {
+            return false;
+        }
+    }
+
+    for path_filter in &options.path_filters {
+        if has_glob_syntax(path_filter) {
+            if !glob_match(record.path_lower.as_bytes(), path_filter.as_bytes()) {
+                return false;
+            }
+        } else if !record.path_lower.contains(path_filter) {
+            return false;
+        }
+    }
+
+    true
 }
 
 fn rank_text(haystack: &str, needle: &str, base: i64) -> Option<i64> {
@@ -291,5 +319,45 @@ mod tests {
             ..SearchOptions::default()
         };
         assert!(rank_record(&record("/tmp/sqlite_result_code.h"), &options).is_some());
+    }
+
+    #[test]
+    fn inline_filters_match_extension_kind_path_and_mtime() {
+        let mut pdf = record("/Users/me/Downloads/LeetCode 101.pdf");
+        pdf.mtime = Some(1_700_000_000);
+        let mut old_pdf = record("/Users/me/Downloads/Old LeetCode.pdf");
+        old_pdf.mtime = Some(1_600_000_000);
+        let mut note = record("/Users/me/Documents/LeetCode.txt");
+        note.mtime = Some(1_700_000_000);
+
+        let options = SearchOptions {
+            query: "ext:pdf path:downloads mtime:7d leetcode".to_string(),
+            limit: 10,
+            ..SearchOptions::default()
+        }
+        .normalized_at(1_700_100_000);
+
+        assert!(rank_record(&pdf, &options).is_some());
+        assert!(rank_record(&old_pdf, &options).is_none());
+        assert!(rank_record(&note, &options).is_none());
+        assert_eq!(options.terms(), vec!["leetcode"]);
+    }
+
+    #[test]
+    fn inline_kind_filter_matches_directories() {
+        let mut dir = FileRecord::new("/tmp/code".to_string(), FileKind::Directory, 1);
+        dir.mtime = Some(1);
+        let mut file = record("/tmp/code.txt");
+        file.mtime = Some(1);
+
+        let options = SearchOptions {
+            query: "kind:folder code".to_string(),
+            limit: 10,
+            ..SearchOptions::default()
+        }
+        .normalized_at(10);
+
+        assert!(rank_record(&dir, &options).is_some());
+        assert!(rank_record(&file, &options).is_none());
     }
 }
