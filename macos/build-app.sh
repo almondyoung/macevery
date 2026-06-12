@@ -5,6 +5,7 @@ ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 APP_DIR="$ROOT_DIR/.build/MacEvery.app"
 CONTENTS_DIR="$APP_DIR/Contents"
 MACOS_DIR="$CONTENTS_DIR/MacOS"
+RESOURCES_DIR="$CONTENTS_DIR/Resources"
 MODULE_CACHE="$ROOT_DIR/.build/macevery-swift-module-cache"
 ARCH="${MACEVERY_APP_ARCH:-$(uname -m)}"
 TARGET="${MACEVERY_SWIFT_TARGET:-${ARCH}-apple-macos13.0}"
@@ -12,7 +13,12 @@ TARGET="${MACEVERY_SWIFT_TARGET:-${ARCH}-apple-macos13.0}"
 cd "$ROOT_DIR"
 cargo build --release
 
-mkdir -p "$MACOS_DIR" "$MODULE_CACHE"
+mkdir -p "$MACOS_DIR" "$RESOURCES_DIR" "$MODULE_CACHE"
+
+swift \
+  -module-cache-path "$MODULE_CACHE" \
+  "$ROOT_DIR/macos/generate-icon.swift" \
+  "$RESOURCES_DIR/MacEveryIcon.icns"
 
 swiftc \
   -O \

@@ -33,10 +33,22 @@ make release
 make app
 ```
 
+Create a distributable unsigned app zip:
+
+```bash
+make dist
+```
+
 The packaged app is written to:
 
 ```text
 .build/MacEvery.app
+```
+
+The zip artifact is written to:
+
+```text
+.build/release/MacEvery-macos.zip
 ```
 
 Run the GUI:
