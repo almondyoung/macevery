@@ -2,27 +2,66 @@ use crate::db::Database;
 use crate::error::Result;
 use crate::model::{FileRecord, PathFilter, PathFilterMode, SearchOptions, SearchResult};
 use std::borrow::Cow;
+use std::env;
 
 const DEFAULT_LIMIT: usize = 50;
 const MAX_CANDIDATES: usize = 20_000;
+const DEFAULT_MAX_FUZZY_CANDIDATES: usize = 120_000;
+
+pub struct RecordView<'a> {
+    pub path: &'a str,
+    pub path_lower: &'a str,
+    pub basename: &'a str,
+    pub basename_lower: &'a str,
+    pub ext_lower: Option<&'a str>,
+    pub kind: &'a crate::model::FileKind,
+    pub mtime: Option<i64>,
+}
+
+impl<'a> From<&'a FileRecord> for RecordView<'a> {
+    fn from(record: &'a FileRecord) -> Self {
+        Self {
+            path: &record.path,
+            path_lower: &record.path_lower,
+            basename: &record.basename,
+            basename_lower: &record.basename_lower,
+            ext_lower: record.ext_lower.as_deref(),
+            kind: &record.kind,
+            mtime: record.mtime,
+        }
+    }
+}
 
 pub fn search(db: &Database, options: &SearchOptions) -> Result<Vec<SearchResult>> {
     let options = options.normalized();
     if options.fuzzy_enabled() {
-        return Ok(search_records(&db.all_records()?, &options));
+        let limit = effective_limit(options.limit);
+        let max_candidates = fuzzy_candidate_limit(limit);
+        let mut candidates = db.candidate_records(&options, max_candidates)?;
+        if candidates.is_empty() {
+            candidates = db.filtered_records(&options, max_candidates)?;
+        }
+        return Ok(rank_records(candidates, &options, limit));
     }
 
-    let limit = if options.limit == 0 {
-        DEFAULT_LIMIT
-    } else {
-        options.limit
-    };
+    let limit = effective_limit(options.limit);
     let max_candidates = MAX_CANDIDATES.max(limit.saturating_mul(80));
-    let mut results = db
-        .candidate_records(&options, max_candidates)?
+    Ok(rank_records(
+        db.candidate_records(&options, max_candidates)?,
+        &options,
+        limit,
+    ))
+}
+
+fn rank_records(
+    records: Vec<FileRecord>,
+    options: &SearchOptions,
+    limit: usize,
+) -> Vec<SearchResult> {
+    let mut results = records
         .into_iter()
         .filter_map(|record| {
-            rank_record(&record, &options).map(|score| SearchResult { record, score })
+            rank_record(&record, options).map(|score| SearchResult { record, score })
         })
         .collect::<Vec<_>>();
 
@@ -34,16 +73,12 @@ pub fn search(db: &Database, options: &SearchOptions) -> Result<Vec<SearchResult
             .then_with(|| a.record.path.cmp(&b.record.path))
     });
     results.truncate(limit);
-    Ok(results)
+    results
 }
 
 pub fn search_records(records: &[FileRecord], options: &SearchOptions) -> Vec<SearchResult> {
     let options = options.normalized();
-    let limit = if options.limit == 0 {
-        DEFAULT_LIMIT
-    } else {
-        options.limit
-    };
+    let limit = effective_limit(options.limit);
     let mut results = records
         .iter()
         .filter_map(|record| {
@@ -65,7 +100,28 @@ pub fn search_records(records: &[FileRecord], options: &SearchOptions) -> Vec<Se
     results
 }
 
+fn effective_limit(limit: usize) -> usize {
+    if limit == 0 {
+        DEFAULT_LIMIT
+    } else {
+        limit
+    }
+}
+
+fn fuzzy_candidate_limit(limit: usize) -> usize {
+    env::var("MACEVERY_FUZZY_CANDIDATES")
+        .ok()
+        .and_then(|value| value.parse::<usize>().ok())
+        .filter(|value| *value > 0)
+        .unwrap_or(DEFAULT_MAX_FUZZY_CANDIDATES)
+        .max(limit.saturating_mul(200))
+}
+
 pub fn rank_record(record: &FileRecord, options: &SearchOptions) -> Option<i64> {
+    rank_view(&RecordView::from(record), options)
+}
+
+pub fn rank_view(record: &RecordView<'_>, options: &SearchOptions) -> Option<i64> {
     if !record_matches_filters(record, options) {
         return None;
     }
@@ -118,12 +174,11 @@ pub fn rank_record(record: &FileRecord, options: &SearchOptions) -> Option<i64> 
     Some(score)
 }
 
-fn record_matches_filters(record: &FileRecord, options: &SearchOptions) -> bool {
+fn record_matches_filters(record: &RecordView<'_>, options: &SearchOptions) -> bool {
     if !options.ext_filters.is_empty()
         && !record
             .ext_lower
-            .as_ref()
-            .map(|ext| options.ext_filters.contains(ext))
+            .map(|ext| options.ext_filters.iter().any(|filter| filter == ext))
             .unwrap_or(false)
     {
         return false;
@@ -131,18 +186,22 @@ fn record_matches_filters(record: &FileRecord, options: &SearchOptions) -> bool 
 
     if record
         .ext_lower
-        .as_ref()
-        .map(|ext| options.excluded_ext_filters.contains(ext))
+        .map(|ext| {
+            options
+                .excluded_ext_filters
+                .iter()
+                .any(|filter| filter == ext)
+        })
         .unwrap_or(false)
     {
         return false;
     }
 
-    if !options.kind_filters.is_empty() && !options.kind_filters.contains(&record.kind) {
+    if !options.kind_filters.is_empty() && !options.kind_filters.contains(record.kind) {
         return false;
     }
 
-    if options.excluded_kind_filters.contains(&record.kind) {
+    if options.excluded_kind_filters.contains(record.kind) {
         return false;
     }
 
@@ -307,7 +366,11 @@ fn comparable_query_text(value: &str, case_sensitive: bool) -> Cow<'_, str> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::db::Database;
     use crate::model::{FileKind, FileRecord};
+    use std::fs;
+    use std::path::PathBuf;
+    use std::time::{SystemTime, UNIX_EPOCH};
 
     fn record(path: &str) -> FileRecord {
         FileRecord::new(path.to_string(), FileKind::File, 1)
@@ -469,5 +532,38 @@ mod tests {
 
         assert!(rank_record(&exact, &options).is_some());
         assert!(rank_record(&other, &options).is_none());
+    }
+
+    #[test]
+    fn sqlite_fuzzy_search_uses_candidates() {
+        let temp = unique_temp_dir("macevery-fuzzy-test");
+        fs::create_dir_all(&temp).unwrap();
+        let db = Database::open(temp.join("index.sqlite")).unwrap();
+        db.upsert_file(&record("/tmp/sqlite_result_code.h"))
+            .unwrap();
+        db.upsert_file(&record("/tmp/LeetCode 101.pdf")).unwrap();
+
+        let results = search(
+            &db,
+            &SearchOptions {
+                query: "~leetcode".to_string(),
+                limit: 10,
+                ..SearchOptions::default()
+            },
+        )
+        .unwrap();
+
+        assert!(results
+            .iter()
+            .any(|result| result.record.basename == "LeetCode 101.pdf"));
+        let _ = fs::remove_dir_all(temp);
+    }
+
+    fn unique_temp_dir(prefix: &str) -> PathBuf {
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|value| value.as_nanos())
+            .unwrap_or(0);
+        std::env::temp_dir().join(format!("{prefix}-{}-{nanos}", std::process::id()))
     }
 }

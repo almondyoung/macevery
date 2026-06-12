@@ -6,6 +6,7 @@ use crate::model::{FileKind, IndexStats, SearchOptions, SearchResult};
 use crate::scanner::{index_paths, IndexRequest};
 use crate::search;
 use crate::server;
+use crate::server::BackendPreference;
 use crate::watch;
 use std::fs;
 use std::path::PathBuf;
@@ -33,6 +34,7 @@ where
         "clean" => cmd_clean(args),
         "watch" => cmd_watch(args),
         "serve" => cmd_serve(args),
+        "bench" => cmd_bench(args),
         "-h" | "--help" | "help" => usage(),
         _ => Err(MacEveryError::Cli(format!(
             "unknown command '{command}'\n\n{}",
@@ -88,6 +90,9 @@ fn cmd_index(args: Vec<String>) -> Result<()> {
         },
     )?;
     println!("indexed {} entries", summary.indexed);
+    if summary.deleted > 0 {
+        println!("removed {} stale entries", summary.deleted);
+    }
     for warning in summary.warnings.iter().take(25) {
         eprintln!("warning: {warning}");
     }
@@ -188,6 +193,7 @@ fn cmd_watch(args: Vec<String>) -> Result<()> {
 
 fn cmd_serve(args: Vec<String>) -> Result<()> {
     let mut addr = None;
+    let mut backend = BackendPreference::Auto;
     let mut iter = args.into_iter();
     while let Some(arg) = iter.next() {
         match arg.as_str() {
@@ -197,6 +203,14 @@ fn cmd_serve(args: Vec<String>) -> Result<()> {
                 };
                 addr = Some(value);
             }
+            "--backend" => {
+                let Some(value) = iter.next() else {
+                    return Err(MacEveryError::Cli(
+                        "--backend requires auto, memory, compact, or sqlite".to_string(),
+                    ));
+                };
+                backend = value.parse()?;
+            }
             "-h" | "--help" => {
                 print!("{}", usage_text());
                 return Ok(());
@@ -204,10 +218,53 @@ fn cmd_serve(args: Vec<String>) -> Result<()> {
             _ if arg.starts_with("--addr=") => {
                 addr = Some(arg["--addr=".len()..].to_string());
             }
+            _ if arg.starts_with("--backend=") => {
+                backend = arg["--backend=".len()..].parse()?;
+            }
             _ => return Err(MacEveryError::Cli(format!("unknown serve option '{arg}'"))),
         }
     }
-    server::serve(addr)
+    server::serve(addr, backend)
+}
+
+fn cmd_bench(args: Vec<String>) -> Result<()> {
+    let mut roots = Vec::new();
+    let mut queries_path = None;
+    let mut rebuild = false;
+    let mut json = false;
+    let mut iter = args.into_iter();
+
+    while let Some(arg) = iter.next() {
+        match arg.as_str() {
+            "--queries" => {
+                let Some(value) = iter.next() else {
+                    return Err(MacEveryError::Cli("--queries requires a path".to_string()));
+                };
+                queries_path = Some(expand_tilde(&value));
+            }
+            "--roots" => {}
+            "--rebuild" => rebuild = true,
+            "--json" => json = true,
+            "-h" | "--help" => {
+                print!("{}", usage_text());
+                return Ok(());
+            }
+            _ if arg.starts_with("--queries=") => {
+                queries_path = Some(expand_tilde(&arg["--queries=".len()..]));
+            }
+            _ if arg.starts_with('-') => {
+                return Err(MacEveryError::Cli(format!("unknown bench option '{arg}'")));
+            }
+            _ => roots.push(expand_tilde(&arg)),
+        }
+    }
+
+    crate::bench::run(crate::bench::BenchOptions {
+        roots,
+        queries_path,
+        rebuild,
+        json,
+    })
 }
 
 fn parse_search_args(args: Vec<String>) -> Result<(SearchOptions, bool)> {
@@ -396,5 +453,6 @@ Usage:\n\
   macevery status [--json]\n\
   macevery clean\n\
   macevery watch\n\
-  macevery serve [--addr 127.0.0.1:17649]\n"
+  macevery serve [--addr 127.0.0.1:17649] [--backend auto|memory|compact|sqlite]\n\
+  macevery bench [--roots PATHS...] [--queries queries.txt] [--rebuild] [--json]\n"
 }

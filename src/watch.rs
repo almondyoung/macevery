@@ -5,6 +5,7 @@ use std::path::PathBuf;
 mod macos_impl {
     use super::*;
     use crate::db::Database;
+    use crate::process_lifetime;
     use crate::scanner::{refresh_path, refresh_roots};
     use std::collections::BTreeMap;
     use std::ffi::{CStr, CString};
@@ -93,11 +94,19 @@ mod macos_impl {
     const FLAG_USER_DROPPED: FSEventStreamEventFlags = 0x0000_0002;
     const FLAG_KERNEL_DROPPED: FSEventStreamEventFlags = 0x0000_0004;
     const FLAG_ROOT_CHANGED: FSEventStreamEventFlags = 0x0000_0020;
+    const META_LAST_EVENT_ID: &str = "watch_last_event_id";
 
     #[derive(Clone, Debug)]
     struct FsEvent {
         path: String,
         flags: FSEventStreamEventFlags,
+        id: FSEventStreamEventId,
+    }
+
+    #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+    enum WatchAction {
+        RefreshPaths,
+        RescanRoots,
     }
 
     struct CallbackState {
@@ -105,8 +114,14 @@ mod macos_impl {
     }
 
     pub fn watch_index(db_path: PathBuf) -> Result<()> {
+        process_lifetime::exit_when_parent_dies_if_requested();
+
         let db = Database::open(db_path.clone())?;
         let stats = db.stats()?;
+        let since_when = db
+            .get_meta(META_LAST_EVENT_ID)?
+            .and_then(|value| value.parse::<FSEventStreamEventId>().ok())
+            .unwrap_or(SINCE_NOW);
         drop(db);
 
         if stats.roots.is_empty() {
@@ -171,7 +186,7 @@ mod macos_impl {
                 event_callback,
                 &mut context,
                 paths,
-                SINCE_NOW,
+                since_when,
                 0.35,
                 flags,
             )
@@ -191,7 +206,15 @@ mod macos_impl {
             ));
         }
 
-        eprintln!("watching {} indexed roots", roots.len());
+        if since_when == SINCE_NOW {
+            eprintln!("watching {} indexed roots from now", roots.len());
+        } else {
+            eprintln!(
+                "watching {} indexed roots from event checkpoint {}",
+                roots.len(),
+                since_when
+            );
+        }
         unsafe {
             CFRunLoopRun();
         }
@@ -235,44 +258,83 @@ mod macos_impl {
                     }
                 }
 
-                if batch.iter().any(|event| requires_root_rescan(event.flags)) {
-                    match refresh_roots(&db, &roots, &excludes) {
+                let max_event_id = batch.iter().map(|event| event.id).max().unwrap_or(0);
+                let action = batch_action(&batch);
+                let processed = match action {
+                    WatchAction::RescanRoots => match refresh_roots(&db, &roots, &excludes) {
                         Ok(summary) => {
-                            eprintln!("watch: rescanned roots, {} entries", summary.indexed)
+                            eprintln!(
+                                "watch: rescanned roots, {} entries, {} stale removed",
+                                summary.indexed, summary.deleted
+                            );
+                            true
                         }
-                        Err(err) => eprintln!("watch: root rescan failed: {err}"),
-                    }
-                    continue;
-                }
+                        Err(err) => {
+                            eprintln!("watch: root rescan failed: {err}");
+                            false
+                        }
+                    },
+                    WatchAction::RefreshPaths => {
+                        let mut merged = BTreeMap::<String, FSEventStreamEventFlags>::new();
+                        for event in &batch {
+                            merged
+                                .entry(event.path.clone())
+                                .and_modify(|flags| *flags |= event.flags)
+                                .or_insert(event.flags);
+                        }
 
-                let mut merged = BTreeMap::<String, FSEventStreamEventFlags>::new();
-                for event in batch {
-                    merged
-                        .entry(event.path)
-                        .and_modify(|flags| *flags |= event.flags)
-                        .or_insert(event.flags);
-                }
-
-                for path in merged.keys() {
-                    match refresh_path(&db, &PathBuf::from(path), &excludes) {
-                        Ok(summary) => {
-                            if summary.indexed > 0 {
-                                eprintln!("watch: refreshed {path} ({} entries)", summary.indexed);
-                            } else {
-                                eprintln!("watch: removed {path}");
+                        let mut ok = true;
+                        for path in merged.keys() {
+                            match refresh_path(&db, &PathBuf::from(path), &excludes) {
+                                Ok(summary) => {
+                                    if summary.indexed > 0 {
+                                        eprintln!(
+                                            "watch: refreshed {path} ({} entries, {} stale removed)",
+                                            summary.indexed, summary.deleted
+                                        );
+                                    } else {
+                                        eprintln!("watch: removed {path}");
+                                    }
+                                }
+                                Err(err) => {
+                                    eprintln!("watch: refresh failed for {path}: {err}");
+                                    ok = false;
+                                }
                             }
                         }
-                        Err(err) => eprintln!("watch: refresh failed for {path}: {err}"),
+                        ok
+                    }
+                };
+
+                if processed && max_event_id > 0 {
+                    if let Err(err) = db.set_meta(META_LAST_EVENT_ID, &max_event_id.to_string()) {
+                        eprintln!("watch: failed to persist event checkpoint: {err}");
                     }
                 }
             }
         });
     }
 
-    fn requires_root_rescan(flags: FSEventStreamEventFlags) -> bool {
-        flags
+    fn batch_action(batch: &[FsEvent]) -> WatchAction {
+        if batch
+            .iter()
+            .any(|event| action_for_flags(event.flags) == WatchAction::RescanRoots)
+        {
+            WatchAction::RescanRoots
+        } else {
+            WatchAction::RefreshPaths
+        }
+    }
+
+    fn action_for_flags(flags: FSEventStreamEventFlags) -> WatchAction {
+        if flags
             & (FLAG_MUST_SCAN_SUBDIRS | FLAG_USER_DROPPED | FLAG_KERNEL_DROPPED | FLAG_ROOT_CHANGED)
             != 0
+        {
+            WatchAction::RescanRoots
+        } else {
+            WatchAction::RefreshPaths
+        }
     }
 
     unsafe extern "C" fn event_callback(
@@ -281,7 +343,7 @@ mod macos_impl {
         num_events: usize,
         event_paths: *mut c_void,
         event_flags: *const FSEventStreamEventFlags,
-        _event_ids: *const FSEventStreamEventId,
+        event_ids: *const FSEventStreamEventId,
     ) {
         if client_info.is_null() || event_paths.is_null() || event_flags.is_null() {
             return;
@@ -296,7 +358,55 @@ mod macos_impl {
             }
             let path = CStr::from_ptr(path_ptr).to_string_lossy().to_string();
             let flags = *event_flags.add(index);
-            let _ = state.sender.send(FsEvent { path, flags });
+            let id = if event_ids.is_null() {
+                0
+            } else {
+                *event_ids.add(index)
+            };
+            let _ = state.sender.send(FsEvent { path, flags, id });
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[test]
+        fn dropped_or_root_changed_events_trigger_root_rescan() {
+            assert_eq!(
+                action_for_flags(FLAG_USER_DROPPED),
+                WatchAction::RescanRoots
+            );
+            assert_eq!(
+                action_for_flags(FLAG_KERNEL_DROPPED),
+                WatchAction::RescanRoots
+            );
+            assert_eq!(
+                action_for_flags(FLAG_MUST_SCAN_SUBDIRS),
+                WatchAction::RescanRoots
+            );
+            assert_eq!(
+                action_for_flags(FLAG_ROOT_CHANGED),
+                WatchAction::RescanRoots
+            );
+            assert_eq!(action_for_flags(0), WatchAction::RefreshPaths);
+        }
+
+        #[test]
+        fn batch_uses_root_rescan_if_any_event_requires_it() {
+            let batch = vec![
+                FsEvent {
+                    path: "/tmp/a".to_string(),
+                    flags: 0,
+                    id: 10,
+                },
+                FsEvent {
+                    path: "/tmp/b".to_string(),
+                    flags: FLAG_USER_DROPPED,
+                    id: 11,
+                },
+            ];
+            assert_eq!(batch_action(&batch), WatchAction::RescanRoots);
         }
     }
 }

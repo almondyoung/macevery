@@ -2,7 +2,7 @@ use crate::error::{MacEveryError, Result};
 use std::process::Command;
 
 pub fn open_path(path: &str) -> Result<()> {
-    let status = Command::new("open").arg(path).status()?;
+    let status = Command::new("open").arg("--").arg(path).status()?;
     if status.success() {
         Ok(())
     } else {
@@ -11,7 +11,11 @@ pub fn open_path(path: &str) -> Result<()> {
 }
 
 pub fn reveal_path(path: &str) -> Result<()> {
-    let status = Command::new("open").arg("-R").arg(path).status()?;
+    let status = Command::new("open")
+        .arg("-R")
+        .arg("--")
+        .arg(path)
+        .status()?;
     if status.success() {
         Ok(())
     } else {

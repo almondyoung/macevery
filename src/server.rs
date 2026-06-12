@@ -1,36 +1,88 @@
+use crate::compact_index::CompactIndex;
 use crate::config::default_db_path;
 use crate::db::Database;
 use crate::error::{MacEveryError, Result};
 use crate::model::{FileKind, FileRecord, SearchOptions, SearchResult};
+use crate::process_lifetime;
 use crate::search;
 use std::collections::HashMap;
 use std::fs;
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::path::{Path, PathBuf};
+use std::str::FromStr;
+use std::sync::{Arc, RwLock};
+use std::thread;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 const DEFAULT_ADDR: &str = "127.0.0.1:17649";
+const DEFAULT_MEMORY_BUDGET_BYTES: u64 = 2_560 * 1024 * 1024;
+const ESTIMATED_RECORD_BYTES: u64 = 900;
+const ESTIMATED_COMPACT_RECORD_BYTES: u64 = 420;
+const REQUEST_HEADER_LIMIT: usize = 64 * 1024;
+const REQUEST_READ_TIMEOUT: Duration = Duration::from_millis(250);
+const REQUEST_TOTAL_TIMEOUT: Duration = Duration::from_secs(5);
 
-pub fn serve(addr: Option<String>) -> Result<()> {
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum BackendPreference {
+    Auto,
+    Memory,
+    Compact,
+    Sqlite,
+}
+
+impl BackendPreference {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Auto => "auto",
+            Self::Memory => "memory",
+            Self::Compact => "compact",
+            Self::Sqlite => "sqlite",
+        }
+    }
+}
+
+impl Default for BackendPreference {
+    fn default() -> Self {
+        Self::Auto
+    }
+}
+
+impl FromStr for BackendPreference {
+    type Err = MacEveryError;
+
+    fn from_str(value: &str) -> Result<Self> {
+        match value.to_lowercase().as_str() {
+            "auto" | "automatic" => Ok(Self::Auto),
+            "memory" | "fast" | "fastest" => Ok(Self::Memory),
+            "compact" | "balanced" | "compressed" => Ok(Self::Compact),
+            "sqlite" | "sql" | "low-memory" | "low_memory" => Ok(Self::Sqlite),
+            _ => Err(MacEveryError::Cli(
+                "--backend must be auto, memory, compact, or sqlite".to_string(),
+            )),
+        }
+    }
+}
+
+pub fn serve(addr: Option<String>, backend: BackendPreference) -> Result<()> {
+    process_lifetime::exit_when_parent_dies_if_requested();
+
     let addr = addr.unwrap_or_else(|| DEFAULT_ADDR.to_string());
     let db_path = default_db_path();
     let listener = TcpListener::bind(&addr)
         .map_err(|err| MacEveryError::Cli(format!("failed to bind {addr}: {err}")))?;
     eprintln!("macevery search service listening on http://{addr}");
 
-    let mut state = ServiceState::load(db_path)?;
+    let state = Arc::new(RwLock::new(ServiceState::load(db_path, backend)?));
     for stream in listener.incoming() {
         match stream {
-            Ok(mut stream) => {
-                if let Err(err) = state.handle_stream(&mut stream) {
-                    let _ = write_response(
-                        &mut stream,
-                        "500 Internal Server Error",
-                        "text/plain; charset=utf-8",
-                        &format!("{err}\n"),
-                    );
-                }
+            Ok(stream) => {
+                let state = Arc::clone(&state);
+                thread::spawn(move || {
+                    if let Err(err) = handle_stream(stream, state) {
+                        eprintln!("serve: request failed: {err}");
+                    }
+                });
             }
             Err(err) => eprintln!("serve: accept failed: {err}"),
         }
@@ -38,114 +90,305 @@ pub fn serve(addr: Option<String>) -> Result<()> {
     Ok(())
 }
 
+enum Backend {
+    Memory {
+        records: Vec<FileRecord>,
+        marker: u128,
+    },
+    Compact {
+        index: CompactIndex,
+        marker: u128,
+    },
+    Sqlite,
+}
+
+impl Backend {
+    fn mode(&self) -> &'static str {
+        match self {
+            Self::Memory { .. } => "memory",
+            Self::Compact { .. } => "compact",
+            Self::Sqlite => "sqlite",
+        }
+    }
+
+    fn marker(&self) -> Option<u128> {
+        match self {
+            Self::Memory { marker, .. } | Self::Compact { marker, .. } => Some(*marker),
+            Self::Sqlite => None,
+        }
+    }
+}
+
 struct ServiceState {
     db_path: PathBuf,
-    records: Vec<FileRecord>,
-    marker: u128,
+    requested_backend: BackendPreference,
+    backend: Backend,
+    records_total: i64,
+    estimated_memory_bytes: u64,
     loaded_at: i64,
 }
 
 impl ServiceState {
-    fn load(db_path: PathBuf) -> Result<Self> {
+    fn load(db_path: PathBuf, requested_backend: BackendPreference) -> Result<Self> {
         let db = Database::open(db_path.clone())?;
-        let records = db.all_records()?;
-        let marker = db_marker(&db_path);
-        eprintln!("serve: loaded {} indexed records", records.len());
+        let stats = db.stats()?;
+        let records_total = stats.files + stats.dirs + stats.symlinks + stats.apps + stats.others;
+        let full_memory_estimate = estimate_memory_bytes(records_total);
+        drop(db);
+
+        let selected = select_backend(requested_backend, records_total);
+        let estimated_memory_bytes = estimate_backend_memory_bytes(selected, records_total);
+        let backend = match selected {
+            BackendPreference::Memory => {
+                let db = Database::open(db_path.clone())?;
+                let records = db.all_records()?;
+                let marker = db_marker(&db_path);
+                eprintln!(
+                    "serve: loaded {} indexed records into memory ({})",
+                    records.len(),
+                    format_bytes(full_memory_estimate)
+                );
+                Backend::Memory { records, marker }
+            }
+            BackendPreference::Compact => {
+                let db = Database::open(db_path.clone())?;
+                let index = CompactIndex::load(&db)?;
+                let marker = db_marker(&db_path);
+                eprintln!(
+                    "serve: loaded {} indexed records into balanced index ({})",
+                    index.len(),
+                    format_bytes(estimated_memory_bytes)
+                );
+                Backend::Compact { index, marker }
+            }
+            BackendPreference::Sqlite | BackendPreference::Auto => {
+                eprintln!(
+                    "serve: using SQLite-backed search for {} indexed records",
+                    records_total
+                );
+                Backend::Sqlite
+            }
+        };
+
         Ok(Self {
             db_path,
-            records,
-            marker,
+            requested_backend,
+            backend,
+            records_total,
+            estimated_memory_bytes,
             loaded_at: now_epoch(),
         })
     }
 
     fn reload(&mut self) -> Result<()> {
-        let db = Database::open(self.db_path.clone())?;
-        self.records = db.all_records()?;
-        self.marker = db_marker(&self.db_path);
-        self.loaded_at = now_epoch();
-        eprintln!("serve: reloaded {} indexed records", self.records.len());
+        *self = Self::load(self.db_path.clone(), self.requested_backend)?;
         Ok(())
     }
 
     fn reload_if_changed(&mut self) -> Result<()> {
-        let marker = db_marker(&self.db_path);
-        if marker != self.marker {
-            self.reload()?;
+        if let Some(marker) = self.backend.marker() {
+            let current = db_marker(&self.db_path);
+            if current != marker {
+                self.reload()?;
+            }
         }
         Ok(())
     }
 
-    fn handle_stream(&mut self, stream: &mut TcpStream) -> Result<()> {
-        stream.set_read_timeout(Some(Duration::from_secs(2)))?;
-        let request = read_request(stream)?;
-        let Some(first_line) = request.lines().next() else {
-            return write_response(stream, "400 Bad Request", "text/plain", "bad request\n");
-        };
-        let mut parts = first_line.split_whitespace();
-        let method = parts.next().unwrap_or_default();
-        let target = parts.next().unwrap_or_default();
-        if method != "GET" && method != "POST" {
-            return write_response(
-                stream,
-                "405 Method Not Allowed",
-                "text/plain; charset=utf-8",
-                "method not allowed\n",
-            );
+    fn refresh_status(&mut self) -> Result<()> {
+        if self.backend.marker().is_some() {
+            self.reload_if_changed()?;
+        } else {
+            let db = Database::open(self.db_path.clone())?;
+            let stats = db.stats()?;
+            self.records_total =
+                stats.files + stats.dirs + stats.symlinks + stats.apps + stats.others;
+            self.estimated_memory_bytes =
+                estimate_backend_memory_bytes(BackendPreference::Sqlite, self.records_total);
+            self.loaded_at = now_epoch();
         }
+        Ok(())
+    }
 
-        let (path, query) = split_target(target);
-        match path {
-            "/health" => write_response(stream, "200 OK", "application/json", "{\"ok\":true}\n"),
-            "/reload" => {
-                self.reload()?;
-                write_response(stream, "200 OK", "application/json", &self.status_json())
+    fn search(&self, options: &SearchOptions) -> Result<Vec<SearchResult>> {
+        match &self.backend {
+            Backend::Memory { records, .. } => Ok(search::search_records(records, options)),
+            Backend::Compact { index, .. } => Ok(index.search(options)),
+            Backend::Sqlite => {
+                let db = Database::open(self.db_path.clone())?;
+                search::search(&db, options)
             }
-            "/status" => {
-                self.reload_if_changed()?;
-                write_response(stream, "200 OK", "application/json", &self.status_json())
-            }
-            "/search" => {
-                self.reload_if_changed()?;
-                let options = parse_search_options(query)?;
-                let results = search::search_records(&self.records, &options);
-                write_response(
-                    stream,
-                    "200 OK",
-                    "application/json",
-                    &search_results_json(&results),
-                )
-            }
-            _ => write_response(
-                stream,
-                "404 Not Found",
-                "text/plain; charset=utf-8",
-                "not found\n",
-            ),
         }
     }
 
     fn status_json(&self) -> String {
         format!(
-            "{{\"ok\":true,\"records\":{},\"loaded_at\":{},\"db_path\":\"{}\"}}\n",
-            self.records.len(),
+            "{{\"ok\":true,\"backend\":\"{}\",\"requested_backend\":\"{}\",\"records\":{},\"estimated_memory_bytes\":{},\"loaded_at\":{},\"db_path\":\"{}\"}}\n",
+            self.backend.mode(),
+            self.requested_backend.as_str(),
+            self.records_total,
+            self.estimated_memory_bytes,
             self.loaded_at,
             json_escape(&self.db_path.to_string_lossy())
         )
     }
 }
 
+fn handle_stream(mut stream: TcpStream, state: Arc<RwLock<ServiceState>>) -> Result<()> {
+    stream.set_read_timeout(Some(REQUEST_READ_TIMEOUT))?;
+    let request = read_request(&mut stream)?;
+    let Some(first_line) = request.lines().next() else {
+        return write_response(
+            &mut stream,
+            "400 Bad Request",
+            "text/plain",
+            "bad request\n",
+        );
+    };
+    let mut parts = first_line.split_whitespace();
+    let method = parts.next().unwrap_or_default();
+    let target = parts.next().unwrap_or_default();
+    if method != "GET" && method != "POST" {
+        return write_response(
+            &mut stream,
+            "405 Method Not Allowed",
+            "text/plain; charset=utf-8",
+            "method not allowed\n",
+        );
+    }
+
+    let (path, query) = split_target(target);
+    match path {
+        "/health" => write_response(&mut stream, "200 OK", "application/json", "{\"ok\":true}\n"),
+        "/reload" => {
+            let body = {
+                let mut state = state
+                    .write()
+                    .map_err(|_| MacEveryError::Cli("service state lock poisoned".to_string()))?;
+                state.reload()?;
+                state.status_json()
+            };
+            write_response(&mut stream, "200 OK", "application/json", &body)
+        }
+        "/status" => {
+            let body = {
+                let mut state = state
+                    .write()
+                    .map_err(|_| MacEveryError::Cli("service state lock poisoned".to_string()))?;
+                state.refresh_status()?;
+                state.status_json()
+            };
+            write_response(&mut stream, "200 OK", "application/json", &body)
+        }
+        "/search" => {
+            let options = parse_search_options(query)?;
+            {
+                let mut state = state
+                    .write()
+                    .map_err(|_| MacEveryError::Cli("service state lock poisoned".to_string()))?;
+                state.reload_if_changed()?;
+            }
+            let results = {
+                let state = state
+                    .read()
+                    .map_err(|_| MacEveryError::Cli("service state lock poisoned".to_string()))?;
+                state.search(&options)?
+            };
+            write_response(
+                &mut stream,
+                "200 OK",
+                "application/json",
+                &search_results_json(&results),
+            )
+        }
+        _ => write_response(
+            &mut stream,
+            "404 Not Found",
+            "text/plain; charset=utf-8",
+            "not found\n",
+        ),
+    }
+}
+
+fn select_backend(requested: BackendPreference, records_total: i64) -> BackendPreference {
+    match requested {
+        BackendPreference::Auto => {
+            let budget = memory_budget_bytes();
+            if estimate_memory_bytes(records_total) <= budget {
+                BackendPreference::Memory
+            } else if estimate_compact_memory_bytes(records_total) <= budget {
+                BackendPreference::Compact
+            } else {
+                BackendPreference::Sqlite
+            }
+        }
+        value => value,
+    }
+}
+
+fn estimate_memory_bytes(records_total: i64) -> u64 {
+    records_total.max(0) as u64 * ESTIMATED_RECORD_BYTES
+}
+
+fn estimate_compact_memory_bytes(records_total: i64) -> u64 {
+    records_total.max(0) as u64 * ESTIMATED_COMPACT_RECORD_BYTES
+}
+
+fn estimate_backend_memory_bytes(backend: BackendPreference, records_total: i64) -> u64 {
+    match backend {
+        BackendPreference::Auto | BackendPreference::Memory => estimate_memory_bytes(records_total),
+        BackendPreference::Compact => estimate_compact_memory_bytes(records_total),
+        BackendPreference::Sqlite => 0,
+    }
+}
+
+fn memory_budget_bytes() -> u64 {
+    std::env::var("MACEVERY_MEMORY_BUDGET_MB")
+        .ok()
+        .and_then(|value| value.parse::<u64>().ok())
+        .map(|value| value.saturating_mul(1024 * 1024))
+        .unwrap_or(DEFAULT_MEMORY_BUDGET_BYTES)
+}
+
+fn format_bytes(bytes: u64) -> String {
+    let mib = bytes as f64 / 1024.0 / 1024.0;
+    if mib >= 1024.0 {
+        format!("{:.1} GiB", mib / 1024.0)
+    } else {
+        format!("{mib:.0} MiB")
+    }
+}
+
 fn read_request(stream: &mut TcpStream) -> Result<String> {
     let mut buffer = [0u8; 8192];
     let mut data = Vec::new();
+    let started_at = SystemTime::now();
     loop {
-        let read = stream.read(&mut buffer)?;
+        if started_at.elapsed().unwrap_or_default() > REQUEST_TOTAL_TIMEOUT {
+            return Err(MacEveryError::Cli("request header timed out".to_string()));
+        }
+
+        let read = match stream.read(&mut buffer) {
+            Ok(read) => read,
+            Err(err)
+                if err.kind() == std::io::ErrorKind::WouldBlock
+                    || err.kind() == std::io::ErrorKind::TimedOut =>
+            {
+                continue;
+            }
+            Err(err) => return Err(err.into()),
+        };
         if read == 0 {
             break;
         }
         data.extend_from_slice(&buffer[..read]);
-        if data.windows(4).any(|value| value == b"\r\n\r\n") || data.len() >= 64 * 1024 {
+        if data.windows(4).any(|value| value == b"\r\n\r\n") {
             break;
+        }
+        if data.len() >= REQUEST_HEADER_LIMIT {
+            return Err(MacEveryError::Cli(
+                "request header is too large".to_string(),
+            ));
         }
     }
     String::from_utf8(data).map_err(|_| MacEveryError::Cli("request is not utf-8".to_string()))
@@ -310,7 +553,7 @@ fn db_marker(path: &Path) -> u128 {
     .iter()
     .filter_map(|path| fs::metadata(path).ok())
     .filter_map(|metadata| metadata.modified().ok())
-    .map(system_time_millis)
+    .map(system_time_nanos)
     .max()
     .unwrap_or(0)
 }
@@ -319,10 +562,10 @@ fn sidecar_path(path: &Path, suffix: &str) -> PathBuf {
     PathBuf::from(format!("{}-{suffix}", path.to_string_lossy()))
 }
 
-fn system_time_millis(value: SystemTime) -> u128 {
+fn system_time_nanos(value: SystemTime) -> u128 {
     value
         .duration_since(UNIX_EPOCH)
-        .map(|duration| duration.as_millis())
+        .map(|duration| duration.as_nanos())
         .unwrap_or(0)
 }
 
@@ -331,4 +574,49 @@ fn now_epoch() -> i64 {
         .duration_since(UNIX_EPOCH)
         .map(|value| value.as_secs() as i64)
         .unwrap_or(0)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parses_backend_preference_aliases() {
+        assert_eq!(
+            BackendPreference::from_str("automatic").unwrap(),
+            BackendPreference::Auto
+        );
+        assert_eq!(
+            BackendPreference::from_str("fastest").unwrap(),
+            BackendPreference::Memory
+        );
+        assert_eq!(
+            BackendPreference::from_str("balanced").unwrap(),
+            BackendPreference::Compact
+        );
+        assert_eq!(
+            BackendPreference::from_str("low-memory").unwrap(),
+            BackendPreference::Sqlite
+        );
+    }
+
+    #[test]
+    fn auto_backend_respects_memory_budget() {
+        let budget = memory_budget_bytes();
+        let memory_records = (budget.saturating_sub(1) / ESTIMATED_RECORD_BYTES) as i64;
+        let compact_records = (budget / ESTIMATED_RECORD_BYTES + 1) as i64;
+        let sqlite_records = (budget / ESTIMATED_COMPACT_RECORD_BYTES + 1) as i64;
+        assert_eq!(
+            select_backend(BackendPreference::Auto, sqlite_records),
+            BackendPreference::Sqlite
+        );
+        assert_eq!(
+            select_backend(BackendPreference::Auto, compact_records),
+            BackendPreference::Compact
+        );
+        assert_eq!(
+            select_backend(BackendPreference::Auto, memory_records),
+            BackendPreference::Memory
+        );
+    }
 }

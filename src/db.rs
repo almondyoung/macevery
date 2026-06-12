@@ -8,6 +8,21 @@ pub struct Database {
     conn: Connection,
 }
 
+pub struct DbRecordRef<'a> {
+    pub id: i64,
+    pub path: &'a str,
+    pub basename: &'a str,
+    pub basename_lower: &'a str,
+    pub ext_lower: Option<&'a str>,
+    pub kind: FileKind,
+    pub size: Option<i64>,
+    pub mtime: Option<i64>,
+    pub ctime: Option<i64>,
+    pub dev: Option<i64>,
+    pub inode: Option<i64>,
+    pub indexed_at: i64,
+}
+
 impl Database {
     pub fn open(path: PathBuf) -> Result<Self> {
         let conn = Connection::open(&path)?;
@@ -25,6 +40,7 @@ impl Database {
             "CREATE TABLE IF NOT EXISTS files (
                 id INTEGER PRIMARY KEY,
                 path TEXT NOT NULL UNIQUE,
+                path_lower TEXT,
                 basename TEXT NOT NULL,
                 basename_lower TEXT NOT NULL,
                 ext_lower TEXT,
@@ -50,7 +66,21 @@ impl Database {
                 key TEXT PRIMARY KEY,
                 value TEXT NOT NULL
             );",
-        )
+        )?;
+        if !self.has_column("files", "path_lower")? {
+            self.conn
+                .execute_batch("ALTER TABLE files ADD COLUMN path_lower TEXT;")?;
+        }
+        if self.get_meta("schema_path_lower_backfilled")?.as_deref() != Some("1") {
+            self.conn.execute_batch(
+                "UPDATE files SET path_lower = lower(path) WHERE path_lower IS NULL;",
+            )?;
+            self.set_meta("schema_path_lower_backfilled", "1")?;
+        }
+        self.conn.execute_batch(
+            "CREATE INDEX IF NOT EXISTS idx_files_path_lower ON files(path_lower);",
+        )?;
+        Ok(())
     }
 
     pub fn begin(&self) -> Result<()> {
@@ -106,13 +136,25 @@ impl Database {
         expect_done(stmt.step()?)
     }
 
+    pub fn get_meta(&self, key: &str) -> Result<Option<String>> {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT value FROM meta WHERE key = ?1 LIMIT 1;")?;
+        stmt.bind_text(1, Some(key))?;
+        match stmt.step()? {
+            Step::Row => Ok(stmt.column_text(0)),
+            Step::Done => Ok(None),
+        }
+    }
+
     pub fn upsert_file(&self, record: &FileRecord) -> Result<()> {
         let mut stmt = self.conn.prepare(
             "INSERT INTO files (
-                path, basename, basename_lower, ext_lower, kind, size, mtime, ctime,
+                path, path_lower, basename, basename_lower, ext_lower, kind, size, mtime, ctime,
                 dev, inode, indexed_at
-             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
+             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)
              ON CONFLICT(path) DO UPDATE SET
+                path_lower=excluded.path_lower,
                 basename=excluded.basename,
                 basename_lower=excluded.basename_lower,
                 ext_lower=excluded.ext_lower,
@@ -125,16 +167,17 @@ impl Database {
                 indexed_at=excluded.indexed_at;",
         )?;
         stmt.bind_text(1, Some(&record.path))?;
-        stmt.bind_text(2, Some(&record.basename))?;
-        stmt.bind_text(3, Some(&record.basename_lower))?;
-        stmt.bind_text(4, record.ext_lower.as_deref())?;
-        stmt.bind_text(5, Some(record.kind.as_str()))?;
-        stmt.bind_i64(6, record.size)?;
-        stmt.bind_i64(7, record.mtime)?;
-        stmt.bind_i64(8, record.ctime)?;
-        stmt.bind_i64(9, record.dev)?;
-        stmt.bind_i64(10, record.inode)?;
-        stmt.bind_i64(11, Some(record.indexed_at))?;
+        stmt.bind_text(2, Some(&record.path_lower))?;
+        stmt.bind_text(3, Some(&record.basename))?;
+        stmt.bind_text(4, Some(&record.basename_lower))?;
+        stmt.bind_text(5, record.ext_lower.as_deref())?;
+        stmt.bind_text(6, Some(record.kind.as_str()))?;
+        stmt.bind_i64(7, record.size)?;
+        stmt.bind_i64(8, record.mtime)?;
+        stmt.bind_i64(9, record.ctime)?;
+        stmt.bind_i64(10, record.dev)?;
+        stmt.bind_i64(11, record.inode)?;
+        stmt.bind_i64(12, Some(record.indexed_at))?;
         expect_done(stmt.step()?)
     }
 
@@ -149,15 +192,55 @@ impl Database {
         expect_done(stmt.step()?)
     }
 
+    pub fn delete_stale_under_roots(&self, roots: &[PathBuf], indexed_at: i64) -> Result<u64> {
+        let mut stmt = self.conn.prepare(
+            "DELETE FROM files
+             WHERE indexed_at < ?1
+               AND (path = ?2 OR path LIKE ?3 ESCAPE '\\');",
+        )?;
+        let mut deleted = 0;
+        for root in roots {
+            let root = root.to_string_lossy().trim_end_matches('/').to_string();
+            if root.is_empty() {
+                continue;
+            }
+            let prefix = format!("{}/%", escape_like(&root));
+            stmt.reset()?;
+            stmt.bind_i64(1, Some(indexed_at))?;
+            stmt.bind_text(2, Some(&root))?;
+            stmt.bind_text(3, Some(&prefix))?;
+            expect_done(stmt.step()?)?;
+            deleted += self.conn.changes();
+        }
+        Ok(deleted)
+    }
+
     pub fn candidate_records(
         &self,
         options: &SearchOptions,
         max_candidates: usize,
     ) -> Result<Vec<FileRecord>> {
+        self.candidate_records_impl(options, max_candidates, true)
+    }
+
+    pub fn filtered_records(
+        &self,
+        options: &SearchOptions,
+        max_candidates: usize,
+    ) -> Result<Vec<FileRecord>> {
+        self.candidate_records_impl(options, max_candidates, false)
+    }
+
+    fn candidate_records_impl(
+        &self,
+        options: &SearchOptions,
+        max_candidates: usize,
+        include_text_terms: bool,
+    ) -> Result<Vec<FileRecord>> {
         let options = options.normalized();
         let tokens = options.terms();
         let mut sql = String::from(
-            "SELECT id, path, basename, basename_lower, ext_lower, kind, size, mtime, ctime, dev, inode, indexed_at
+            "SELECT id, path, path_lower, basename, basename_lower, ext_lower, kind, size, mtime, ctime, dev, inode, indexed_at
              FROM files",
         );
         let mut clauses = Vec::new();
@@ -200,12 +283,12 @@ impl Database {
             }
         }
         for path_filter in &options.path_filters {
-            clauses.push("lower(path) LIKE ? ESCAPE '\\'".to_string());
+            clauses.push("path_lower LIKE ? ESCAPE '\\'".to_string());
             bindings.push(Binding::Text(path_filter_like(path_filter)));
         }
         for path_filter in &options.excluded_path_filters {
             if matches!(path_filter.mode, PathFilterMode::Contains) {
-                clauses.push("lower(path) NOT LIKE ? ESCAPE '\\'".to_string());
+                clauses.push("path_lower NOT LIKE ? ESCAPE '\\'".to_string());
                 bindings.push(Binding::Text(path_filter_like(path_filter)));
             }
         }
@@ -217,28 +300,30 @@ impl Database {
             clauses.push("(mtime IS NULL OR mtime < ?)".to_string());
             bindings.push(Binding::Int(modified_before));
         }
-        for token in &tokens {
-            let token_lower = token.to_lowercase();
-            let is_glob = token.contains('*') || token.contains('?');
-            if options.path_only {
-                clauses.push("lower(path) LIKE ? ESCAPE '\\'".to_string());
-                bindings.push(Binding::Text(if is_glob {
-                    glob_to_like(&token_lower)
+        if include_text_terms {
+            for token in &tokens {
+                let token_lower = token.to_lowercase();
+                let is_glob = token.contains('*') || token.contains('?');
+                if options.path_only {
+                    clauses.push("path_lower LIKE ? ESCAPE '\\'".to_string());
+                    bindings.push(Binding::Text(if is_glob {
+                        glob_to_like(&token_lower)
+                    } else {
+                        format!("%{}%", escape_like(&token_lower))
+                    }));
                 } else {
-                    format!("%{}%", escape_like(&token_lower))
-                }));
-            } else {
-                clauses.push(
-                    "(basename_lower LIKE ? ESCAPE '\\' OR lower(path) LIKE ? ESCAPE '\\')"
-                        .to_string(),
-                );
-                let needle = if is_glob {
-                    glob_to_like(&token_lower)
-                } else {
-                    format!("%{}%", escape_like(&token_lower))
-                };
-                bindings.push(Binding::Text(needle.clone()));
-                bindings.push(Binding::Text(needle));
+                    clauses.push(
+                        "(basename_lower LIKE ? ESCAPE '\\' OR path_lower LIKE ? ESCAPE '\\')"
+                            .to_string(),
+                    );
+                    let needle = if is_glob {
+                        glob_to_like(&token_lower)
+                    } else {
+                        format!("%{}%", escape_like(&token_lower))
+                    };
+                    bindings.push(Binding::Text(needle.clone()));
+                    bindings.push(Binding::Text(needle));
+                }
             }
         }
 
@@ -265,15 +350,40 @@ impl Database {
     }
 
     pub fn all_records(&self) -> Result<Vec<FileRecord>> {
+        let mut records = Vec::new();
+        self.for_each_record(|record| {
+            records.push(record);
+            Ok(())
+        })?;
+        Ok(records)
+    }
+
+    pub fn for_each_record<F>(&self, mut visit: F) -> Result<()>
+    where
+        F: FnMut(FileRecord) -> Result<()>,
+    {
         let mut stmt = self.conn.prepare(
-            "SELECT id, path, basename, basename_lower, ext_lower, kind, size, mtime, ctime, dev, inode, indexed_at
+            "SELECT id, path, path_lower, basename, basename_lower, ext_lower, kind, size, mtime, ctime, dev, inode, indexed_at
              FROM files;",
         )?;
-        let mut records = Vec::new();
         while let Step::Row = stmt.step()? {
-            records.push(row_to_record(&stmt)?);
+            visit(row_to_record(&stmt)?)?;
         }
-        Ok(records)
+        Ok(())
+    }
+
+    pub fn for_each_record_ref<F>(&self, mut visit: F) -> Result<()>
+    where
+        F: FnMut(DbRecordRef<'_>) -> Result<()>,
+    {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, path, path_lower, basename, basename_lower, ext_lower, kind, size, mtime, ctime, dev, inode, indexed_at
+             FROM files;",
+        )?;
+        while let Step::Row = stmt.step()? {
+            visit(row_to_record_ref(&stmt)?)?;
+        }
+        Ok(())
     }
 
     pub fn stats(&self) -> Result<IndexStats> {
@@ -319,11 +429,41 @@ impl Database {
         }
         Ok(values)
     }
+
+    fn has_column(&self, table: &str, column: &str) -> Result<bool> {
+        let mut stmt = self.conn.prepare(&format!("PRAGMA table_info({table});"))?;
+        while let Step::Row = stmt.step()? {
+            if stmt.column_text(1).as_deref() == Some(column) {
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    }
 }
 
 enum Binding {
     Text(String),
     Int(i64),
+}
+
+fn row_to_record_ref<'a>(stmt: &'a crate::sqlite::Statement<'_>) -> Result<DbRecordRef<'a>> {
+    Ok(DbRecordRef {
+        id: stmt.column_i64(0).unwrap_or(0),
+        path: stmt.column_str(1).unwrap_or_default(),
+        basename: stmt.column_str(3).unwrap_or_default(),
+        basename_lower: stmt.column_str(4).unwrap_or_default(),
+        ext_lower: stmt.column_str(5),
+        kind: stmt
+            .column_str(6)
+            .and_then(FileKind::from_str)
+            .unwrap_or(FileKind::Other),
+        size: stmt.column_i64(7),
+        mtime: stmt.column_i64(8),
+        ctime: stmt.column_i64(9),
+        dev: stmt.column_i64(10),
+        inode: stmt.column_i64(11),
+        indexed_at: stmt.column_i64(12).unwrap_or(0),
+    })
 }
 
 fn expect_done(step: Step) -> Result<()> {
@@ -337,24 +477,28 @@ fn expect_done(step: Step) -> Result<()> {
 
 fn row_to_record(stmt: &crate::sqlite::Statement<'_>) -> Result<FileRecord> {
     let kind = stmt
-        .column_text(5)
+        .column_text(6)
         .and_then(|value| FileKind::from_str(&value))
         .unwrap_or(FileKind::Other);
     let path = stmt.column_text(1).unwrap_or_default();
+    let path_lower = stmt
+        .column_text(2)
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| path.to_lowercase());
     Ok(FileRecord {
         id: stmt.column_i64(0).unwrap_or(0),
-        path_lower: path.to_lowercase(),
+        path_lower,
         path,
-        basename: stmt.column_text(2).unwrap_or_default(),
-        basename_lower: stmt.column_text(3).unwrap_or_default(),
-        ext_lower: stmt.column_text(4),
+        basename: stmt.column_text(3).unwrap_or_default(),
+        basename_lower: stmt.column_text(4).unwrap_or_default(),
+        ext_lower: stmt.column_text(5),
         kind,
-        size: stmt.column_i64(6),
-        mtime: stmt.column_i64(7),
-        ctime: stmt.column_i64(8),
-        dev: stmt.column_i64(9),
-        inode: stmt.column_i64(10),
-        indexed_at: stmt.column_i64(11).unwrap_or(0),
+        size: stmt.column_i64(7),
+        mtime: stmt.column_i64(8),
+        ctime: stmt.column_i64(9),
+        dev: stmt.column_i64(10),
+        inode: stmt.column_i64(11),
+        indexed_at: stmt.column_i64(12).unwrap_or(0),
     })
 }
 

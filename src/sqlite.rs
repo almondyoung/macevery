@@ -3,6 +3,8 @@ use std::ffi::{CStr, CString};
 use std::os::raw::{c_char, c_int, c_void};
 use std::path::Path;
 use std::ptr;
+use std::slice;
+use std::str;
 
 #[repr(C)]
 struct sqlite3 {
@@ -13,8 +15,6 @@ struct sqlite3 {
 struct sqlite3_stmt {
     _private: [u8; 0],
 }
-
-type Destructor = Option<unsafe extern "C" fn(*mut c_void)>;
 
 const SQLITE_OK: c_int = 0;
 const SQLITE_ROW: c_int = 100;
@@ -63,14 +63,16 @@ extern "C" {
         index: c_int,
         value: *const c_char,
         n: c_int,
-        destructor: Destructor,
+        destructor: Option<unsafe extern "C" fn(*mut c_void)>,
     ) -> c_int;
     fn sqlite3_bind_int64(stmt: *mut sqlite3_stmt, index: c_int, value: i64) -> c_int;
     fn sqlite3_bind_null(stmt: *mut sqlite3_stmt, index: c_int) -> c_int;
     fn sqlite3_column_count(stmt: *mut sqlite3_stmt) -> c_int;
     fn sqlite3_column_type(stmt: *mut sqlite3_stmt, index: c_int) -> c_int;
     fn sqlite3_column_text(stmt: *mut sqlite3_stmt, index: c_int) -> *const u8;
+    fn sqlite3_column_bytes(stmt: *mut sqlite3_stmt, index: c_int) -> c_int;
     fn sqlite3_column_int64(stmt: *mut sqlite3_stmt, index: c_int) -> i64;
+    fn sqlite3_changes64(db: *mut sqlite3) -> i64;
 }
 
 pub struct Connection {
@@ -150,7 +152,12 @@ impl Connection {
         Ok(Statement {
             conn: self,
             raw: raw_stmt,
+            bound_text: Vec::new(),
         })
+    }
+
+    pub fn changes(&self) -> u64 {
+        unsafe { sqlite3_changes64(self.raw).max(0) as u64 }
     }
 }
 
@@ -167,6 +174,7 @@ impl Drop for Connection {
 pub struct Statement<'conn> {
     conn: &'conn Connection,
     raw: *mut sqlite3_stmt,
+    bound_text: Vec<CString>,
 }
 
 impl Statement<'_> {
@@ -179,6 +187,7 @@ impl Statement<'_> {
         if code != SQLITE_OK {
             return Err(MacEveryError::Sqlite(unsafe { errmsg(self.conn.raw) }));
         }
+        self.bound_text.clear();
         Ok(())
     }
 
@@ -186,7 +195,9 @@ impl Statement<'_> {
         let code = if let Some(value) = value {
             let value = CString::new(value)
                 .map_err(|_| MacEveryError::Sqlite("bound text contains NUL byte".to_string()))?;
-            unsafe { sqlite3_bind_text(self.raw, index, value.as_ptr(), -1, sqlite_transient()) }
+            let ptr = value.as_ptr();
+            self.bound_text.push(value);
+            unsafe { sqlite3_bind_text(self.raw, index, ptr, -1, None) }
         } else {
             unsafe { sqlite3_bind_null(self.raw, index) }
         };
@@ -221,6 +232,10 @@ impl Statement<'_> {
     }
 
     pub fn column_text(&self, index: i32) -> Option<String> {
+        self.column_str(index).map(ToOwned::to_owned)
+    }
+
+    pub fn column_str(&self, index: i32) -> Option<&str> {
         if unsafe { sqlite3_column_type(self.raw, index) } == SQLITE_NULL {
             return None;
         }
@@ -228,8 +243,12 @@ impl Statement<'_> {
         if ptr.is_null() {
             return None;
         }
-        let value = unsafe { CStr::from_ptr(ptr.cast()) };
-        Some(value.to_string_lossy().to_string())
+        let len = unsafe { sqlite3_column_bytes(self.raw, index) };
+        if len < 0 {
+            return None;
+        }
+        let bytes = unsafe { slice::from_raw_parts(ptr, len as usize) };
+        str::from_utf8(bytes).ok()
     }
 
     pub fn column_i64(&self, index: i32) -> Option<i64> {
@@ -264,8 +283,4 @@ unsafe fn errmsg(db: *mut sqlite3) -> String {
     } else {
         CStr::from_ptr(ptr).to_string_lossy().to_string()
     }
-}
-
-fn sqlite_transient() -> Destructor {
-    unsafe { std::mem::transmute::<isize, Destructor>(-1) }
 }

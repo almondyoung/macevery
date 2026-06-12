@@ -28,10 +28,77 @@ struct IndexStatus: Codable {
     var total: Int64 { files + dirs + apps + symlinks + others }
 }
 
+struct SearchServiceStatus: Codable {
+    let backend: String
+    let requestedBackend: String
+    let records: Int64
+    let estimatedMemoryBytes: UInt64
+
+    enum CodingKeys: String, CodingKey {
+        case backend
+        case requestedBackend = "requested_backend"
+        case records
+        case estimatedMemoryBytes = "estimated_memory_bytes"
+    }
+
+    var backendLabel: String {
+        switch backend {
+        case "memory": return "Fastest"
+        case "compact": return "Balanced"
+        case "sqlite": return "Low Memory"
+        default: return backend
+        }
+    }
+
+    var memoryLabel: String {
+        ByteCountFormatter.string(fromByteCount: Int64(estimatedMemoryBytes), countStyle: .memory)
+    }
+}
+
 struct CommandOutput {
     let stdout: String
     let stderr: String
     let exitCode: Int32
+}
+
+enum SearchPerformanceMode: String, CaseIterable, Identifiable {
+    case automatic = "auto"
+    case fastest = "memory"
+    case balanced = "compact"
+    case lowMemory = "sqlite"
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .automatic: return "Automatic"
+        case .fastest: return "Fastest"
+        case .balanced: return "Balanced"
+        case .lowMemory: return "Low Memory"
+        }
+    }
+
+    var detail: String {
+        switch self {
+        case .automatic:
+            return "Chooses the best mode for your index size and available memory."
+        case .fastest:
+            return "Loads the index into memory for the lowest latency."
+        case .balanced:
+            return "Keeps an in-memory index while reducing background memory use."
+        case .lowMemory:
+            return "Uses SQLite directly to keep background memory low."
+        }
+    }
+
+    static func load() -> SearchPerformanceMode {
+        let value = UserDefaults.standard.string(forKey: "searchPerformanceMode") ?? fastest.rawValue
+        return SearchPerformanceMode(rawValue: value) ?? .automatic
+    }
+
+    func save() {
+        UserDefaults.standard.set(rawValue, forKey: "searchPerformanceMode")
+    }
 }
 
 enum PermissionStatus {
@@ -213,6 +280,13 @@ final class SearchViewModel: ObservableObject {
     @Published var message = "Ready"
     @Published var settings = IndexSettings.defaultSettings()
     @Published var permissionStatus: PermissionStatus = .unknown
+    @Published var serviceStatus: SearchServiceStatus?
+    @Published var searchPerformance = SearchPerformanceMode.load() {
+        didSet {
+            searchPerformance.save()
+            restartSearchService()
+        }
+    }
     @Published var sortColumn: ResultSortColumn = .relevance
     @Published var sortAscending = ResultSortColumn.relevance.defaultAscending
 
@@ -458,7 +532,8 @@ final class SearchViewModel: ObservableObject {
 
         let process = Process()
         process.executableURL = cli.executableURL
-        process.arguments = ["serve"]
+        process.arguments = ["serve", "--backend", searchPerformance.rawValue]
+        process.environment = childProcessEnvironment()
 
         let stdout = Pipe()
         let stderr = Pipe()
@@ -484,9 +559,40 @@ final class SearchViewModel: ObservableObject {
         do {
             try process.run()
             searchServiceProcess = process
+            refreshSearchServiceStatus(retries: 20)
         } catch {
             message = "Search service failed: \(error.localizedDescription)"
         }
+    }
+
+    func restartSearchService() {
+        stopSearchService()
+        serviceStatus = nil
+        if status?.total ?? 0 > 0 {
+            startSearchServiceIfNeeded()
+            scheduleSearch()
+        }
+    }
+
+    func refreshSearchServiceStatus(retries: Int = 0) {
+        guard let url = serviceStatusURL() else { return }
+        URLSession.shared.dataTask(with: url) { data, response, error in
+            guard error == nil,
+                  (response as? HTTPURLResponse)?.statusCode == 200,
+                  let data,
+                  let decoded = try? JSONDecoder().decode(SearchServiceStatus.self, from: data)
+            else {
+                if retries > 0 {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                        self.refreshSearchServiceStatus(retries: retries - 1)
+                    }
+                }
+                return
+            }
+            DispatchQueue.main.async {
+                self.serviceStatus = decoded
+            }
+        }.resume()
     }
 
     func stopSearchService() {
@@ -507,6 +613,7 @@ final class SearchViewModel: ObservableObject {
         let process = Process()
         process.executableURL = cli.executableURL
         process.arguments = ["watch"]
+        process.environment = childProcessEnvironment()
 
         let stdout = Pipe()
         let stderr = Pipe()
@@ -623,7 +730,9 @@ final class SearchViewModel: ObservableObject {
                     let sorted = self.sortedResults(decoded)
                     self.results = sorted
                     self.selectedPath = sorted.first?.path
-                    self.message = "\(decoded.count) results • service"
+                    let backend = self.serviceStatus?.backendLabel ?? "service"
+                    self.message = "\(decoded.count) results • \(backend)"
+                    self.refreshSearchServiceStatus()
                 }
             } catch {
                 self.performCLISearch(query, generation: generation)
@@ -676,6 +785,21 @@ final class SearchViewModel: ObservableObject {
             URLQueryItem(name: "limit", value: "300")
         ]
         return components.url
+    }
+
+    private func serviceStatusURL() -> URL? {
+        var components = URLComponents()
+        components.scheme = "http"
+        components.host = "127.0.0.1"
+        components.port = 17649
+        components.path = "/status"
+        return components.url
+    }
+
+    private func childProcessEnvironment() -> [String: String] {
+        var environment = ProcessInfo.processInfo.environment
+        environment["MACEVERY_EXIT_WITH_PARENT"] = "1"
+        return environment
     }
 
     private func sortedResults(_ values: [SearchResult]) -> [SearchResult] {
@@ -905,7 +1029,7 @@ struct ContentView: View {
         .sheet(isPresented: $showingSettings) {
             SettingsView()
                 .environmentObject(model)
-                .frame(width: 680, height: 520)
+                .frame(width: 720, height: 620)
         }
     }
 
@@ -972,6 +1096,15 @@ struct ContentView: View {
                     Label("Copy Path", systemImage: "doc.on.doc")
                 }
                 .disabled(model.selectedResult == nil)
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                Label("Search", systemImage: "speedometer")
+                    .font(.headline)
+                MetricLine(label: "Mode", value: model.serviceStatus?.backendLabel ?? model.searchPerformance.title)
+                if let serviceStatus = model.serviceStatus {
+                    MetricLine(label: "Estimate", value: serviceStatus.memoryLabel)
+                }
             }
 
             VStack(alignment: .leading, spacing: 8) {
@@ -1370,6 +1503,21 @@ struct SettingsView: View {
                     Image(systemName: "xmark")
                 }
                 .buttonStyle(.borderless)
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                Label("Search Performance", systemImage: "speedometer")
+                    .font(.headline)
+                Picker("Search Performance", selection: $model.searchPerformance) {
+                    ForEach(SearchPerformanceMode.allCases) { mode in
+                        Text(mode.title).tag(mode)
+                    }
+                }
+                .pickerStyle(.segmented)
+                Text(model.searchPerformance.detail)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             SettingsListEditor(

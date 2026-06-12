@@ -16,6 +16,7 @@ pub struct IndexRequest {
 #[derive(Clone, Debug, Default)]
 pub struct IndexSummary {
     pub indexed: u64,
+    pub deleted: u64,
     pub warnings: Vec<String>,
 }
 
@@ -35,11 +36,14 @@ pub fn index_paths(db: &Database, request: &IndexRequest) -> Result<IndexSummary
     let mut summary = IndexSummary::default();
     db.begin()?;
     let result = (|| {
-        let indexed_at = now_epoch();
+        let indexed_at = now_index_generation();
         for root in &request.roots {
             scan_path(db, root, &request.excludes, indexed_at, &mut summary)?;
         }
-        db.set_meta("last_indexed_at", &indexed_at.to_string())?;
+        if !request.rebuild {
+            cleanup_stale_if_complete(db, &request.roots, indexed_at, &mut summary)?;
+        }
+        db.set_meta("last_indexed_at", &now_epoch().to_string())?;
         Ok(())
     })();
 
@@ -59,8 +63,10 @@ pub fn refresh_path(db: &Database, path: &Path, excludes: &[String]) -> Result<I
     db.begin()?;
     let result = (|| {
         let path_text = path.to_string_lossy().to_string();
+        let indexed_at = now_index_generation();
         if path.exists() || fs::symlink_metadata(path).is_ok() {
-            scan_path(db, path, excludes, now_epoch(), &mut summary)?;
+            scan_path(db, path, excludes, indexed_at, &mut summary)?;
+            cleanup_stale_if_complete(db, &[path.to_path_buf()], indexed_at, &mut summary)?;
         } else {
             db.delete_path_prefix(&path_text)?;
         }
@@ -86,11 +92,12 @@ pub fn refresh_roots(
     let mut summary = IndexSummary::default();
     db.begin()?;
     let result = (|| {
-        let indexed_at = now_epoch();
+        let indexed_at = now_index_generation();
         for root in roots {
             scan_path(db, root, excludes, indexed_at, &mut summary)?;
         }
-        db.set_meta("last_indexed_at", &indexed_at.to_string())?;
+        cleanup_stale_if_complete(db, roots, indexed_at, &mut summary)?;
+        db.set_meta("last_indexed_at", &now_epoch().to_string())?;
         Ok(())
     })();
 
@@ -163,6 +170,22 @@ fn scan_path(
     Ok(())
 }
 
+fn cleanup_stale_if_complete(
+    db: &Database,
+    roots: &[PathBuf],
+    indexed_at: i64,
+    summary: &mut IndexSummary,
+) -> Result<()> {
+    if summary.warnings.is_empty() {
+        summary.deleted += db.delete_stale_under_roots(roots, indexed_at)?;
+    } else {
+        summary
+            .warnings
+            .push("stale cleanup skipped because the scan was incomplete".to_string());
+    }
+    Ok(())
+}
+
 fn classify(path: &Path, metadata: &fs::Metadata) -> FileKind {
     if metadata.file_type().is_symlink() {
         FileKind::Symlink
@@ -207,10 +230,20 @@ fn now_epoch() -> i64 {
         .unwrap_or(0)
 }
 
+fn now_index_generation() -> i64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|value| value.as_nanos().min(i64::MAX as u128) as i64)
+        .unwrap_or(0)
+}
+
 #[cfg(test)]
 mod tests {
-    use super::should_exclude;
-    use std::path::Path;
+    use super::{index_paths, refresh_roots, should_exclude, IndexRequest};
+    use crate::db::Database;
+    use std::fs;
+    use std::path::{Path, PathBuf};
+    use std::time::{SystemTime, UNIX_EPOCH};
 
     #[test]
     fn excludes_components_and_suffixes() {
@@ -224,5 +257,50 @@ mod tests {
             &excludes
         ));
         assert!(!should_exclude(Path::new("/tmp/project/src"), &excludes));
+    }
+
+    #[test]
+    fn refresh_roots_removes_stale_deleted_entries() {
+        let temp = unique_temp_dir("macevery-stale-test");
+        let root = temp.join("root");
+        let file = root.join("gone.txt");
+        fs::create_dir_all(&root).unwrap();
+        fs::write(&file, "hello").unwrap();
+
+        let db = Database::open(temp.join("index.sqlite")).unwrap();
+        let file_path = file.to_string_lossy().to_string();
+        index_paths(
+            &db,
+            &IndexRequest {
+                roots: vec![root.clone()],
+                excludes: Vec::new(),
+                rebuild: true,
+            },
+        )
+        .unwrap();
+        assert!(db
+            .all_records()
+            .unwrap()
+            .iter()
+            .any(|record| record.path == file_path));
+
+        fs::remove_file(&file).unwrap();
+        let summary = refresh_roots(&db, &[root], &[]).unwrap();
+        assert!(summary.deleted > 0);
+        assert!(!db
+            .all_records()
+            .unwrap()
+            .iter()
+            .any(|record| record.path == file_path));
+
+        let _ = fs::remove_dir_all(temp);
+    }
+
+    fn unique_temp_dir(prefix: &str) -> PathBuf {
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|value| value.as_nanos())
+            .unwrap_or(0);
+        std::env::temp_dir().join(format!("{prefix}-{}-{nanos}", std::process::id()))
     }
 }
