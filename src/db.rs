@@ -1,5 +1,5 @@
 use crate::error::{MacEveryError, Result};
-use crate::model::{FileKind, FileRecord, IndexStats, SearchOptions};
+use crate::model::{FileKind, FileRecord, IndexStats, PathFilter, PathFilterMode, SearchOptions};
 use crate::sqlite::{Connection, Step};
 use std::path::{Path, PathBuf};
 
@@ -163,27 +163,59 @@ impl Database {
         let mut clauses = Vec::new();
         let mut bindings: Vec<Binding> = Vec::new();
 
-        if let Some(ext) = &options.ext {
-            clauses.push("ext_lower = ?".to_string());
-            bindings.push(Binding::Text(ext.trim_start_matches('.').to_lowercase()));
+        if !options.ext_filters.is_empty() {
+            clauses.push(format!(
+                "ext_lower IN ({})",
+                placeholders(options.ext_filters.len())
+            ));
+            for ext in &options.ext_filters {
+                bindings.push(Binding::Text(ext.trim_start_matches('.').to_lowercase()));
+            }
         }
-        if let Some(kind) = &options.kind {
-            clauses.push("kind = ?".to_string());
-            bindings.push(Binding::Text(kind.as_str().to_string()));
+        if !options.excluded_ext_filters.is_empty() {
+            clauses.push(format!(
+                "(ext_lower IS NULL OR ext_lower NOT IN ({}))",
+                placeholders(options.excluded_ext_filters.len())
+            ));
+            for ext in &options.excluded_ext_filters {
+                bindings.push(Binding::Text(ext.trim_start_matches('.').to_lowercase()));
+            }
+        }
+        if !options.kind_filters.is_empty() {
+            clauses.push(format!(
+                "kind IN ({})",
+                placeholders(options.kind_filters.len())
+            ));
+            for kind in &options.kind_filters {
+                bindings.push(Binding::Text(kind.as_str().to_string()));
+            }
+        }
+        if !options.excluded_kind_filters.is_empty() {
+            clauses.push(format!(
+                "kind NOT IN ({})",
+                placeholders(options.excluded_kind_filters.len())
+            ));
+            for kind in &options.excluded_kind_filters {
+                bindings.push(Binding::Text(kind.as_str().to_string()));
+            }
         }
         for path_filter in &options.path_filters {
             clauses.push("lower(path) LIKE ? ESCAPE '\\'".to_string());
-            bindings.push(Binding::Text(
-                if path_filter.contains('*') || path_filter.contains('?') {
-                    glob_to_like(path_filter)
-                } else {
-                    format!("%{}%", escape_like(path_filter))
-                },
-            ));
+            bindings.push(Binding::Text(path_filter_like(path_filter)));
+        }
+        for path_filter in &options.excluded_path_filters {
+            if matches!(path_filter.mode, PathFilterMode::Contains) {
+                clauses.push("lower(path) NOT LIKE ? ESCAPE '\\'".to_string());
+                bindings.push(Binding::Text(path_filter_like(path_filter)));
+            }
         }
         if let Some(modified_after) = options.modified_after {
             clauses.push("mtime IS NOT NULL AND mtime >= ?".to_string());
             bindings.push(Binding::Int(modified_after));
+        }
+        if let Some(modified_before) = options.modified_before {
+            clauses.push("(mtime IS NULL OR mtime < ?)".to_string());
+            bindings.push(Binding::Int(modified_before));
         }
         for token in &tokens {
             let token_lower = token.to_lowercase();
@@ -359,4 +391,27 @@ fn glob_to_like(value: &str) -> String {
         }
     }
     out
+}
+
+fn placeholders(count: usize) -> String {
+    (0..count).map(|_| "?").collect::<Vec<_>>().join(",")
+}
+
+fn path_filter_like(filter: &PathFilter) -> String {
+    match filter.mode {
+        PathFilterMode::Contains => {
+            if filter.value.contains('*') || filter.value.contains('?') {
+                glob_to_like(&filter.value)
+            } else {
+                format!("%{}%", escape_like(&filter.value))
+            }
+        }
+        PathFilterMode::Component => {
+            if filter.value.contains('*') || filter.value.contains('?') {
+                glob_to_like(&format!("*/{}/*", filter.value))
+            } else {
+                format!("%/{}%", escape_like(&filter.value))
+            }
+        }
+    }
 }

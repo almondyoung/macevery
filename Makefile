@@ -1,6 +1,6 @@
 SHELL := /bin/zsh
 
-.PHONY: build test release app dist clean
+.PHONY: build test release app notarize dist clean
 
 build:
 	cargo build
@@ -13,6 +13,9 @@ release:
 
 app:
 	./macos/build-app.sh
+
+notarize: app
+	./macos/notarize-app.sh .build/MacEvery.app
 
 dist: app
 	mkdir -p .build/release

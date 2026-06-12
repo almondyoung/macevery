@@ -34,7 +34,32 @@ cp "$ROOT_DIR/macos/Info.plist" "$CONTENTS_DIR/Info.plist"
 chmod +x "$MACOS_DIR/MacEveryApp" "$MACOS_DIR/macevery"
 
 if command -v codesign >/dev/null 2>&1; then
-  codesign --force --deep --sign - "$APP_DIR" >/dev/null 2>&1 || true
+  if [[ -n "${MACEVERY_CODESIGN_IDENTITY:-}" ]]; then
+    codesign \
+      --force \
+      --options runtime \
+      --timestamp \
+      --entitlements "$ROOT_DIR/macos/Entitlements.plist" \
+      --sign "$MACEVERY_CODESIGN_IDENTITY" \
+      "$MACOS_DIR/macevery"
+    codesign \
+      --force \
+      --options runtime \
+      --timestamp \
+      --entitlements "$ROOT_DIR/macos/Entitlements.plist" \
+      --sign "$MACEVERY_CODESIGN_IDENTITY" \
+      "$MACOS_DIR/MacEveryApp"
+    codesign \
+      --force \
+      --options runtime \
+      --timestamp \
+      --entitlements "$ROOT_DIR/macos/Entitlements.plist" \
+      --sign "$MACEVERY_CODESIGN_IDENTITY" \
+      "$APP_DIR"
+    codesign --verify --deep --strict --verbose=2 "$APP_DIR"
+  else
+    codesign --force --deep --sign - "$APP_DIR" >/dev/null 2>&1 || true
+  fi
 fi
 
 echo "$APP_DIR"

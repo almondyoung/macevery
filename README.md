@@ -17,10 +17,11 @@ on every query.
   and Copy File actions.
 - Case-insensitive strict search by default, glob wildcards, and explicit fuzzy
   search.
-- Inline filters such as `ext:pdf`, `kind:dir`, `path:Downloads`, and
-  `mtime:7d`.
+- Inline filters such as `ext:pdf|docx`, `kind:dir`, `path:Downloads`,
+  `part:Downloads`, `!path:Library`, and `mtime:7d`.
 - Sortable result columns, draggable result rows, and a Full Disk Access status
   shortcut in the GUI.
+- Structured index root and exclude editors in Settings.
 
 ## Build
 
@@ -81,7 +82,9 @@ Search:
 ./target/release/macevery search "node" --kind dir
 ./target/release/macevery search "Downloads dmg" --path
 ./target/release/macevery search "ext:pdf path:Downloads mtime:7d invoice"
+./target/release/macevery search "ext:pdf|docx !path:Library invoice"
 ./target/release/macevery search "kind:dir code"
+./target/release/macevery search "part:Downloads \"quarterly report\""
 ./target/release/macevery search "screenshot" --json
 ```
 
@@ -93,12 +96,16 @@ prefix the query with `~` or pass `--fuzzy`.
 
 Inline filters can be typed directly into the GUI search box or CLI query:
 
-- `ext:pdf` or `extension:pdf` limits results to an extension.
-- `kind:file`, `kind:dir`, `kind:folder`, `kind:app`, `kind:symlink`, or
-  `kind:other` limits the file kind.
+- `ext:pdf`, `extension:pdf`, or `ext:pdf|docx` limits results by extension.
+- `kind:file`, `kind:dir`, `kind:folder`, `kind:app`, `kind:symlink`,
+  `kind:other`, or `kind:file|dir` limits the file kind.
 - `path:Downloads` requires the path to contain `Downloads`.
+- `part:Downloads` or `segment:Downloads` requires an exact path component.
+- Prefix a filter with `!` or `-` to exclude it, such as `!path:Library`,
+  `!ext:tmp`, or `!kind:dir`.
 - `mtime:7d`, `mtime:24h`, `mtime:2w`, `mtime:3mo`, or `mtime:1y` limits
   results to recently modified items.
+- Quoted values are supported, such as `path:"Application Support"`.
 
 Open or reveal the top result:
 
@@ -151,6 +158,31 @@ Keyboard and actions:
 - Rebuild Index starts a full reindex of configured roots.
 - The sidebar shows a best-effort Full Disk Access status and opens the macOS
   privacy settings page.
+- Settings provides structured index root and exclude rule editors.
+
+## Release Signing
+
+`make app` ad-hoc signs local builds by default. To create Developer ID signed
+and notarized builds, provide signing and Apple notarization credentials:
+
+```bash
+export MACEVERY_CODESIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)"
+export APPLE_ID="name@example.com"
+export APPLE_TEAM_ID="TEAMID"
+export APPLE_APP_SPECIFIC_PASSWORD="xxxx-xxxx-xxxx-xxxx"
+make notarize
+```
+
+GitHub Releases use the same path when these repository secrets are configured:
+
+- `MACEVERY_CODESIGN_CERTIFICATE_P12`: base64-encoded Developer ID certificate
+  `.p12`.
+- `MACEVERY_CODESIGN_CERTIFICATE_PASSWORD`: password for the `.p12`.
+- `MACEVERY_CODESIGN_IDENTITY`: Developer ID Application identity name.
+- `APPLE_ID`, `APPLE_TEAM_ID`, `APPLE_APP_SPECIFIC_PASSWORD`: notarization
+  credentials.
+
+Without those secrets, the release workflow still publishes an unsigned app zip.
 
 ## Privacy
 

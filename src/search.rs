@@ -1,6 +1,6 @@
 use crate::db::Database;
 use crate::error::Result;
-use crate::model::{FileRecord, SearchOptions, SearchResult};
+use crate::model::{FileRecord, PathFilter, PathFilterMode, SearchOptions, SearchResult};
 use std::borrow::Cow;
 
 const DEFAULT_LIMIT: usize = 50;
@@ -119,16 +119,31 @@ pub fn rank_record(record: &FileRecord, options: &SearchOptions) -> Option<i64> 
 }
 
 fn record_matches_filters(record: &FileRecord, options: &SearchOptions) -> bool {
-    if let Some(ext) = &options.ext {
-        if record.ext_lower.as_deref() != Some(ext.as_str()) {
-            return false;
-        }
+    if !options.ext_filters.is_empty()
+        && !record
+            .ext_lower
+            .as_ref()
+            .map(|ext| options.ext_filters.contains(ext))
+            .unwrap_or(false)
+    {
+        return false;
     }
 
-    if let Some(kind) = &options.kind {
-        if &record.kind != kind {
-            return false;
-        }
+    if record
+        .ext_lower
+        .as_ref()
+        .map(|ext| options.excluded_ext_filters.contains(ext))
+        .unwrap_or(false)
+    {
+        return false;
+    }
+
+    if !options.kind_filters.is_empty() && !options.kind_filters.contains(&record.kind) {
+        return false;
+    }
+
+    if options.excluded_kind_filters.contains(&record.kind) {
+        return false;
     }
 
     if let Some(modified_after) = options.modified_after {
@@ -141,17 +156,52 @@ fn record_matches_filters(record: &FileRecord, options: &SearchOptions) -> bool 
         }
     }
 
+    if let Some(modified_before) = options.modified_before {
+        if record
+            .mtime
+            .map(|mtime| mtime >= modified_before)
+            .unwrap_or(false)
+        {
+            return false;
+        }
+    }
+
     for path_filter in &options.path_filters {
-        if has_glob_syntax(path_filter) {
-            if !glob_match(record.path_lower.as_bytes(), path_filter.as_bytes()) {
-                return false;
-            }
-        } else if !record.path_lower.contains(path_filter) {
+        if !path_filter_matches(&record.path_lower, path_filter) {
+            return false;
+        }
+    }
+
+    for path_filter in &options.excluded_path_filters {
+        if path_filter_matches(&record.path_lower, path_filter) {
             return false;
         }
     }
 
     true
+}
+
+fn path_filter_matches(path: &str, filter: &PathFilter) -> bool {
+    match filter.mode {
+        PathFilterMode::Contains => {
+            if has_glob_syntax(&filter.value) {
+                glob_match(path.as_bytes(), filter.value.as_bytes())
+            } else {
+                path.contains(&filter.value)
+            }
+        }
+        PathFilterMode::Component => {
+            path.split('/')
+                .filter(|value| !value.is_empty())
+                .any(|component| {
+                    if has_glob_syntax(&filter.value) {
+                        glob_match(component.as_bytes(), filter.value.as_bytes())
+                    } else {
+                        component == filter.value
+                    }
+                })
+        }
+    }
 }
 
 fn rank_text(haystack: &str, needle: &str, base: i64) -> Option<i64> {
@@ -359,5 +409,65 @@ mod tests {
 
         assert!(rank_record(&dir, &options).is_some());
         assert!(rank_record(&file, &options).is_none());
+    }
+
+    #[test]
+    fn inline_filters_support_multi_ext_and_negated_path() {
+        let mut pdf = record("/Users/me/Downloads/Invoice.pdf");
+        pdf.mtime = Some(1);
+        let mut docx = record("/Users/me/Downloads/Invoice.docx");
+        docx.mtime = Some(1);
+        let mut library_pdf = record("/Users/me/Library/Invoice.pdf");
+        library_pdf.mtime = Some(1);
+        let mut png = record("/Users/me/Downloads/Invoice.png");
+        png.mtime = Some(1);
+
+        let options = SearchOptions {
+            query: "ext:pdf|docx !path:Library invoice".to_string(),
+            limit: 10,
+            ..SearchOptions::default()
+        }
+        .normalized_at(10);
+
+        assert!(rank_record(&pdf, &options).is_some());
+        assert!(rank_record(&docx, &options).is_some());
+        assert!(rank_record(&library_pdf, &options).is_none());
+        assert!(rank_record(&png, &options).is_none());
+    }
+
+    #[test]
+    fn path_component_filter_requires_exact_segment() {
+        let mut exact = record("/Users/me/Downloads/report.pdf");
+        exact.mtime = Some(1);
+        let mut partial = record("/Users/me/MyDownloads/report.pdf");
+        partial.mtime = Some(1);
+
+        let options = SearchOptions {
+            query: "part:Downloads report".to_string(),
+            limit: 10,
+            ..SearchOptions::default()
+        }
+        .normalized_at(10);
+
+        assert!(rank_record(&exact, &options).is_some());
+        assert!(rank_record(&partial, &options).is_none());
+    }
+
+    #[test]
+    fn quoted_filter_values_preserve_spaces() {
+        let mut exact = record("/Users/me/Library/Application Support/report.pdf");
+        exact.mtime = Some(1);
+        let mut other = record("/Users/me/Library/Application/report.pdf");
+        other.mtime = Some(1);
+
+        let options = SearchOptions {
+            query: "path:\"Application Support\" report".to_string(),
+            limit: 10,
+            ..SearchOptions::default()
+        }
+        .normalized_at(10);
+
+        assert!(rank_record(&exact, &options).is_some());
+        assert!(rank_record(&other, &options).is_none());
     }
 }

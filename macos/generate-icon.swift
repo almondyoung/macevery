@@ -82,7 +82,7 @@ func renderIcon(size: Int) -> CGImage {
     let bounds = CGRect(x: 0, y: 0, width: CGFloat(size), height: CGFloat(size))
     context.clear(bounds)
 
-    let radius = 220.0 * scale
+    let radius = 210.0 * scale
     let rounded = CGPath(
         roundedRect: bounds.insetBy(dx: 68 * scale, dy: 68 * scale),
         cornerWidth: radius,
@@ -95,8 +95,8 @@ func renderIcon(size: Int) -> CGImage {
     let gradient = CGGradient(
         colorsSpace: colorSpace,
         colors: [
-            NSColor(calibratedRed: 0.09, green: 0.35, blue: 0.96, alpha: 1).cgColor,
-            NSColor(calibratedRed: 0.02, green: 0.70, blue: 0.86, alpha: 1).cgColor
+            NSColor(calibratedRed: 0.05, green: 0.20, blue: 0.58, alpha: 1).cgColor,
+            NSColor(calibratedRed: 0.00, green: 0.56, blue: 0.70, alpha: 1).cgColor
         ] as CFArray,
         locations: [0.0, 1.0]
     )!
@@ -107,10 +107,22 @@ func renderIcon(size: Int) -> CGImage {
         options: []
     )
 
-    context.setFillColor(NSColor(calibratedWhite: 1, alpha: 0.15).cgColor)
-    context.fillEllipse(in: CGRect(x: 600 * scale, y: 590 * scale, width: 380 * scale, height: 380 * scale))
-    context.setFillColor(NSColor(calibratedWhite: 0, alpha: 0.12).cgColor)
-    context.fillEllipse(in: CGRect(x: -80 * scale, y: -60 * scale, width: 440 * scale, height: 440 * scale))
+    context.setStrokeColor(NSColor(calibratedWhite: 1, alpha: 0.15).cgColor)
+    context.setLineWidth(24 * scale)
+    context.setLineCap(.round)
+    for y in [270.0, 390.0, 510.0] {
+        context.move(to: CGPoint(x: 185 * scale, y: y * scale))
+        context.addLine(to: CGPoint(x: 500 * scale, y: y * scale))
+        context.strokePath()
+    }
+    for point in [
+        CGRect(x: 155 * scale, y: 240 * scale, width: 60 * scale, height: 60 * scale),
+        CGRect(x: 155 * scale, y: 360 * scale, width: 60 * scale, height: 60 * scale),
+        CGRect(x: 155 * scale, y: 480 * scale, width: 60 * scale, height: 60 * scale)
+    ] {
+        context.setFillColor(NSColor(calibratedWhite: 1, alpha: 0.22).cgColor)
+        context.fillEllipse(in: point)
+    }
 
     context.resetClip()
     context.addPath(rounded)
@@ -118,21 +130,23 @@ func renderIcon(size: Int) -> CGImage {
     context.setLineWidth(18 * scale)
     context.strokePath()
 
-    let lensRect = CGRect(x: 250 * scale, y: 380 * scale, width: 360 * scale, height: 360 * scale)
+    let lensRect = CGRect(x: 322 * scale, y: 360 * scale, width: 370 * scale, height: 370 * scale)
+    context.setShadow(offset: CGSize(width: 0, height: -18 * scale), blur: 34 * scale, color: NSColor.black.withAlphaComponent(0.20).cgColor)
     context.setStrokeColor(NSColor.white.cgColor)
-    context.setLineWidth(76 * scale)
+    context.setLineWidth(74 * scale)
     context.setLineCap(.round)
     context.strokeEllipse(in: lensRect)
-    context.move(to: CGPoint(x: 575 * scale, y: 365 * scale))
-    context.addLine(to: CGPoint(x: 770 * scale, y: 170 * scale))
+    context.move(to: CGPoint(x: 650 * scale, y: 345 * scale))
+    context.addLine(to: CGPoint(x: 820 * scale, y: 175 * scale))
     context.strokePath()
+    context.setShadow(offset: .zero, blur: 0, color: nil)
 
     context.setStrokeColor(NSColor(calibratedRed: 0.02, green: 0.15, blue: 0.35, alpha: 0.25).cgColor)
-    context.setLineWidth(26 * scale)
-    context.strokeEllipse(in: lensRect.insetBy(dx: -3 * scale, dy: -3 * scale))
+    context.setLineWidth(22 * scale)
+    context.strokeEllipse(in: lensRect.insetBy(dx: -5 * scale, dy: -5 * scale))
 
     let text = "M"
-    let fontSize = max(1, 250 * scale)
+    let fontSize = max(1, 230 * scale)
     let paragraph = NSMutableParagraphStyle()
     paragraph.alignment = .center
     let attributes: [NSAttributedString.Key: Any] = [
@@ -143,7 +157,7 @@ func renderIcon(size: Int) -> CGImage {
     let string = NSAttributedString(string: text, attributes: attributes)
     NSGraphicsContext.saveGraphicsState()
     NSGraphicsContext.current = NSGraphicsContext(cgContext: context, flipped: false)
-    string.draw(in: CGRect(x: 405 * scale, y: 350 * scale, width: 250 * scale, height: 280 * scale))
+    string.draw(in: CGRect(x: 390 * scale, y: 410 * scale, width: 250 * scale, height: 260 * scale))
     NSGraphicsContext.restoreGraphicsState()
 
     guard let image = context.makeImage() else {

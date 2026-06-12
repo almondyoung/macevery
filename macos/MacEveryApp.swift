@@ -395,6 +395,40 @@ final class SearchViewModel: ObservableObject {
         try? process.run()
     }
 
+    func addRoot(_ value: String) {
+        settings.rootsText = IndexSettings.addLine(value, to: settings.rootsText)
+    }
+
+    func removeRoot(_ value: String) {
+        settings.rootsText = IndexSettings.removeLine(value, from: settings.rootsText)
+    }
+
+    func chooseRootFolder() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = true
+        panel.canCreateDirectories = false
+        panel.prompt = "Add"
+        if panel.runModal() == .OK {
+            for url in panel.urls {
+                addRoot(url.path)
+            }
+        }
+    }
+
+    func addExclude(_ value: String) {
+        settings.excludesText = IndexSettings.addLine(value, to: settings.excludesText)
+    }
+
+    func removeExclude(_ value: String) {
+        settings.excludesText = IndexSettings.removeLine(value, from: settings.excludesText)
+    }
+
+    func resetDefaultExcludes() {
+        settings.excludesText = IndexSettings.defaultExcludesText()
+    }
+
     func openFullDiskAccessSettings() {
         let urls = [
             "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles",
@@ -755,36 +789,60 @@ struct IndexSettings {
                 home,
                 "/Applications"
             ].joined(separator: "\n"),
-            excludesText: [
-                "node_modules",
-                ".git",
-                "target",
-                "dist",
-                "build",
-                ".build",
-                ".Trash",
-                "Library",
-                "Library/Caches",
-                "Library/Developer",
-                "Library/Application Support",
-                "Library/Containers",
-                "Library/Group Containers",
-                "Library/Mail",
-                "Library/Messages",
-                ".cache",
-                ".npm",
-                ".cargo/registry",
-                "DerivedData",
-                ".DS_Store"
-            ].joined(separator: "\n")
+            excludesText: defaultExcludesText()
         )
     }
 
-    private func lines(from text: String) -> [String] {
+    static func defaultExcludesText() -> String {
+        [
+            "node_modules",
+            ".git",
+            "target",
+            "dist",
+            "build",
+            ".build",
+            ".Trash",
+            "Library",
+            "Library/Caches",
+            "Library/Developer",
+            "Library/Application Support",
+            "Library/Containers",
+            "Library/Group Containers",
+            "Library/Mail",
+            "Library/Messages",
+            ".cache",
+            ".npm",
+            ".cargo/registry",
+            "DerivedData",
+            ".DS_Store"
+        ].joined(separator: "\n")
+    }
+
+    static func addLine(_ value: String, to text: String) -> String {
+        let value = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !value.isEmpty else { return text }
+        var values = lines(from: text)
+        if !values.contains(value) {
+            values.append(value)
+        }
+        return values.joined(separator: "\n")
+    }
+
+    static func removeLine(_ value: String, from text: String) -> String {
+        lines(from: text)
+            .filter { $0 != value }
+            .joined(separator: "\n")
+    }
+
+    private static func lines(from text: String) -> [String] {
         text
             .split(whereSeparator: \.isNewline)
             .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
+    }
+
+    private func lines(from text: String) -> [String] {
+        Self.lines(from: text)
     }
 }
 
@@ -1296,6 +1354,8 @@ struct EmptyResultsView: View {
 struct SettingsView: View {
     @EnvironmentObject private var model: SearchViewModel
     @Environment(\.dismiss) private var dismiss
+    @State private var rootDraft = ""
+    @State private var excludeDraft = ""
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -1312,23 +1372,32 @@ struct SettingsView: View {
                 .buttonStyle(.borderless)
             }
 
-            VStack(alignment: .leading, spacing: 8) {
-                Label("Index Roots", systemImage: "folder.badge.gearshape")
-                    .font(.headline)
-                TextEditor(text: $model.settings.rootsText)
-                    .font(.system(.body, design: .monospaced))
-                    .frame(minHeight: 180)
-                    .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.secondary.opacity(0.25)))
-            }
+            SettingsListEditor(
+                title: "Index Roots",
+                systemImage: "folder.badge.gearshape",
+                values: model.settings.roots,
+                draft: $rootDraft,
+                placeholder: "/Users/name",
+                onAdd: { value in model.addRoot(value) },
+                onRemove: { value in model.removeRoot(value) },
+                onPick: { model.chooseRootFolder() }
+            )
+            .frame(minHeight: 205)
 
-            VStack(alignment: .leading, spacing: 8) {
-                Label("Excludes", systemImage: "line.3.horizontal.decrease.circle")
-                    .font(.headline)
-                TextEditor(text: $model.settings.excludesText)
-                    .font(.system(.body, design: .monospaced))
-                    .frame(minHeight: 130)
-                    .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.secondary.opacity(0.25)))
-            }
+            SettingsListEditor(
+                title: "Excludes",
+                systemImage: "line.3.horizontal.decrease.circle",
+                values: model.settings.excludes,
+                draft: $excludeDraft,
+                placeholder: "Library/Caches",
+                onAdd: { value in model.addExclude(value) },
+                onRemove: { value in model.removeExclude(value) },
+                onPick: nil,
+                trailingAction: {
+                    model.resetDefaultExcludes()
+                }
+            )
+            .frame(minHeight: 175)
 
             HStack {
                 Spacer()
@@ -1345,5 +1414,90 @@ struct SettingsView: View {
             }
         }
         .padding(20)
+    }
+}
+
+struct SettingsListEditor: View {
+    let title: String
+    let systemImage: String
+    let values: [String]
+    @Binding var draft: String
+    let placeholder: String
+    let onAdd: (String) -> Void
+    let onRemove: (String) -> Void
+    let onPick: (() -> Void)?
+    var trailingAction: (() -> Void)? = nil
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Label(title, systemImage: systemImage)
+                    .font(.headline)
+                Spacer()
+                if let trailingAction {
+                    Button {
+                        trailingAction()
+                    } label: {
+                        Image(systemName: "arrow.counterclockwise")
+                    }
+                    .buttonStyle(.borderless)
+                    .help("Reset")
+                }
+            }
+
+            HStack(spacing: 8) {
+                TextField(placeholder, text: $draft)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(.body, design: .monospaced))
+                    .onSubmit(addDraft)
+                Button {
+                    addDraft()
+                } label: {
+                    Image(systemName: "plus")
+                }
+                .disabled(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .help("Add")
+                if let onPick {
+                    Button {
+                        onPick()
+                    } label: {
+                        Image(systemName: "folder.badge.plus")
+                    }
+                    .help("Choose Folder")
+                }
+            }
+
+            ScrollView {
+                LazyVStack(spacing: 0) {
+                    ForEach(values, id: \.self) { value in
+                        HStack(spacing: 8) {
+                            Text(value)
+                                .font(.system(.body, design: .monospaced))
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                            Spacer()
+                            Button {
+                                onRemove(value)
+                            } label: {
+                                Image(systemName: "minus.circle")
+                            }
+                            .buttonStyle(.borderless)
+                            .help("Remove")
+                        }
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 5)
+                        Divider()
+                    }
+                }
+            }
+            .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.secondary.opacity(0.25)))
+        }
+    }
+
+    private func addDraft() {
+        let value = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !value.isEmpty else { return }
+        onAdd(value)
+        draft = ""
     }
 }
