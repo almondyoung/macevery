@@ -1013,6 +1013,7 @@ struct MacEveryDesktopApp: App {
 struct ContentView: View {
     @EnvironmentObject private var model: SearchViewModel
     @State private var showingSettings = false
+    @State private var showingOnboarding = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -1030,6 +1031,31 @@ struct ContentView: View {
             SettingsView()
                 .environmentObject(model)
                 .frame(width: 720, height: 620)
+        }
+        .sheet(isPresented: $showingOnboarding) {
+            OnboardingView(
+                onOpenFullDiskAccess: {
+                    model.openFullDiskAccessSettings()
+                },
+                onOpenSettings: {
+                    completeOnboarding()
+                    showingSettings = true
+                },
+                onRebuild: {
+                    completeOnboarding()
+                    model.rebuildIndex()
+                },
+                onDone: {
+                    completeOnboarding()
+                }
+            )
+            .environmentObject(model)
+            .frame(width: 560, height: 430)
+        }
+        .onAppear {
+            if !UserDefaults.standard.bool(forKey: "hasCompletedOnboarding") {
+                showingOnboarding = true
+            }
         }
     }
 
@@ -1266,6 +1292,11 @@ struct ContentView: View {
         .padding(.vertical, 7)
         .background(Color(nsColor: .windowBackgroundColor))
     }
+
+    private func completeOnboarding() {
+        UserDefaults.standard.set(true, forKey: "hasCompletedOnboarding")
+        showingOnboarding = false
+    }
 }
 
 struct MetricLine: View {
@@ -1481,6 +1512,126 @@ struct EmptyResultsView: View {
         if isIndexing { return "Indexing" }
         if !hasIndex { return "No Index Yet" }
         return hasQuery ? "No Results" : "No Query"
+    }
+}
+
+struct OnboardingView: View {
+    @EnvironmentObject private var model: SearchViewModel
+    let onOpenFullDiskAccess: () -> Void
+    let onOpenSettings: () -> Void
+    let onRebuild: () -> Void
+    let onDone: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("MacEvery")
+                        .font(.title2)
+                        .fontWeight(.semibold)
+                    Text("Local filename and path search")
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                Button {
+                    onDone()
+                } label: {
+                    Image(systemName: "xmark")
+                }
+                .buttonStyle(.borderless)
+                .help("Close")
+            }
+
+            VStack(alignment: .leading, spacing: 12) {
+                OnboardingRow(
+                    title: "Full Disk Access",
+                    value: model.permissionStatus.label,
+                    systemImage: model.permissionStatus.iconName,
+                    color: model.permissionStatus.color
+                ) {
+                    Button {
+                        onOpenFullDiskAccess()
+                    } label: {
+                        Label("Open", systemImage: "gear")
+                    }
+                }
+
+                OnboardingRow(
+                    title: "Index Roots",
+                    value: "\(model.settings.roots.count) folders",
+                    systemImage: "folder",
+                    color: .blue
+                ) {
+                    Button {
+                        onOpenSettings()
+                    } label: {
+                        Label("Edit", systemImage: "slider.horizontal.3")
+                    }
+                }
+
+                OnboardingRow(
+                    title: "Index",
+                    value: SearchViewModel.formatCount(model.status?.total ?? 0),
+                    systemImage: "externaldrive.connected.to.line.below",
+                    color: .secondary
+                ) {
+                    Button {
+                        onRebuild()
+                    } label: {
+                        Label("Rebuild", systemImage: "arrow.clockwise")
+                    }
+                    .disabled(model.isIndexing)
+                }
+            }
+
+            Spacer()
+
+            HStack {
+                Button {
+                    onOpenSettings()
+                } label: {
+                    Label("Settings", systemImage: "slider.horizontal.3")
+                }
+                Spacer()
+                Button("Skip") {
+                    onDone()
+                }
+                Button {
+                    onRebuild()
+                } label: {
+                    Label("Build Index", systemImage: "arrow.clockwise")
+                }
+                .keyboardShortcut(.defaultAction)
+                .disabled(model.isIndexing || model.settings.roots.isEmpty)
+            }
+        }
+        .padding(22)
+    }
+}
+
+struct OnboardingRow<Accessory: View>: View {
+    let title: String
+    let value: String
+    let systemImage: String
+    let color: Color
+    @ViewBuilder let accessory: () -> Accessory
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: systemImage)
+                .foregroundStyle(color)
+                .frame(width: 22)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .fontWeight(.medium)
+                Text(value)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+            Spacer()
+            accessory()
+        }
+        .padding(.vertical, 8)
     }
 }
 

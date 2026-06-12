@@ -11,7 +11,8 @@ on every query.
 - Recursive indexing of files, directories, symlinks, and `.app` bundles.
 - Local SQLite database at `~/.local/share/macevery/index.sqlite`.
 - FSEvents-based `watch` command for incremental index updates.
-- Local in-memory search service used by the GUI for lower-latency queries.
+- Local search service used by the GUI with Fastest, Balanced, Automatic, and
+  Low Memory backends.
 - Global `Ctrl+Space` hotkey to bring the search window forward.
 - Open, Reveal in Finder, Quick Look, Copy Path, Copy Name, Copy Parent Folder,
   and Copy File actions.
@@ -22,6 +23,22 @@ on every query.
 - Sortable result columns, draggable result rows, and a Full Disk Access status
   shortcut in the GUI.
 - Structured index root and exclude editors in Settings.
+
+## Quick Start
+
+1. Download `MacEvery-macos.zip` from GitHub Releases.
+2. Unzip it and move `MacEvery.app` to `/Applications`.
+3. Open the app. If macOS blocks an unsigned build, right-click the app and
+   choose Open, or allow it in System Settings.
+4. Grant Full Disk Access if you want protected folders such as Mail, Messages,
+   Photos, and parts of `~/Library` to be indexed.
+5. Review index roots in Settings. The default roots are your home folder and
+   `/Applications`.
+6. Click Rebuild Index.
+7. Search from the main window, or press `Ctrl+Space` to bring MacEvery forward.
+
+MacEvery searches its local index. If a file is not indexed yet, rebuild or wait
+for the FSEvents watcher to refresh it.
 
 ## Build
 
@@ -131,16 +148,44 @@ Start incremental indexing for the already indexed roots:
 Start the local in-memory search service:
 
 ```bash
-./target/release/macevery serve
+./target/release/macevery serve --backend memory
 curl 'http://127.0.0.1:17649/search?q=invoice%20pdf&limit=20'
 ```
+
+Search service backends:
+
+- `memory`: fastest. Loads full records into memory.
+- `compact`: balanced. Keeps an in-memory compressed index.
+- `sqlite`: low memory. Queries SQLite directly.
+- `auto`: chooses a backend from index size and memory budget.
+
+The GUI defaults to `memory` because MacEvery is optimized for fast local use.
+Switch to Balanced or Low Memory in Settings if background memory matters more.
+For `auto`, set `MACEVERY_MEMORY_BUDGET_MB` to override the default budget.
+
+Benchmark the current index:
+
+```bash
+./target/release/macevery bench
+./target/release/macevery bench --json
+./target/release/macevery bench --queries queries.txt
+./target/release/macevery bench --rebuild ~/Documents /Applications
+```
+
+The benchmark reports index size, database size, query p50/p95/p99, and the
+slowest queries. It is intended for comparing backend and query changes over
+time.
 
 ## GUI
 
 The GUI does not live-scan the filesystem for search. It starts the bundled
-`macevery serve` process for low-latency in-memory search and `macevery watch`
-so FSEvents can keep the index fresh. If the service is unavailable, the GUI
-falls back to the CLI search path.
+`macevery serve` process for low-latency search and `macevery watch` so FSEvents
+can keep the index fresh. If the service is unavailable, the GUI falls back to
+the CLI search path.
+
+On first launch, MacEvery shows a compact setup panel for Full Disk Access,
+index roots, and index rebuild. You can reopen those controls from the sidebar
+and Settings.
 
 Keyboard and actions:
 
@@ -159,6 +204,63 @@ Keyboard and actions:
 - The sidebar shows a best-effort Full Disk Access status and opens the macOS
   privacy settings page.
 - Settings provides structured index root and exclude rule editors.
+
+## Known Limitations
+
+- Release artifacts may be unsigned unless signing secrets are configured.
+  Unsigned builds trigger macOS Gatekeeper warnings.
+- Full Disk Access is required for protected folders. Without it, those folders
+  may be skipped during indexing.
+- The index stores local file paths and metadata in SQLite and is not encrypted.
+- iCloud Drive, network volumes, and removable disks depend on macOS reporting
+  paths and FSEvents consistently.
+- FSEvents checkpointing is best-effort. Dropped event flags trigger root
+  rescans, but offline volume semantics are not yet modeled.
+- Unicode normalization is not fully normalized across NFC/NFD spellings yet.
+
+## Troubleshooting
+
+If search returns nothing:
+
+```bash
+./target/release/macevery status
+./target/release/macevery index --rebuild ~ /Applications
+```
+
+If a newly created or deleted file is stale, use Refresh in the GUI or restart
+the watcher:
+
+```bash
+./target/release/macevery watch
+```
+
+If the GUI cannot connect to the service, it should fall back to CLI search. You
+can also verify the service manually:
+
+```bash
+./target/release/macevery serve --backend memory
+curl 'http://127.0.0.1:17649/status'
+```
+
+If the database looks corrupted or you want a clean rebuild:
+
+```bash
+./target/release/macevery clean
+./target/release/macevery index --rebuild ~ /Applications
+```
+
+If protected folders are missing, grant Full Disk Access to MacEvery and rebuild
+the index.
+
+## Homebrew
+
+A Homebrew cask is not published yet. The intended future install path is:
+
+```bash
+brew install --cask almondyoung/tap/macevery
+```
+
+Until then, use the release zip or build from source with `make dist`.
 
 ## Release Signing
 
