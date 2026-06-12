@@ -11,6 +11,7 @@ use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, RwLock};
 use std::thread;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -19,6 +20,7 @@ const DEFAULT_ADDR: &str = "127.0.0.1:17649";
 const DEFAULT_MEMORY_BUDGET_BYTES: u64 = 2_560 * 1024 * 1024;
 const ESTIMATED_RECORD_BYTES: u64 = 900;
 const ESTIMATED_COMPACT_RECORD_BYTES: u64 = 420;
+const DEFAULT_MAX_ACTIVE_REQUESTS: usize = 64;
 const REQUEST_HEADER_LIMIT: usize = 64 * 1024;
 const REQUEST_READ_TIMEOUT: Duration = Duration::from_millis(250);
 const REQUEST_TOTAL_TIMEOUT: Duration = Duration::from_secs(5);
@@ -74,11 +76,26 @@ pub fn serve(addr: Option<String>, backend: BackendPreference) -> Result<()> {
     eprintln!("macevery search service listening on http://{addr}");
 
     let state = Arc::new(RwLock::new(ServiceState::load(db_path, backend)?));
+    let active_requests = Arc::new(AtomicUsize::new(0));
+    let max_active_requests = max_active_requests();
     for stream in listener.incoming() {
         match stream {
-            Ok(stream) => {
+            Ok(mut stream) => {
+                if !try_acquire_request_slot(&active_requests, max_active_requests) {
+                    let _ = write_response(
+                        &mut stream,
+                        "503 Service Unavailable",
+                        "text/plain; charset=utf-8",
+                        "server busy\n",
+                    );
+                    continue;
+                }
                 let state = Arc::clone(&state);
+                let guard = ActiveRequestGuard {
+                    active: Arc::clone(&active_requests),
+                };
                 thread::spawn(move || {
+                    let _guard = guard;
                     if let Err(err) = handle_stream(stream, state) {
                         eprintln!("serve: request failed: {err}");
                     }
@@ -88,6 +105,16 @@ pub fn serve(addr: Option<String>, backend: BackendPreference) -> Result<()> {
         }
     }
     Ok(())
+}
+
+struct ActiveRequestGuard {
+    active: Arc<AtomicUsize>,
+}
+
+impl Drop for ActiveRequestGuard {
+    fn drop(&mut self) {
+        self.active.fetch_sub(1, Ordering::AcqRel);
+    }
 }
 
 enum Backend {
@@ -348,6 +375,29 @@ fn memory_budget_bytes() -> u64 {
         .and_then(|value| value.parse::<u64>().ok())
         .map(|value| value.saturating_mul(1024 * 1024))
         .unwrap_or(DEFAULT_MEMORY_BUDGET_BYTES)
+}
+
+fn max_active_requests() -> usize {
+    std::env::var("MACEVERY_MAX_ACTIVE_REQUESTS")
+        .ok()
+        .and_then(|value| value.parse::<usize>().ok())
+        .filter(|value| *value > 0)
+        .unwrap_or(DEFAULT_MAX_ACTIVE_REQUESTS)
+}
+
+fn try_acquire_request_slot(active: &AtomicUsize, limit: usize) -> bool {
+    loop {
+        let current = active.load(Ordering::Acquire);
+        if current >= limit {
+            return false;
+        }
+        if active
+            .compare_exchange(current, current + 1, Ordering::AcqRel, Ordering::Acquire)
+            .is_ok()
+        {
+            return true;
+        }
+    }
 }
 
 fn format_bytes(bytes: u64) -> String {
@@ -618,5 +668,14 @@ mod tests {
             select_backend(BackendPreference::Auto, memory_records),
             BackendPreference::Memory
         );
+    }
+
+    #[test]
+    fn request_slot_limit_is_enforced() {
+        let active = AtomicUsize::new(0);
+        assert!(try_acquire_request_slot(&active, 2));
+        assert!(try_acquire_request_slot(&active, 2));
+        assert!(!try_acquire_request_slot(&active, 2));
+        assert_eq!(active.load(Ordering::Acquire), 2);
     }
 }
