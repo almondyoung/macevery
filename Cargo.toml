@@ -1,6 +1,6 @@
 [package]
 name = "macevery"
-version = "0.1.0"
+version = "0.1.3"
 edition = "2021"
 description = "Everything-like local filename/path search for macOS"
 license = "MIT"
