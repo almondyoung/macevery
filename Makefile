@@ -17,7 +17,7 @@ app:
 dist: app
 	mkdir -p .build/release
 	COPYFILE_DISABLE=1 ditto -c -k --norsrc --keepParent .build/MacEvery.app .build/release/MacEvery-macos.zip
-	shasum -a 256 .build/release/MacEvery-macos.zip > .build/release/MacEvery-macos.zip.sha256
+	cd .build/release && shasum -a 256 MacEvery-macos.zip > MacEvery-macos.zip.sha256
 
 clean:
 	cargo clean

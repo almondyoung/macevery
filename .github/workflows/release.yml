@@ -25,7 +25,8 @@ jobs:
         run: |
           mkdir -p .build/release
           COPYFILE_DISABLE=1 ditto -c -k --norsrc --keepParent .build/MacEvery.app ".build/release/MacEvery-${GITHUB_REF_NAME}-macos.zip"
-          shasum -a 256 ".build/release/MacEvery-${GITHUB_REF_NAME}-macos.zip" > ".build/release/MacEvery-${GITHUB_REF_NAME}-macos.zip.sha256"
+          cd .build/release
+          shasum -a 256 "MacEvery-${GITHUB_REF_NAME}-macos.zip" > "MacEvery-${GITHUB_REF_NAME}-macos.zip.sha256"
       - name: Create GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
