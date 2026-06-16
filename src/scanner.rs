@@ -65,11 +65,24 @@ pub fn refresh_path(db: &Database, path: &Path, excludes: &[String]) -> Result<I
     let result = (|| {
         let path_text = path.to_string_lossy().to_string();
         let indexed_at = now_index_generation();
-        if path.exists() || fs::symlink_metadata(path).is_ok() {
+        let previous_kind = db.kind_for_path(&path_text)?;
+        if let Ok(metadata) = fs::symlink_metadata(path) {
+            let kind = classify(path, &metadata);
+            let should_cleanup_children = metadata.is_dir() && kind != FileKind::Symlink;
+            if matches!(previous_kind, Some(FileKind::Directory | FileKind::App))
+                && !should_cleanup_children
+            {
+                db.delete_path_prefix(&path_text)?;
+            }
             scan_path(db, path, excludes, indexed_at, &mut summary)?;
-            cleanup_stale_if_complete(db, &[path.to_path_buf()], indexed_at, &mut summary)?;
+            if should_cleanup_children {
+                cleanup_stale_if_complete(db, &[path.to_path_buf()], indexed_at, &mut summary)?;
+            }
         } else {
-            db.delete_path_prefix(&path_text)?;
+            match db.kind_for_path(&path_text)? {
+                Some(FileKind::Directory | FileKind::App) => db.delete_path_prefix(&path_text)?,
+                _ => db.delete_path_exact(&path_text)?,
+            }
         }
         Ok(())
     })();
@@ -279,8 +292,9 @@ fn now_index_generation() -> i64 {
 
 #[cfg(test)]
 mod tests {
-    use super::{index_paths, refresh_roots, should_exclude, IndexRequest};
+    use super::{index_paths, refresh_path, refresh_roots, should_exclude, IndexRequest};
     use crate::db::Database;
+    use crate::model::FileKind;
     use std::fs;
     use std::path::{Path, PathBuf};
     use std::time::{SystemTime, UNIX_EPOCH};
@@ -434,6 +448,46 @@ mod tests {
             .unwrap()
             .iter()
             .any(|record| record.path == file_path));
+
+        let _ = fs::remove_dir_all(temp);
+    }
+
+    #[test]
+    fn refresh_path_replacing_directory_with_file_removes_old_children() {
+        let temp = unique_temp_dir("macevery-replace-dir-test");
+        let root = temp.join("root");
+        let replaced = root.join("replaced");
+        let child = replaced.join("child.txt");
+        fs::create_dir_all(&replaced).unwrap();
+        fs::write(&child, "hello").unwrap();
+
+        let db = Database::open(temp.join("index.sqlite")).unwrap();
+        let replaced_path = replaced.to_string_lossy().to_string();
+        let child_path = child.to_string_lossy().to_string();
+        index_paths(
+            &db,
+            &IndexRequest {
+                roots: vec![root.clone()],
+                excludes: Vec::new(),
+                rebuild: true,
+            },
+        )
+        .unwrap();
+        assert!(db
+            .all_records()
+            .unwrap()
+            .iter()
+            .any(|record| record.path == child_path));
+
+        fs::remove_dir_all(&replaced).unwrap();
+        fs::write(&replaced, "now a file").unwrap();
+        refresh_path(&db, &replaced, &[]).unwrap();
+
+        let records = db.all_records().unwrap();
+        assert!(records
+            .iter()
+            .any(|record| record.path == replaced_path && record.kind == FileKind::File));
+        assert!(!records.iter().any(|record| record.path == child_path));
 
         let _ = fs::remove_dir_all(temp);
     }

@@ -10,7 +10,7 @@ mod macos_impl {
     use std::collections::BTreeMap;
     use std::ffi::{CStr, CString};
     use std::os::raw::{c_char, c_void};
-    use std::path::PathBuf;
+    use std::path::{Path, PathBuf};
     use std::ptr;
     use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
     use std::thread;
@@ -135,7 +135,7 @@ mod macos_impl {
             .into_iter()
             .map(PathBuf::from)
             .collect::<Vec<_>>();
-        let excludes = stats.excludes;
+        let excludes = runtime_excludes(stats.excludes, &db_path);
 
         let current_system_id = unsafe { FSEventsGetCurrentEventId() };
         let decision = resolve_since_when(stored_event_id, current_system_id);
@@ -258,6 +258,7 @@ mod macos_impl {
         receiver: Receiver<FsEvent>,
     ) {
         thread::spawn(move || {
+            let db_dir = db_path.parent().map(PathBuf::from);
             let db = match Database::open(db_path) {
                 Ok(db) => db,
                 Err(err) => {
@@ -280,6 +281,16 @@ mod macos_impl {
                 }
 
                 let max_event_id = batch.iter().map(|event| event.id).max().unwrap_or(0);
+                let batch = batch
+                    .into_iter()
+                    .filter(|event| {
+                        !is_ignored_event_path(&event.path, db.path(), db_dir.as_deref())
+                    })
+                    .collect::<Vec<_>>();
+                if batch.is_empty() {
+                    continue;
+                }
+
                 let action = batch_action(&batch);
                 let processed = match action {
                     WatchAction::RescanRoots => match refresh_roots(&db, &roots, &excludes) {
@@ -304,24 +315,36 @@ mod macos_impl {
                                 .or_insert(event.flags);
                         }
 
+                        let paths = fold_refresh_paths(merged.keys().cloned().collect::<Vec<_>>());
+                        let mut refreshed_paths = 0_u64;
+                        let mut removed_paths = 0_u64;
+                        let mut indexed_entries = 0_u64;
+                        let mut deleted_entries = 0_u64;
+                        let mut failed_paths = 0_u64;
                         let mut ok = true;
-                        for path in merged.keys() {
-                            match refresh_path(&db, &PathBuf::from(path), &excludes) {
+                        for path in paths {
+                            match refresh_path(&db, &PathBuf::from(&path), &excludes) {
                                 Ok(summary) => {
                                     if summary.indexed > 0 {
-                                        eprintln!(
-                                            "watch: refreshed {path} ({} entries, {} stale removed)",
-                                            summary.indexed, summary.deleted
-                                        );
+                                        refreshed_paths += 1;
+                                        indexed_entries += summary.indexed;
+                                        deleted_entries += summary.deleted;
                                     } else {
-                                        eprintln!("watch: removed {path}");
+                                        removed_paths += 1;
                                     }
                                 }
                                 Err(err) => {
                                     eprintln!("watch: refresh failed for {path}: {err}");
+                                    failed_paths += 1;
                                     ok = false;
                                 }
                             }
+                        }
+                        let total_paths = refreshed_paths + removed_paths + failed_paths;
+                        if total_paths > 0 {
+                            eprintln!(
+                                "watch: processed {total_paths} paths ({refreshed_paths} refreshed, {removed_paths} removed, {failed_paths} failed, {indexed_entries} entries, {deleted_entries} stale removed)"
+                            );
                         }
                         ok
                     }
@@ -334,6 +357,59 @@ mod macos_impl {
                 }
             }
         });
+    }
+
+    fn runtime_excludes(mut excludes: Vec<String>, db_path: &Path) -> Vec<String> {
+        for pattern in [".local/share/macevery", ".codex", ".gemini", ".cursor"] {
+            push_exclude_once(&mut excludes, pattern.to_string());
+        }
+        if let Some(parent) = db_path.parent() {
+            push_exclude_once(&mut excludes, parent.to_string_lossy().to_string());
+        }
+        excludes
+    }
+
+    fn push_exclude_once(excludes: &mut Vec<String>, pattern: String) {
+        if !excludes.iter().any(|value| value == &pattern) {
+            excludes.push(pattern);
+        }
+    }
+
+    fn is_ignored_event_path(path: &str, db_path: &Path, db_dir: Option<&Path>) -> bool {
+        let event_path = Path::new(path);
+        if event_path == db_path {
+            return true;
+        }
+        if let Some(db_dir) = db_dir {
+            if event_path == db_dir || event_path.starts_with(db_dir) {
+                return true;
+            }
+        }
+        false
+    }
+
+    fn fold_refresh_paths(paths: Vec<String>) -> Vec<String> {
+        let mut paths = paths;
+        paths.sort();
+        let mut folded = Vec::<String>::new();
+        for path in paths {
+            if folded
+                .iter()
+                .any(|parent| path_is_same_or_child(parent, &path))
+            {
+                continue;
+            }
+            folded.push(path);
+        }
+        folded
+    }
+
+    fn path_is_same_or_child(parent: &str, path: &str) -> bool {
+        path == parent
+            || path
+                .strip_prefix(parent)
+                .map(|rest| rest.starts_with('/'))
+                .unwrap_or(false)
     }
 
     fn batch_action(batch: &[FsEvent]) -> WatchAction {
@@ -497,6 +573,55 @@ mod macos_impl {
             assert_eq!(
                 resolve_since_when(Some(5000), 5000),
                 CheckpointDecision::UseCheckpoint(5000)
+            );
+        }
+
+        #[test]
+        fn runtime_excludes_adds_noisy_and_database_paths() {
+            let db_path = PathBuf::from("/Users/me/.local/share/macevery/index.sqlite");
+            let excludes = runtime_excludes(vec!["node_modules".to_string()], &db_path);
+            assert!(excludes.contains(&"node_modules".to_string()));
+            assert!(excludes.contains(&".codex".to_string()));
+            assert!(excludes.contains(&".gemini".to_string()));
+            assert!(excludes.contains(&".cursor".to_string()));
+            assert!(excludes.contains(&".local/share/macevery".to_string()));
+            assert!(excludes.contains(&"/Users/me/.local/share/macevery".to_string()));
+        }
+
+        #[test]
+        fn database_events_are_ignored() {
+            let db_path = PathBuf::from("/Users/me/.local/share/macevery/index.sqlite");
+            let db_dir = db_path.parent();
+            assert!(is_ignored_event_path(
+                "/Users/me/.local/share/macevery/index.sqlite",
+                &db_path,
+                db_dir
+            ));
+            assert!(is_ignored_event_path(
+                "/Users/me/.local/share/macevery/index.sqlite-wal",
+                &db_path,
+                db_dir
+            ));
+            assert!(!is_ignored_event_path(
+                "/Users/me/Documents/file.txt",
+                &db_path,
+                db_dir
+            ));
+        }
+
+        #[test]
+        fn fold_refresh_paths_removes_children_when_parent_is_present() {
+            assert_eq!(
+                fold_refresh_paths(vec![
+                    "/tmp/project/src/main.rs".to_string(),
+                    "/tmp/project".to_string(),
+                    "/tmp/project/src".to_string(),
+                    "/tmp/projectile/readme.md".to_string(),
+                ]),
+                vec![
+                    "/tmp/project".to_string(),
+                    "/tmp/projectile/readme.md".to_string(),
+                ]
             );
         }
     }

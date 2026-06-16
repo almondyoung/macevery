@@ -192,6 +192,25 @@ impl Database {
         expect_done(stmt.step()?)
     }
 
+    pub fn delete_path_exact(&self, path: &str) -> Result<()> {
+        let mut stmt = self.conn.prepare("DELETE FROM files WHERE path = ?1;")?;
+        stmt.bind_text(1, Some(path))?;
+        expect_done(stmt.step()?)
+    }
+
+    pub fn kind_for_path(&self, path: &str) -> Result<Option<FileKind>> {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT kind FROM files WHERE path = ?1 LIMIT 1;")?;
+        stmt.bind_text(1, Some(path))?;
+        match stmt.step()? {
+            Step::Row => Ok(stmt
+                .column_text(0)
+                .and_then(|value| FileKind::parse(&value))),
+            Step::Done => Ok(None),
+        }
+    }
+
     pub fn delete_stale_under_roots(&self, roots: &[PathBuf], indexed_at: i64) -> Result<u64> {
         let mut stmt = self.conn.prepare(
             "DELETE FROM files

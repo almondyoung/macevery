@@ -158,6 +158,125 @@ enum ResultSortColumn {
     }
 }
 
+struct ResultColumnWidths: Equatable {
+    static let spacing: CGFloat = 12
+    static let horizontalPadding: CGFloat = 24
+    private static let storageKey = "resultColumnWidths.v1"
+
+    var name: CGFloat
+    var path: CGFloat
+    var kind: CGFloat
+    var size: CGFloat
+    var modified: CGFloat
+
+    static let defaults = ResultColumnWidths(
+        name: 220,
+        path: 170,
+        kind: 58,
+        size: 86,
+        modified: 150
+    )
+
+    var contentWidth: CGFloat {
+        name + path + kind + size + modified + Self.spacing * 4 + Self.horizontalPadding
+    }
+
+    static func load() -> ResultColumnWidths {
+        guard let stored = UserDefaults.standard.dictionary(forKey: storageKey) else {
+            return defaults
+        }
+
+        var widths = defaults
+        if let value = storedWidth(stored, key: "name") { widths.name = value }
+        if let value = storedWidth(stored, key: "path") { widths.path = value }
+        if let value = storedWidth(stored, key: "kind") { widths.kind = value }
+        if let value = storedWidth(stored, key: "size") { widths.size = value }
+        if let value = storedWidth(stored, key: "modified") { widths.modified = value }
+        widths.clampAll()
+        return widths
+    }
+
+    func save() {
+        UserDefaults.standard.set(
+            [
+                "name": Double(name),
+                "path": Double(path),
+                "kind": Double(kind),
+                "size": Double(size),
+                "modified": Double(modified)
+            ],
+            forKey: Self.storageKey
+        )
+    }
+
+    func width(for column: ResultSortColumn) -> CGFloat {
+        switch column {
+        case .relevance: return 0
+        case .name: return name
+        case .path: return path
+        case .kind: return kind
+        case .size: return size
+        case .modified: return modified
+        }
+    }
+
+    mutating func setWidth(_ width: CGFloat, for column: ResultSortColumn) {
+        let value = Self.clamped(width, for: column)
+        switch column {
+        case .relevance: break
+        case .name: name = value
+        case .path: path = value
+        case .kind: kind = value
+        case .size: size = value
+        case .modified: modified = value
+        }
+    }
+
+    private mutating func clampAll() {
+        name = Self.clamped(name, for: .name)
+        path = Self.clamped(path, for: .path)
+        kind = Self.clamped(kind, for: .kind)
+        size = Self.clamped(size, for: .size)
+        modified = Self.clamped(modified, for: .modified)
+    }
+
+    private static func clamped(_ width: CGFloat, for column: ResultSortColumn) -> CGFloat {
+        min(max(width, minWidth(for: column)), maxWidth(for: column))
+    }
+
+    private static func minWidth(for column: ResultSortColumn) -> CGFloat {
+        switch column {
+        case .relevance: return 0
+        case .name: return 120
+        case .path: return 100
+        case .kind: return 46
+        case .size: return 64
+        case .modified: return 116
+        }
+    }
+
+    private static func maxWidth(for column: ResultSortColumn) -> CGFloat {
+        switch column {
+        case .relevance: return 0
+        case .name: return 900
+        case .path: return 1_400
+        case .kind: return 180
+        case .size: return 180
+        case .modified: return 320
+        }
+    }
+
+    private static func storedWidth(_ values: [String: Any], key: String) -> CGFloat? {
+        if let value = values[key] as? Double {
+            return CGFloat(value)
+        }
+        if let value = values[key] as? NSNumber {
+            return CGFloat(truncating: value)
+        }
+        return nil
+    }
+}
+
 final class GlobalHotKey {
     private var hotKeyRef: EventHotKeyRef?
     private var handlerRef: EventHandlerRef?
@@ -926,6 +1045,10 @@ struct IndexSettings {
             "build",
             ".build",
             ".Trash",
+            ".codex",
+            ".gemini",
+            ".cursor",
+            ".local/share/macevery",
             "Library",
             "Library/Caches",
             "Library/Developer",
@@ -1014,6 +1137,7 @@ struct ContentView: View {
     @EnvironmentObject private var model: SearchViewModel
     @State private var showingSettings = false
     @State private var showingOnboarding = false
+    @State private var columnWidths = ResultColumnWidths.load()
 
     var body: some View {
         VStack(spacing: 0) {
@@ -1187,88 +1311,109 @@ struct ContentView: View {
     }
 
     private var resultsPane: some View {
-        VStack(spacing: 0) {
-            ResultHeader(
-                sortColumn: model.sortColumn,
-                sortAscending: model.sortAscending,
-                onSort: model.sort
-            )
-            if model.results.isEmpty {
-                EmptyResultsView(
-                    hasQuery: !model.query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-                    hasIndex: (model.status?.total ?? 0) > 0,
-                    isIndexing: model.isIndexing,
-                    onIndex: { model.rebuildIndex() }
-                )
-            } else {
-                ScrollView {
-                    LazyVStack(spacing: 0) {
-                        ForEach(model.results) { result in
-                            ResultRow(
-                                result: result,
-                                isSelected: result.path == model.selectedPath
-                            )
-                            .onTapGesture {
-                                model.select(result)
+        GeometryReader { proxy in
+            let tableWidth = max(proxy.size.width, columnWidths.contentWidth)
+
+            ScrollView(.horizontal) {
+                VStack(spacing: 0) {
+                    ResultHeader(
+                        widths: columnWidths,
+                        tableWidth: tableWidth,
+                        sortColumn: model.sortColumn,
+                        sortAscending: model.sortAscending,
+                        onSort: model.sort,
+                        onResize: resizeColumn
+                    )
+                    if model.results.isEmpty {
+                        EmptyResultsView(
+                            hasQuery: !model.query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                            hasIndex: (model.status?.total ?? 0) > 0,
+                            isIndexing: model.isIndexing,
+                            onIndex: { model.rebuildIndex() }
+                        )
+                        .frame(width: tableWidth)
+                        .frame(maxHeight: .infinity)
+                    } else {
+                        ScrollView {
+                            LazyVStack(spacing: 0) {
+                                ForEach(model.results) { result in
+                                    ResultRow(
+                                        result: result,
+                                        isSelected: result.path == model.selectedPath,
+                                        widths: columnWidths,
+                                        tableWidth: tableWidth
+                                    )
+                                    .onTapGesture {
+                                        model.select(result)
+                                    }
+                                    .onTapGesture(count: 2) {
+                                        model.select(result)
+                                        model.openSelection()
+                                    }
+                                    .onDrag {
+                                        NSItemProvider(object: URL(fileURLWithPath: result.path) as NSURL)
+                                    }
+                                    .contextMenu {
+                                        Button {
+                                            model.select(result)
+                                            model.openSelection()
+                                        } label: {
+                                            Label("Open", systemImage: "arrow.up.forward.app")
+                                        }
+                                        Button {
+                                            model.select(result)
+                                            model.revealSelection()
+                                        } label: {
+                                            Label("Reveal in Finder", systemImage: "finder")
+                                        }
+                                        Button {
+                                            model.select(result)
+                                            model.quickLookSelection()
+                                        } label: {
+                                            Label("Quick Look", systemImage: "eye")
+                                        }
+                                        Divider()
+                                        Button {
+                                            model.select(result)
+                                            model.copySelection()
+                                        } label: {
+                                            Label("Copy Path", systemImage: "doc.on.doc")
+                                        }
+                                        Button {
+                                            model.select(result)
+                                            model.copyNameSelection()
+                                        } label: {
+                                            Label("Copy Name", systemImage: "textformat")
+                                        }
+                                        Button {
+                                            model.select(result)
+                                            model.copyParentSelection()
+                                        } label: {
+                                            Label("Copy Parent Folder", systemImage: "folder")
+                                        }
+                                        Button {
+                                            model.select(result)
+                                            model.copyFileSelection()
+                                        } label: {
+                                            Label("Copy File", systemImage: "doc")
+                                        }
+                                    }
+                                }
                             }
-                            .onTapGesture(count: 2) {
-                                model.select(result)
-                                model.openSelection()
-                            }
-                            .onDrag {
-                                NSItemProvider(object: URL(fileURLWithPath: result.path) as NSURL)
-                            }
-                            .contextMenu {
-                                Button {
-                                    model.select(result)
-                                    model.openSelection()
-                                } label: {
-                                    Label("Open", systemImage: "arrow.up.forward.app")
-                                }
-                                Button {
-                                    model.select(result)
-                                    model.revealSelection()
-                                } label: {
-                                    Label("Reveal in Finder", systemImage: "finder")
-                                }
-                                Button {
-                                    model.select(result)
-                                    model.quickLookSelection()
-                                } label: {
-                                    Label("Quick Look", systemImage: "eye")
-                                }
-                                Divider()
-                                Button {
-                                    model.select(result)
-                                    model.copySelection()
-                                } label: {
-                                    Label("Copy Path", systemImage: "doc.on.doc")
-                                }
-                                Button {
-                                    model.select(result)
-                                    model.copyNameSelection()
-                                } label: {
-                                    Label("Copy Name", systemImage: "textformat")
-                                }
-                                Button {
-                                    model.select(result)
-                                    model.copyParentSelection()
-                                } label: {
-                                    Label("Copy Parent Folder", systemImage: "folder")
-                                }
-                                Button {
-                                    model.select(result)
-                                    model.copyFileSelection()
-                                } label: {
-                                    Label("Copy File", systemImage: "doc")
-                                }
-                            }
+                            .frame(width: tableWidth, alignment: .topLeading)
                         }
                     }
                 }
+                .frame(width: tableWidth, height: proxy.size.height, alignment: .topLeading)
             }
+            .frame(width: proxy.size.width, height: proxy.size.height)
         }
         .background(Color(nsColor: .textBackgroundColor))
+    }
+
+    private func resizeColumn(_ column: ResultSortColumn, to width: CGFloat) {
+        columnWidths.setWidth(width, for: column)
+        columnWidths.save()
     }
 
     private var statusBar: some View {
@@ -1319,73 +1464,80 @@ struct MetricLine: View {
 }
 
 struct ResultHeader: View {
+    let widths: ResultColumnWidths
+    let tableWidth: CGFloat
     let sortColumn: ResultSortColumn
     let sortAscending: Bool
     let onSort: (ResultSortColumn) -> Void
+    let onResize: (ResultSortColumn, CGFloat) -> Void
 
     var body: some View {
         HStack(spacing: 12) {
             HeaderCell(
                 column: .name,
-                width: 260,
+                width: widths.name,
                 alignment: .leading,
                 sortColumn: sortColumn,
                 sortAscending: sortAscending,
-                onSort: onSort
+                onSort: onSort,
+                onResize: onResize
             )
-                .frame(width: 260, alignment: .leading)
             HeaderCell(
                 column: .path,
-                width: nil,
+                width: widths.path,
                 alignment: .leading,
                 sortColumn: sortColumn,
                 sortAscending: sortAscending,
-                onSort: onSort
+                onSort: onSort,
+                onResize: onResize
             )
-            .frame(maxWidth: .infinity, alignment: .leading)
             HeaderCell(
                 column: .kind,
-                width: 74,
+                width: widths.kind,
                 alignment: .leading,
                 sortColumn: sortColumn,
                 sortAscending: sortAscending,
-                onSort: onSort
+                onSort: onSort,
+                onResize: onResize
             )
-            .frame(width: 74, alignment: .leading)
             HeaderCell(
                 column: .size,
-                width: 96,
+                width: widths.size,
                 alignment: .trailing,
                 sortColumn: sortColumn,
                 sortAscending: sortAscending,
-                onSort: onSort
+                onSort: onSort,
+                onResize: onResize
             )
-            .frame(width: 96, alignment: .trailing)
             HeaderCell(
                 column: .modified,
-                width: 178,
+                width: widths.modified,
                 alignment: .leading,
                 sortColumn: sortColumn,
                 sortAscending: sortAscending,
-                onSort: onSort
+                onSort: onSort,
+                onResize: onResize
             )
-            .frame(width: 178, alignment: .leading)
+            Spacer(minLength: 0)
         }
         .font(.system(size: 11, weight: .semibold))
         .foregroundStyle(.secondary)
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
+        .frame(width: tableWidth, alignment: .leading)
         .background(Color(nsColor: .controlBackgroundColor))
     }
 }
 
 struct HeaderCell: View {
     let column: ResultSortColumn
-    let width: CGFloat?
+    let width: CGFloat
     let alignment: Alignment
     let sortColumn: ResultSortColumn
     let sortAscending: Bool
     let onSort: (ResultSortColumn) -> Void
+    let onResize: (ResultSortColumn, CGFloat) -> Void
+    @State private var dragStartWidth: CGFloat?
 
     var body: some View {
         Button {
@@ -1399,16 +1551,60 @@ struct HeaderCell: View {
                         .font(.system(size: 9, weight: .bold))
                 }
             }
-            .frame(maxWidth: width ?? .infinity, alignment: alignment)
+            .frame(width: width, alignment: alignment)
         }
         .buttonStyle(.plain)
         .help("Sort by \(column.title)")
+        .overlay(alignment: .trailing) {
+            ColumnResizeHandle(columnTitle: column.title) { translation in
+                if dragStartWidth == nil {
+                    dragStartWidth = width
+                }
+                onResize(column, (dragStartWidth ?? width) + translation)
+            } onEnded: {
+                dragStartWidth = nil
+            }
+        }
+    }
+}
+
+struct ColumnResizeHandle: View {
+    let columnTitle: String
+    let onChanged: (CGFloat) -> Void
+    let onEnded: () -> Void
+    @State private var isHovering = false
+
+    var body: some View {
+        ZStack {
+            Rectangle()
+                .fill(Color.clear)
+                .frame(width: 10)
+            Rectangle()
+                .fill(Color(nsColor: .separatorColor).opacity(isHovering ? 0.9 : 0.45))
+                .frame(width: 1)
+        }
+        .contentShape(Rectangle())
+        .onHover { hovering in
+            isHovering = hovering
+        }
+        .gesture(
+            DragGesture(minimumDistance: 0)
+                .onChanged { value in
+                    onChanged(value.translation.width)
+                }
+                .onEnded { _ in
+                    onEnded()
+                }
+        )
+        .help("Resize \(columnTitle)")
     }
 }
 
 struct ResultRow: View {
     let result: SearchResult
     let isSelected: Bool
+    let widths: ResultColumnWidths
+    let tableWidth: CGFloat
 
     var body: some View {
         HStack(spacing: 12) {
@@ -1420,28 +1616,30 @@ struct ResultRow: View {
                     .lineLimit(1)
                     .truncationMode(.middle)
             }
-            .frame(width: 260, alignment: .leading)
+            .frame(width: widths.name, alignment: .leading)
 
             Text(result.path)
                 .lineLimit(1)
                 .truncationMode(.middle)
                 .foregroundStyle(.secondary)
-                .frame(maxWidth: .infinity, alignment: .leading)
+                .frame(width: widths.path, alignment: .leading)
 
             Text(result.kind)
                 .foregroundStyle(.secondary)
-                .frame(width: 74, alignment: .leading)
+                .frame(width: widths.kind, alignment: .leading)
             Text(formatSize(result.size))
                 .foregroundStyle(.secondary)
                 .fontDesign(.monospaced)
-                .frame(width: 96, alignment: .trailing)
+                .frame(width: widths.size, alignment: .trailing)
             Text(formatDate(result.mtime))
                 .foregroundStyle(.secondary)
-                .frame(width: 178, alignment: .leading)
+                .frame(width: widths.modified, alignment: .leading)
+            Spacer(minLength: 0)
         }
         .font(.system(size: 13))
         .padding(.horizontal, 12)
         .padding(.vertical, 6)
+        .frame(width: tableWidth, alignment: .leading)
         .background(isSelected ? Color.accentColor.opacity(0.18) : Color.clear)
         .contentShape(Rectangle())
         .help(result.path)
