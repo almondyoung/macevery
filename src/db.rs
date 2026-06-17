@@ -476,18 +476,25 @@ impl Database {
         }
 
         self.conn.execute_batch("BEGIN;")?;
-        let mut stmt = self
-            .conn
-            .prepare("UPDATE files SET path_lower = ?1 WHERE id = ?2;")?;
-        for (id, lowered) in &updates {
-            stmt.reset()?;
-            stmt.bind_text(1, Some(lowered))?;
-            stmt.bind_i64(2, Some(*id))?;
-            let _ = stmt.step()?;
+        let result = (|| {
+            let mut stmt = self
+                .conn
+                .prepare("UPDATE files SET path_lower = ?1 WHERE id = ?2;")?;
+            for (id, lowered) in &updates {
+                stmt.reset()?;
+                stmt.bind_text(1, Some(lowered))?;
+                stmt.bind_i64(2, Some(*id))?;
+                expect_done(stmt.step()?)?;
+            }
+            Ok(())
+        })();
+        match result {
+            Ok(()) => self.conn.execute_batch("COMMIT;"),
+            Err(err) => {
+                let _ = self.conn.execute_batch("ROLLBACK;");
+                Err(err)
+            }
         }
-        drop(stmt);
-        self.conn.execute_batch("COMMIT;")?;
-        Ok(())
     }
 }
 

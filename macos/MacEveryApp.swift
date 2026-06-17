@@ -1,6 +1,7 @@
 import AppKit
 import Carbon
 import Foundation
+import Security
 import SwiftUI
 
 struct SearchResult: Codable, Identifiable, Hashable {
@@ -98,6 +99,57 @@ enum SearchPerformanceMode: String, CaseIterable, Identifiable {
 
     func save() {
         UserDefaults.standard.set(rawValue, forKey: "searchPerformanceMode")
+    }
+}
+
+enum GlobalHotKeyShortcut: String, CaseIterable, Identifiable {
+    case commandShiftSpace = "command_shift_space"
+    case optionSpace = "option_space"
+    case controlSpace = "control_space"
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .commandShiftSpace: return "Command-Shift-Space"
+        case .optionSpace: return "Option-Space"
+        case .controlSpace: return "Control-Space"
+        }
+    }
+
+    var detail: String {
+        switch self {
+        case .commandShiftSpace:
+            return "Recommended for most keyboards."
+        case .optionSpace:
+            return "Compact shortcut with fewer menu conflicts."
+        case .controlSpace:
+            return "Classic shortcut; may conflict with input methods."
+        }
+    }
+
+    var keyCode: UInt32 {
+        UInt32(kVK_Space)
+    }
+
+    var carbonModifiers: UInt32 {
+        switch self {
+        case .commandShiftSpace:
+            return UInt32(cmdKey | shiftKey)
+        case .optionSpace:
+            return UInt32(optionKey)
+        case .controlSpace:
+            return UInt32(controlKey)
+        }
+    }
+
+    static func load() -> GlobalHotKeyShortcut {
+        let value = UserDefaults.standard.string(forKey: "globalHotKeyShortcut") ?? commandShiftSpace.rawValue
+        return GlobalHotKeyShortcut(rawValue: value) ?? .commandShiftSpace
+    }
+
+    func save() {
+        UserDefaults.standard.set(rawValue, forKey: "globalHotKeyShortcut")
     }
 }
 
@@ -280,9 +332,12 @@ struct ResultColumnWidths: Equatable {
 final class GlobalHotKey {
     private var hotKeyRef: EventHotKeyRef?
     private var handlerRef: EventHandlerRef?
+    private let shortcut: GlobalHotKeyShortcut
     private let callback: () -> Void
+    private(set) var isRegistered = false
 
-    init(callback: @escaping () -> Void) {
+    init(shortcut: GlobalHotKeyShortcut, callback: @escaping () -> Void) {
+        self.shortcut = shortcut
         self.callback = callback
     }
 
@@ -313,8 +368,8 @@ final class GlobalHotKey {
 
         let hotKeyID = EventHotKeyID(signature: OSType(0x4d455652), id: UInt32(1))
         let registerStatus = RegisterEventHotKey(
-            UInt32(kVK_Space),
-            UInt32(controlKey),
+            shortcut.keyCode,
+            shortcut.carbonModifiers,
             hotKeyID,
             GetApplicationEventTarget(),
             0,
@@ -322,6 +377,8 @@ final class GlobalHotKey {
         )
         if registerStatus != noErr {
             unregister()
+        } else {
+            isRegistered = true
         }
     }
 
@@ -334,6 +391,7 @@ final class GlobalHotKey {
         }
         hotKeyRef = nil
         handlerRef = nil
+        isRegistered = false
     }
 
     deinit {
@@ -406,6 +464,12 @@ final class SearchViewModel: ObservableObject {
             restartSearchService()
         }
     }
+    @Published var globalHotKeyShortcut = GlobalHotKeyShortcut.load() {
+        didSet {
+            globalHotKeyShortcut.save()
+            reinstallGlobalHotKey()
+        }
+    }
     @Published var sortColumn: ResultSortColumn = .relevance
     @Published var sortAscending = ResultSortColumn.relevance.defaultAscending
 
@@ -422,8 +486,12 @@ final class SearchViewModel: ObservableObject {
     private var hasAttemptedInitialIndex = false
     private let authToken: String = {
         var bytes = [UInt8](repeating: 0, count: 24)
-        _ = SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes)
-        return bytes.map { String(format: "%02x", $0) }.joined()
+        if SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes) == errSecSuccess {
+            return bytes.map { String(format: "%02x", $0) }.joined()
+        }
+        return (UUID().uuidString + UUID().uuidString)
+            .replacingOccurrences(of: "-", with: "")
+            .lowercased()
     }()
 
     var selectedResult: SearchResult? {
@@ -490,13 +558,28 @@ final class SearchViewModel: ObservableObject {
 
     func installGlobalHotKey() {
         guard hotKey == nil else { return }
-        let hotKey = GlobalHotKey { [weak self] in
+        registerGlobalHotKey()
+    }
+
+    private func reinstallGlobalHotKey() {
+        hotKey?.unregister()
+        hotKey = nil
+        registerGlobalHotKey()
+    }
+
+    private func registerGlobalHotKey() {
+        let hotKey = GlobalHotKey(shortcut: globalHotKeyShortcut) { [weak self] in
             DispatchQueue.main.async {
                 self?.showSearchWindow()
             }
         }
         hotKey.register()
-        self.hotKey = hotKey
+        if hotKey.isRegistered {
+            self.hotKey = hotKey
+        } else {
+            self.hotKey = nil
+            message = "Global shortcut unavailable: \(globalHotKeyShortcut.title)"
+        }
     }
 
     func showSearchWindow() {
@@ -1046,7 +1129,8 @@ struct IndexSettings {
     }
 
     static func defaultExcludesText() -> String {
-        [
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        var excludes = [
             "node_modules",
             ".git",
             "target",
@@ -1072,7 +1156,14 @@ struct IndexSettings {
             ".cargo/registry",
             "DerivedData",
             ".DS_Store"
-        ].joined(separator: "\n")
+        ]
+        excludes.append(contentsOf: [
+            "\(home)/Library/Safari",
+            "\(home)/Library/Cookies",
+            "\(home)/Library/Metadata",
+            "\(home)/Library/Accounts"
+        ])
+        return excludes.joined(separator: "\n")
     }
 
     static func addLine(_ value: String, to text: String) -> String {
@@ -1164,7 +1255,7 @@ struct ContentView: View {
         .sheet(isPresented: $showingSettings) {
             SettingsView()
                 .environmentObject(model)
-                .frame(width: 720, height: 620)
+                .frame(width: 720, height: 700)
         }
         .sheet(isPresented: $showingOnboarding) {
             OnboardingView(
@@ -1888,6 +1979,21 @@ struct SettingsView: View {
                 }
                 .pickerStyle(.segmented)
                 Text(model.searchPerformance.detail)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                Label("Global Shortcut", systemImage: "keyboard")
+                    .font(.headline)
+                Picker("Global Shortcut", selection: $model.globalHotKeyShortcut) {
+                    ForEach(GlobalHotKeyShortcut.allCases) { shortcut in
+                        Text(shortcut.title).tag(shortcut)
+                    }
+                }
+                .pickerStyle(.segmented)
+                Text(model.globalHotKeyShortcut.detail)
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)

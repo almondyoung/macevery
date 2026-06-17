@@ -494,22 +494,25 @@ fn request_has_valid_token(request: &str, expected: &str) -> bool {
         if line.is_empty() {
             break;
         }
-        if let Some(value) = line.strip_prefix("Authorization:") {
-            let value = value.trim();
-            if let Some(token) = value.strip_prefix("Bearer ") {
-                return token.trim() == expected;
-            }
-            return value == expected;
-        }
-        if let Some(value) = line.strip_prefix("authorization:") {
-            let value = value.trim();
-            if let Some(token) = value.strip_prefix("Bearer ") {
-                return token.trim() == expected;
-            }
-            return value == expected;
+        let Some((name, value)) = line.split_once(':') else {
+            continue;
+        };
+        if name.eq_ignore_ascii_case("authorization") {
+            return authorization_value_matches(value.trim(), expected);
         }
     }
     false
+}
+
+fn authorization_value_matches(value: &str, expected: &str) -> bool {
+    let mut parts = value.split_whitespace();
+    let Some(first) = parts.next() else {
+        return false;
+    };
+    if first.eq_ignore_ascii_case("bearer") {
+        return parts.next() == Some(expected) && parts.next().is_none();
+    }
+    value == expected
 }
 
 fn split_target(target: &str) -> (&str, &str) {
@@ -729,5 +732,18 @@ mod tests {
         assert!(try_acquire_request_slot(&active, 2));
         assert!(!try_acquire_request_slot(&active, 2));
         assert_eq!(active.load(Ordering::Acquire), 2);
+    }
+
+    #[test]
+    fn auth_header_accepts_case_insensitive_bearer_scheme() {
+        let request =
+            "GET /status HTTP/1.1\r\nhost: 127.0.0.1\r\naUtHoRiZaTiOn: bEaReR secret-token\r\n\r\n";
+        assert!(request_has_valid_token(request, "secret-token"));
+    }
+
+    #[test]
+    fn auth_header_rejects_extra_bearer_parts() {
+        let request = "GET /status HTTP/1.1\r\nAuthorization: Bearer secret-token trailing\r\n\r\n";
+        assert!(!request_has_valid_token(request, "secret-token"));
     }
 }

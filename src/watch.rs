@@ -82,6 +82,9 @@ mod macos_impl {
             run_loop_mode: CFStringRef,
         );
         fn FSEventStreamStart(stream_ref: FSEventStreamRef) -> Boolean;
+        fn FSEventStreamStop(stream_ref: FSEventStreamRef);
+        fn FSEventStreamInvalidate(stream_ref: FSEventStreamRef);
+        fn FSEventStreamRelease(stream_ref: FSEventStreamRef);
         fn FSEventsGetCurrentEventId() -> FSEventStreamEventId;
     }
 
@@ -112,6 +115,103 @@ mod macos_impl {
 
     struct CallbackState {
         sender: Sender<FsEvent>,
+    }
+
+    struct CfReleaseGuard {
+        value: *const c_void,
+    }
+
+    impl CfReleaseGuard {
+        fn new(value: *const c_void) -> Self {
+            Self { value }
+        }
+
+        fn as_ptr(&self) -> *const c_void {
+            self.value
+        }
+    }
+
+    impl Drop for CfReleaseGuard {
+        fn drop(&mut self) {
+            if !self.value.is_null() {
+                unsafe {
+                    CFRelease(self.value);
+                }
+            }
+        }
+    }
+
+    struct CallbackStateGuard {
+        state: *mut CallbackState,
+    }
+
+    impl CallbackStateGuard {
+        fn new(sender: Sender<FsEvent>) -> Self {
+            Self {
+                state: Box::into_raw(Box::new(CallbackState { sender })),
+            }
+        }
+
+        fn as_info(&self) -> *mut c_void {
+            self.state.cast()
+        }
+    }
+
+    impl Drop for CallbackStateGuard {
+        fn drop(&mut self) {
+            if !self.state.is_null() {
+                unsafe {
+                    drop(Box::from_raw(self.state));
+                }
+            }
+        }
+    }
+
+    struct FSEventStreamGuard {
+        stream: FSEventStreamRef,
+        started: bool,
+    }
+
+    impl FSEventStreamGuard {
+        fn new(stream: FSEventStreamRef) -> Option<Self> {
+            if stream.is_null() {
+                None
+            } else {
+                Some(Self {
+                    stream,
+                    started: false,
+                })
+            }
+        }
+
+        fn as_ptr(&self) -> FSEventStreamRef {
+            self.stream
+        }
+
+        fn start(&mut self) -> bool {
+            if unsafe { FSEventStreamStart(self.stream) } == 0 {
+                false
+            } else {
+                self.started = true;
+                true
+            }
+        }
+    }
+
+    impl Drop for FSEventStreamGuard {
+        fn drop(&mut self) {
+            if self.stream.is_null() {
+                return;
+            }
+            unsafe {
+                if self.started {
+                    FSEventStreamStop(self.stream);
+                }
+                FSEventStreamInvalidate(self.stream);
+                FSEventStreamRelease(self.stream);
+            }
+            self.stream = ptr::null_mut();
+        }
     }
 
     pub fn watch_index(db_path: PathBuf) -> Result<()> {
@@ -173,28 +273,28 @@ mod macos_impl {
                     root.to_string_lossy()
                 )));
             }
-            root_strings.push(cf_string);
+            root_strings.push(CfReleaseGuard::new(cf_string));
             root_values.push(cf_string);
         }
 
-        let paths = unsafe {
+        let paths = CfReleaseGuard::new(unsafe {
             CFArrayCreate(
                 ptr::null(),
                 root_values.as_ptr(),
                 root_values.len() as CFIndex,
                 ptr::null(),
             )
-        };
-        if paths.is_null() {
+        });
+        if paths.as_ptr().is_null() {
             return Err(MacEveryError::Cli(
                 "failed to create FSEvents root array".to_string(),
             ));
         }
 
-        let state = Box::new(CallbackState { sender });
+        let state = CallbackStateGuard::new(sender);
         let mut context = FSEventStreamContext {
             version: 0,
-            info: Box::into_raw(state).cast(),
+            info: state.as_info(),
             retain: ptr::null(),
             release: ptr::null(),
             copy_description: ptr::null(),
@@ -206,22 +306,23 @@ mod macos_impl {
                 ptr::null(),
                 event_callback,
                 &mut context,
-                paths,
+                paths.as_ptr(),
                 since_when,
                 0.35,
                 flags,
             )
         };
-        if stream.is_null() {
-            return Err(MacEveryError::Cli(
-                "failed to create FSEventStream".to_string(),
-            ));
-        }
+        let mut stream = FSEventStreamGuard::new(stream)
+            .ok_or_else(|| MacEveryError::Cli("failed to create FSEventStream".to_string()))?;
 
         unsafe {
-            FSEventStreamScheduleWithRunLoop(stream, CFRunLoopGetCurrent(), kCFRunLoopDefaultMode);
+            FSEventStreamScheduleWithRunLoop(
+                stream.as_ptr(),
+                CFRunLoopGetCurrent(),
+                kCFRunLoopDefaultMode,
+            );
         }
-        if unsafe { FSEventStreamStart(stream) } == 0 {
+        if !stream.start() {
             return Err(MacEveryError::Cli(
                 "failed to start FSEventStream".to_string(),
             ));
@@ -238,15 +339,6 @@ mod macos_impl {
         }
         unsafe {
             CFRunLoopRun();
-        }
-
-        for value in root_strings {
-            unsafe {
-                CFRelease(value);
-            }
-        }
-        unsafe {
-            CFRelease(paths);
         }
         Ok(())
     }
