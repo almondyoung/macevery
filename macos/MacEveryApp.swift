@@ -420,6 +420,11 @@ final class SearchViewModel: ObservableObject {
     private var searchServiceStderr: Pipe?
     private var hotKey: GlobalHotKey?
     private var hasAttemptedInitialIndex = false
+    private let authToken: String = {
+        var bytes = [UInt8](repeating: 0, count: 24)
+        _ = SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes)
+        return bytes.map { String(format: "%02x", $0) }.joined()
+    }()
 
     var selectedResult: SearchResult? {
         guard let selectedPath else { return nil }
@@ -695,7 +700,9 @@ final class SearchViewModel: ObservableObject {
 
     func refreshSearchServiceStatus(retries: Int = 0) {
         guard let url = serviceStatusURL() else { return }
-        URLSession.shared.dataTask(with: url) { data, response, error in
+        var request = URLRequest(url: url)
+        request.setValue("Bearer \(authToken)", forHTTPHeaderField: "Authorization")
+        URLSession.shared.dataTask(with: request) { data, response, error in
             guard error == nil,
                   (response as? HTTPURLResponse)?.statusCode == 200,
                   let data,
@@ -827,7 +834,9 @@ final class SearchViewModel: ObservableObject {
             return
         }
 
-        URLSession.shared.dataTask(with: url) { data, response, error in
+        var request = URLRequest(url: url)
+        request.setValue("Bearer \(authToken)", forHTTPHeaderField: "Authorization")
+        URLSession.shared.dataTask(with: request) { data, response, error in
             if error != nil {
                 self.performCLISearch(query, generation: generation)
                 return
@@ -851,7 +860,6 @@ final class SearchViewModel: ObservableObject {
                     self.selectedPath = sorted.first?.path
                     let backend = self.serviceStatus?.backendLabel ?? "service"
                     self.message = "\(decoded.count) results • \(backend)"
-                    self.refreshSearchServiceStatus()
                 }
             } catch {
                 self.performCLISearch(query, generation: generation)
@@ -918,6 +926,7 @@ final class SearchViewModel: ObservableObject {
     private func childProcessEnvironment() -> [String: String] {
         var environment = ProcessInfo.processInfo.environment
         environment["MACEVERY_EXIT_WITH_PARENT"] = "1"
+        environment["MACEVERY_AUTH_TOKEN"] = authToken
         return environment
     }
 
@@ -1049,7 +1058,6 @@ struct IndexSettings {
             ".gemini",
             ".cursor",
             ".local/share/macevery",
-            "Library",
             "Library/Caches",
             "Library/Developer",
             "Library/Application Support",
@@ -1057,6 +1065,8 @@ struct IndexSettings {
             "Library/Group Containers",
             "Library/Mail",
             "Library/Messages",
+            "Library/Logs",
+            "Library/Saved Application State",
             ".cache",
             ".npm",
             ".cargo/registry",

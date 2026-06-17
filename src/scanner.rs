@@ -126,6 +126,8 @@ pub fn refresh_roots(
     Ok(summary)
 }
 
+const MAX_SCAN_DEPTH: u32 = 256;
+
 fn scan_path(
     db: &Database,
     path: &Path,
@@ -133,6 +135,25 @@ fn scan_path(
     indexed_at: i64,
     summary: &mut IndexSummary,
 ) -> Result<()> {
+    scan_path_inner(db, path, excludes, indexed_at, summary, 0)
+}
+
+fn scan_path_inner(
+    db: &Database,
+    path: &Path,
+    excludes: &[String],
+    indexed_at: i64,
+    summary: &mut IndexSummary,
+    depth: u32,
+) -> Result<()> {
+    if depth > MAX_SCAN_DEPTH {
+        summary.warnings.push(format!(
+            "{}: exceeded max depth {MAX_SCAN_DEPTH}",
+            path.to_string_lossy()
+        ));
+        return Ok(());
+    }
+
     if should_exclude(path, excludes) {
         return Ok(());
     }
@@ -173,7 +194,9 @@ fn scan_path(
         };
         for entry in entries {
             match entry {
-                Ok(entry) => scan_path(db, &entry.path(), excludes, indexed_at, summary)?,
+                Ok(entry) => {
+                    scan_path_inner(db, &entry.path(), excludes, indexed_at, summary, depth + 1)?
+                }
                 Err(err) => summary
                     .warnings
                     .push(format!("{}: {}", path.to_string_lossy(), err)),

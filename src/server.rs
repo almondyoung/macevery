@@ -66,9 +66,17 @@ pub fn serve(addr: Option<String>, backend: BackendPreference) -> Result<()> {
 
     let addr = addr.unwrap_or_else(|| DEFAULT_ADDR.to_string());
     let db_path = default_db_path();
+    let auth_token: Option<Arc<str>> = std::env::var("MACEVERY_AUTH_TOKEN")
+        .ok()
+        .filter(|v| !v.is_empty())
+        .map(|v| Arc::from(v.as_str()));
     let listener = TcpListener::bind(&addr)
         .map_err(|err| MacEveryError::Cli(format!("failed to bind {addr}: {err}")))?;
-    eprintln!("macevery search service listening on http://{addr}");
+    if auth_token.is_some() {
+        eprintln!("macevery search service listening on http://{addr} (token auth enabled)");
+    } else {
+        eprintln!("macevery search service listening on http://{addr} (no auth — debug mode)");
+    }
 
     let state = Arc::new(RwLock::new(ServiceState::load(db_path, backend)?));
     let active_requests = Arc::new(AtomicUsize::new(0));
@@ -86,12 +94,13 @@ pub fn serve(addr: Option<String>, backend: BackendPreference) -> Result<()> {
                     continue;
                 }
                 let state = Arc::clone(&state);
+                let auth_token = auth_token.clone();
                 let guard = ActiveRequestGuard {
                     active: Arc::clone(&active_requests),
                 };
                 thread::spawn(move || {
                     let _guard = guard;
-                    if let Err(err) = handle_stream(stream, state) {
+                    if let Err(err) = handle_stream(stream, state, auth_token.as_deref()) {
                         eprintln!("serve: request failed: {err}");
                     }
                 });
@@ -256,7 +265,11 @@ impl ServiceState {
     }
 }
 
-fn handle_stream(mut stream: TcpStream, state: Arc<RwLock<ServiceState>>) -> Result<()> {
+fn handle_stream(
+    mut stream: TcpStream,
+    state: Arc<RwLock<ServiceState>>,
+    auth_token: Option<&str>,
+) -> Result<()> {
     stream.set_read_timeout(Some(REQUEST_READ_TIMEOUT))?;
     let request = read_request(&mut stream)?;
     let Some(first_line) = request.lines().next() else {
@@ -280,6 +293,20 @@ fn handle_stream(mut stream: TcpStream, state: Arc<RwLock<ServiceState>>) -> Res
     }
 
     let (path, query) = split_target(target);
+
+    if path != "/health" {
+        if let Some(expected) = auth_token {
+            if !request_has_valid_token(&request, expected) {
+                return write_response(
+                    &mut stream,
+                    "401 Unauthorized",
+                    "text/plain; charset=utf-8",
+                    "unauthorized\n",
+                );
+            }
+        }
+    }
+
     match path {
         "/health" => write_response(&mut stream, "200 OK", "application/json", "{\"ok\":true}\n"),
         "/reload" => {
@@ -460,6 +487,29 @@ fn write_response(
     );
     stream.write_all(response.as_bytes())?;
     Ok(())
+}
+
+fn request_has_valid_token(request: &str, expected: &str) -> bool {
+    for line in request.lines().skip(1) {
+        if line.is_empty() {
+            break;
+        }
+        if let Some(value) = line.strip_prefix("Authorization:") {
+            let value = value.trim();
+            if let Some(token) = value.strip_prefix("Bearer ") {
+                return token.trim() == expected;
+            }
+            return value == expected;
+        }
+        if let Some(value) = line.strip_prefix("authorization:") {
+            let value = value.trim();
+            if let Some(token) = value.strip_prefix("Bearer ") {
+                return token.trim() == expected;
+            }
+            return value == expected;
+        }
+    }
+    false
 }
 
 fn split_target(target: &str) -> (&str, &str) {

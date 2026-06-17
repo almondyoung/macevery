@@ -71,11 +71,9 @@ impl Database {
             self.conn
                 .execute_batch("ALTER TABLE files ADD COLUMN path_lower TEXT;")?;
         }
-        if self.get_meta("schema_path_lower_backfilled")?.as_deref() != Some("1") {
-            self.conn.execute_batch(
-                "UPDATE files SET path_lower = lower(path) WHERE path_lower IS NULL;",
-            )?;
-            self.set_meta("schema_path_lower_backfilled", "1")?;
+        if self.get_meta("schema_path_lower_backfilled_v2")?.as_deref() != Some("1") {
+            self.backfill_path_lower()?;
+            self.set_meta("schema_path_lower_backfilled_v2", "1")?;
         }
         self.conn.execute_batch(
             "CREATE INDEX IF NOT EXISTS idx_files_path_lower ON files(path_lower);",
@@ -457,6 +455,39 @@ impl Database {
             }
         }
         Ok(false)
+    }
+
+    fn backfill_path_lower(&self) -> Result<()> {
+        let mut read_stmt = self.conn.prepare(
+            "SELECT id, path FROM files WHERE path_lower IS NULL OR path_lower = lower(path);",
+        )?;
+        let mut updates: Vec<(i64, String)> = Vec::new();
+        while let Step::Row = read_stmt.step()? {
+            let id = read_stmt.column_i64(0).unwrap_or(0);
+            if let Some(path) = read_stmt.column_text(1) {
+                let lowered = path.to_lowercase();
+                updates.push((id, lowered));
+            }
+        }
+        drop(read_stmt);
+
+        if updates.is_empty() {
+            return Ok(());
+        }
+
+        self.conn.execute_batch("BEGIN;")?;
+        let mut stmt = self
+            .conn
+            .prepare("UPDATE files SET path_lower = ?1 WHERE id = ?2;")?;
+        for (id, lowered) in &updates {
+            stmt.reset()?;
+            stmt.bind_text(1, Some(lowered))?;
+            stmt.bind_i64(2, Some(*id))?;
+            let _ = stmt.step()?;
+        }
+        drop(stmt);
+        self.conn.execute_batch("COMMIT;")?;
+        Ok(())
     }
 }
 

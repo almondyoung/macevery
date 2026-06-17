@@ -17,7 +17,7 @@ pub fn default_db_path() -> PathBuf {
 }
 
 pub fn default_excludes() -> Vec<String> {
-    [
+    let mut excludes: Vec<String> = [
         "node_modules",
         ".git",
         "target",
@@ -29,7 +29,6 @@ pub fn default_excludes() -> Vec<String> {
         ".gemini",
         ".cursor",
         ".local/share/macevery",
-        "Library",
         "Library/Caches",
         "Library/Developer",
         "Library/Application Support",
@@ -37,6 +36,8 @@ pub fn default_excludes() -> Vec<String> {
         "Library/Group Containers",
         "Library/Mail",
         "Library/Messages",
+        "Library/Logs",
+        "Library/Saved Application State",
         ".cache",
         ".npm",
         ".cargo/registry",
@@ -45,7 +46,15 @@ pub fn default_excludes() -> Vec<String> {
     ]
     .iter()
     .map(|value| value.to_string())
-    .collect()
+    .collect();
+
+    if let Ok(home) = std::env::var("HOME") {
+        excludes.push(format!("{home}/Library/Safari"));
+        excludes.push(format!("{home}/Library/Cookies"));
+        excludes.push(format!("{home}/Library/Metadata"));
+        excludes.push(format!("{home}/Library/Accounts"));
+    }
+    excludes
 }
 
 pub fn default_gui_roots() -> Vec<PathBuf> {
