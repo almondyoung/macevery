@@ -6,15 +6,15 @@ mod macos_impl {
     use super::*;
     use crate::db::Database;
     use crate::process_lifetime;
-    use crate::scanner::{refresh_path, refresh_roots};
-    use std::collections::BTreeMap;
+    use crate::scanner::{refresh_path, refresh_roots, ExcludeMatcher, IndexSummary};
+    use std::collections::{BTreeMap, BTreeSet};
     use std::ffi::{CStr, CString};
     use std::os::raw::{c_char, c_void};
     use std::path::{Path, PathBuf};
     use std::ptr;
     use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
     use std::thread;
-    use std::time::Duration;
+    use std::time::{Duration, Instant};
 
     type CFIndex = isize;
     type CFTimeInterval = f64;
@@ -113,8 +113,70 @@ mod macos_impl {
         RescanRoots,
     }
 
+    #[derive(Clone)]
+    struct EventFilter {
+        db_path: PathBuf,
+        db_dir: Option<PathBuf>,
+        excludes: ExcludeMatcher,
+    }
+
+    impl EventFilter {
+        fn new(db_path: &Path, excludes: &[String]) -> Self {
+            Self {
+                db_path: db_path.to_path_buf(),
+                db_dir: db_path.parent().map(PathBuf::from),
+                excludes: ExcludeMatcher::new(excludes),
+            }
+        }
+
+        fn accepts(&self, path: &str, flags: FSEventStreamEventFlags) -> bool {
+            // Lost-event and root-change notifications must survive exclusions.
+            action_for_flags(flags) == WatchAction::RescanRoots
+                || (!is_ignored_event_path(path, &self.db_path, self.db_dir.as_deref())
+                    && !self.excludes.is_excluded(Path::new(path)))
+        }
+    }
+
     struct CallbackState {
         sender: Sender<FsEvent>,
+        filter: EventFilter,
+    }
+
+    #[derive(Default)]
+    struct PendingWork {
+        paths: BTreeMap<String, FSEventStreamEventFlags>,
+        retry_paths: BTreeMap<String, FSEventStreamEventFlags>,
+        rescan_roots: bool,
+        retry_roots: bool,
+        max_event_id: FSEventStreamEventId,
+        deferred_cleanups: BTreeMap<PathBuf, i64>,
+    }
+
+    impl PendingWork {
+        fn add(&mut self, event: FsEvent) {
+            self.max_event_id = self.max_event_id.max(event.id);
+            if action_for_flags(event.flags) == WatchAction::RescanRoots {
+                self.rescan_roots = true;
+                self.paths.clear();
+            } else if !self.rescan_roots {
+                self.paths
+                    .entry(event.path)
+                    .and_modify(|flags| *flags |= event.flags)
+                    .or_insert(event.flags);
+            }
+        }
+
+        fn has_retries(&self) -> bool {
+            self.retry_roots || !self.retry_paths.is_empty()
+        }
+
+        fn has_work(&self) -> bool {
+            self.rescan_roots || !self.paths.is_empty() || self.has_retries()
+        }
+
+        fn has_pending(&self) -> bool {
+            self.has_work() || self.max_event_id > 0 || !self.deferred_cleanups.is_empty()
+        }
     }
 
     struct CfReleaseGuard {
@@ -146,9 +208,9 @@ mod macos_impl {
     }
 
     impl CallbackStateGuard {
-        fn new(sender: Sender<FsEvent>) -> Self {
+        fn new(sender: Sender<FsEvent>, filter: EventFilter) -> Self {
             Self {
-                state: Box::into_raw(Box::new(CallbackState { sender })),
+                state: Box::into_raw(Box::new(CallbackState { sender, filter })),
             }
         }
 
@@ -239,6 +301,7 @@ mod macos_impl {
 
         let current_system_id = unsafe { FSEventsGetCurrentEventId() };
         let decision = resolve_since_when(stored_event_id, current_system_id);
+        let mut initial = PendingWork::default();
         let since_when = match decision {
             CheckpointDecision::UseCheckpoint(id) => id,
             CheckpointDecision::FullRescan => {
@@ -248,17 +311,28 @@ mod macos_impl {
                 );
                 let db = Database::open(db_path.clone())?;
                 let summary = refresh_roots(&db, &roots, &excludes)?;
-                db.set_meta(META_LAST_EVENT_ID, &current_system_id.to_string())?;
+                let counts = (summary.indexed, summary.deleted);
+                if summary.warnings.is_empty() {
+                    db.set_meta(META_LAST_EVENT_ID, &current_system_id.to_string())?;
+                } else {
+                    log_scan_warnings("initial root rescan", &summary);
+                    retain_incomplete(&mut initial, summary);
+                    if !initial.has_work() {
+                        initial.retry_roots = true;
+                    }
+                    initial.max_event_id = current_system_id;
+                }
                 eprintln!(
-                    "watch: full rescan complete, {} entries, {} stale removed",
-                    summary.indexed, summary.deleted
+                    "watch: initial full rescan finished, {} entries, {} stale removed",
+                    counts.0, counts.1
                 );
                 drop(db);
                 current_system_id
             }
         };
+        let filter = EventFilter::new(&db_path, &excludes);
         let (sender, receiver) = mpsc::channel::<FsEvent>();
-        spawn_processor(db_path, roots.clone(), excludes, receiver);
+        spawn_processor(db_path, roots.clone(), excludes, receiver, initial);
 
         let mut root_strings = Vec::new();
         let mut root_values = Vec::new();
@@ -291,7 +365,7 @@ mod macos_impl {
             ));
         }
 
-        let state = CallbackStateGuard::new(sender);
+        let state = CallbackStateGuard::new(sender, filter);
         let mut context = FSEventStreamContext {
             version: 0,
             info: state.as_info(),
@@ -343,14 +417,20 @@ mod macos_impl {
         Ok(())
     }
 
+    const BATCH_IDLE: Duration = Duration::from_millis(150);
+    const MAX_BATCH_WAIT: Duration = Duration::from_secs(1);
+    const MAX_BATCH_EVENTS: usize = 4096;
+    const MIN_RETRY_DELAY: Duration = Duration::from_secs(1);
+    const MAX_RETRY_DELAY: Duration = Duration::from_secs(60);
+
     fn spawn_processor(
         db_path: PathBuf,
         roots: Vec<PathBuf>,
         excludes: Vec<String>,
         receiver: Receiver<FsEvent>,
+        mut pending: PendingWork,
     ) {
         thread::spawn(move || {
-            let db_dir = db_path.parent().map(PathBuf::from);
             let db = match Database::open(db_path) {
                 Ok(db) => db,
                 Err(err) => {
@@ -358,97 +438,193 @@ mod macos_impl {
                     return;
                 }
             };
+            let mut retry_delay = MIN_RETRY_DELAY;
+            let mut retry_at = pending.has_pending().then(|| Instant::now() + retry_delay);
 
             loop {
-                let Ok(first) = receiver.recv() else {
-                    return;
+                let first = if pending.has_pending() {
+                    let wait = retry_at
+                        .unwrap_or_else(Instant::now)
+                        .saturating_duration_since(Instant::now());
+                    receiver.recv_timeout(wait)
+                } else {
+                    receiver.recv().map_err(|_| RecvTimeoutError::Disconnected)
                 };
-                let mut batch = vec![first];
-                loop {
-                    match receiver.recv_timeout(Duration::from_millis(150)) {
-                        Ok(event) => batch.push(event),
-                        Err(RecvTimeoutError::Timeout) => break,
-                        Err(RecvTimeoutError::Disconnected) => return,
-                    }
-                }
-
-                let max_event_id = batch.iter().map(|event| event.id).max().unwrap_or(0);
-                let batch = batch
-                    .into_iter()
-                    .filter(|event| {
-                        !is_ignored_event_path(&event.path, db.path(), db_dir.as_deref())
-                    })
-                    .collect::<Vec<_>>();
-                if batch.is_empty() {
-                    continue;
-                }
-
-                let action = batch_action(&batch);
-                let processed = match action {
-                    WatchAction::RescanRoots => match refresh_roots(&db, &roots, &excludes) {
-                        Ok(summary) => {
-                            eprintln!(
-                                "watch: rescanned roots, {} entries, {} stale removed",
-                                summary.indexed, summary.deleted
-                            );
-                            true
-                        }
-                        Err(err) => {
-                            eprintln!("watch: root rescan failed: {err}");
-                            false
-                        }
-                    },
-                    WatchAction::RefreshPaths => {
-                        let mut merged = BTreeMap::<String, FSEventStreamEventFlags>::new();
-                        for event in &batch {
-                            merged
-                                .entry(event.path.clone())
-                                .and_modify(|flags| *flags |= event.flags)
-                                .or_insert(event.flags);
-                        }
-
-                        let paths = fold_refresh_paths(merged.keys().cloned().collect::<Vec<_>>());
-                        let mut refreshed_paths = 0_u64;
-                        let mut removed_paths = 0_u64;
-                        let mut indexed_entries = 0_u64;
-                        let mut deleted_entries = 0_u64;
-                        let mut failed_paths = 0_u64;
-                        let mut ok = true;
-                        for path in paths {
-                            match refresh_path(&db, &PathBuf::from(&path), &excludes) {
-                                Ok(summary) => {
-                                    if summary.indexed > 0 {
-                                        refreshed_paths += 1;
-                                        indexed_entries += summary.indexed;
-                                        deleted_entries += summary.deleted;
-                                    } else {
-                                        removed_paths += 1;
-                                    }
-                                }
-                                Err(err) => {
-                                    eprintln!("watch: refresh failed for {path}: {err}");
-                                    failed_paths += 1;
-                                    ok = false;
+                let mut disconnected = false;
+                match first {
+                    Ok(event) => {
+                        pending.add(event);
+                        let deadline = Instant::now() + MAX_BATCH_WAIT;
+                        // Bound both latency and the number drained under constant writes.
+                        for _ in 1..MAX_BATCH_EVENTS {
+                            let remaining = deadline.saturating_duration_since(Instant::now());
+                            if remaining.is_zero() {
+                                break;
+                            }
+                            match receiver.recv_timeout(BATCH_IDLE.min(remaining)) {
+                                Ok(event) => pending.add(event),
+                                Err(RecvTimeoutError::Timeout) => break,
+                                Err(RecvTimeoutError::Disconnected) => {
+                                    disconnected = true;
+                                    break;
                                 }
                             }
                         }
-                        let total_paths = refreshed_paths + removed_paths + failed_paths;
-                        if total_paths > 0 {
-                            eprintln!(
-                                "watch: processed {total_paths} paths ({refreshed_paths} refreshed, {removed_paths} removed, {failed_paths} failed, {indexed_entries} entries, {deleted_entries} stale removed)"
-                            );
-                        }
-                        ok
                     }
-                };
-
-                if processed && max_event_id > 0 {
-                    if let Err(err) = db.set_meta(META_LAST_EVENT_ID, &max_event_id.to_string()) {
-                        eprintln!("watch: failed to persist event checkpoint: {err}");
-                    }
+                    Err(RecvTimeoutError::Timeout) => {}
+                    Err(RecvTimeoutError::Disconnected) => disconnected = true,
+                }
+                let retry_due =
+                    disconnected || retry_at.is_none_or(|deadline| Instant::now() >= deadline);
+                process_pending(
+                    &mut pending,
+                    retry_due,
+                    |path| refresh_path(&db, path, &excludes),
+                    || refresh_roots(&db, &roots, &excludes),
+                );
+                let complete = persist_checkpoint(&db, &mut pending);
+                if complete {
+                    retry_delay = MIN_RETRY_DELAY;
+                    retry_at = None;
+                } else if retry_due || retry_at.is_none() {
+                    retry_at = Some(Instant::now() + retry_delay);
+                    retry_delay = (retry_delay * 2).min(MAX_RETRY_DELAY);
+                }
+                if disconnected {
+                    return;
                 }
             }
         });
+    }
+
+    fn log_scan_warnings(context: &str, summary: &IndexSummary) {
+        eprintln!(
+            "watch: {context} incomplete ({} warnings), retry retained",
+            summary.warnings.len()
+        );
+        for warning in summary.warnings.iter().take(3) {
+            eprintln!("watch: {warning}");
+        }
+    }
+
+    fn process_pending<F, R>(
+        pending: &mut PendingWork,
+        retry_due: bool,
+        mut refresh: F,
+        mut rescan: R,
+    ) where
+        F: FnMut(&Path) -> Result<IndexSummary>,
+        R: FnMut() -> Result<IndexSummary>,
+    {
+        if retry_due {
+            pending.paths.append(&mut pending.retry_paths);
+            pending.rescan_roots |= std::mem::take(&mut pending.retry_roots);
+        }
+        if std::mem::take(&mut pending.rescan_roots) {
+            match rescan() {
+                Ok(summary) if summary.warnings.is_empty() => {
+                    eprintln!(
+                        "watch: rescanned roots, {} entries, {} stale removed",
+                        summary.indexed, summary.deleted
+                    );
+                    pending.paths.clear();
+                    pending.retry_paths.clear();
+                    pending.retry_roots = false;
+                    return;
+                }
+                Ok(summary) => {
+                    log_scan_warnings("root rescan", &summary);
+                    pending.paths.clear();
+                    pending.retry_paths.clear();
+                    pending.retry_roots = summary.retry_paths.is_empty();
+                    retain_incomplete(pending, summary);
+                    return;
+                }
+                Err(err) => {
+                    eprintln!("watch: root rescan failed: {err}; retry retained");
+                    pending.retry_roots = true;
+                    // Fresh paths can still progress while a whole-root retry waits.
+                }
+            }
+        }
+        let paths = fold_refresh_paths(pending.paths.keys().cloned().collect());
+        pending.paths.clear();
+        let mut indexed = 0_u64;
+        let mut deleted = 0_u64;
+        let total = paths.len();
+        for path in paths {
+            let retry = match refresh(Path::new(&path)) {
+                Ok(summary) if summary.warnings.is_empty() => {
+                    indexed += summary.indexed;
+                    deleted += summary.deleted;
+                    pending
+                        .retry_paths
+                        .retain(|old, _| !Path::new(old).starts_with(&path));
+                    false
+                }
+                Ok(summary) => {
+                    log_scan_warnings(&path, &summary);
+                    let retry_original = summary.retry_paths.is_empty();
+                    retain_incomplete(pending, summary);
+                    retry_original
+                }
+                Err(err) => {
+                    eprintln!("watch: refresh failed for {path}: {err}; retry retained");
+                    true
+                }
+            };
+            if retry {
+                pending.retry_paths.insert(path, 0);
+            }
+        }
+        if total > 0 {
+            eprintln!("watch: processed {total} paths ({} pending retries, {indexed} entries, {deleted} stale removed)", pending.retry_paths.len());
+        }
+    }
+
+    fn retain_incomplete(pending: &mut PendingWork, summary: IndexSummary) {
+        for path in summary.retry_paths {
+            pending
+                .retry_paths
+                .insert(path.to_string_lossy().into_owned(), 0);
+        }
+        for (path, generation) in summary.deferred_cleanups {
+            pending
+                .deferred_cleanups
+                .entry(path)
+                .and_modify(|previous| *previous = (*previous).max(generation))
+                .or_insert(generation);
+        }
+    }
+
+    fn persist_checkpoint(db: &Database, pending: &mut PendingWork) -> bool {
+        // A later successful batch cannot advance past an earlier failed path.
+        if pending.has_work() {
+            return false;
+        }
+        if !pending.deferred_cleanups.is_empty() {
+            let cleanup = (|| {
+                db.begin()?;
+                for (path, generation) in &pending.deferred_cleanups {
+                    db.delete_stale_under_roots(std::slice::from_ref(path), *generation)?;
+                }
+                db.commit()
+            })();
+            if let Err(err) = cleanup {
+                let _ = db.rollback();
+                eprintln!("watch: deferred cleanup failed: {err}; retry retained");
+                return false;
+            }
+            pending.deferred_cleanups.clear();
+        }
+        if pending.max_event_id > 0 {
+            if let Err(err) = db.set_meta(META_LAST_EVENT_ID, &pending.max_event_id.to_string()) {
+                eprintln!("watch: failed to persist event checkpoint: {err}; retry retained");
+                return false;
+            }
+            pending.max_event_id = 0;
+        }
+        true
     }
 
     fn runtime_excludes(mut excludes: Vec<String>, db_path: &Path) -> Vec<String> {
@@ -480,30 +656,25 @@ mod macos_impl {
         false
     }
 
-    fn fold_refresh_paths(paths: Vec<String>) -> Vec<String> {
-        let mut paths = paths;
+    fn fold_refresh_paths(mut paths: Vec<String>) -> Vec<String> {
         paths.sort();
-        let mut folded = Vec::<String>::new();
+        let mut ancestors = BTreeSet::<String>::new();
+        let mut folded = Vec::new();
         for path in paths {
-            if folded
-                .iter()
-                .any(|parent| path_is_same_or_child(parent, &path))
-            {
-                continue;
+            let covered = Path::new(&path).ancestors().any(|ancestor| {
+                ancestor
+                    .to_str()
+                    .is_some_and(|value| ancestors.contains(value))
+            });
+            if !covered {
+                ancestors.insert(path.clone());
+                folded.push(path);
             }
-            folded.push(path);
         }
         folded
     }
 
-    fn path_is_same_or_child(parent: &str, path: &str) -> bool {
-        path == parent
-            || path
-                .strip_prefix(parent)
-                .map(|rest| rest.starts_with('/'))
-                .unwrap_or(false)
-    }
-
+    #[cfg(test)]
     fn batch_action(batch: &[FsEvent]) -> WatchAction {
         if batch
             .iter()
@@ -567,8 +738,12 @@ mod macos_impl {
             if path_ptr.is_null() {
                 continue;
             }
-            let path = CStr::from_ptr(path_ptr).to_string_lossy().to_string();
+            let path = CStr::from_ptr(path_ptr).to_string_lossy();
             let flags = *event_flags.add(index);
+            if !state.filter.accepts(&path, flags) {
+                continue;
+            }
+            let path = path.into_owned();
             let id = if event_ids.is_null() {
                 0
             } else {
@@ -581,6 +756,370 @@ mod macos_impl {
     #[cfg(test)]
     mod tests {
         use super::*;
+
+        fn temp_dir(label: &str) -> PathBuf {
+            let unique = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos();
+            std::env::temp_dir().join(format!("macevery-{label}-{}-{unique}", std::process::id()))
+        }
+
+        fn event(path: &Path, id: u64) -> FsEvent {
+            FsEvent {
+                path: path.to_string_lossy().into_owned(),
+                flags: 0,
+                id,
+            }
+        }
+
+        fn process_actual(db: &Database, roots: &[PathBuf], pending: &mut PendingWork) {
+            process_pending(
+                pending,
+                true,
+                |path| refresh_path(db, path, &[]),
+                || refresh_roots(db, roots, &[]),
+            );
+        }
+
+        #[test]
+        fn callback_excludes_noise_before_queue_but_keeps_recovery_events() {
+            let (sender, receiver) = mpsc::channel();
+            let state = CallbackState {
+                sender,
+                filter: EventFilter::new(
+                    Path::new("/private/tmp/index-state/index.sqlite"),
+                    &[".git".to_string(), "node_modules".to_string()],
+                ),
+            };
+            let paths = [
+                "/project/.git/objects",
+                "/project/node_modules/pkg",
+                "/private/tmp/index-state/index.sqlite-wal",
+                "/project/src/new.rs",
+                "/project/.git/objects",
+                "/project/node_modules/pkg",
+                "/private/tmp/index-state/index.sqlite",
+            ]
+            .map(|path| CString::new(path).unwrap());
+            let mut pointers = paths.iter().map(|path| path.as_ptr()).collect::<Vec<_>>();
+            let flags = [
+                0,
+                0,
+                0,
+                0,
+                FLAG_USER_DROPPED,
+                FLAG_MUST_SCAN_SUBDIRS,
+                FLAG_ROOT_CHANGED,
+            ];
+            let ids = [1, 2, 3, 4, 5, 6, 7];
+            unsafe {
+                event_callback(
+                    ptr::null(),
+                    (&state as *const CallbackState).cast_mut().cast(),
+                    pointers.len(),
+                    pointers.as_mut_ptr().cast(),
+                    flags.as_ptr(),
+                    ids.as_ptr(),
+                );
+            }
+            let events = receiver.try_iter().collect::<Vec<_>>();
+            assert_eq!(
+                events.iter().map(|event| event.id).collect::<Vec<_>>(),
+                [4, 5, 6, 7]
+            );
+            // Rejected events cannot reach a transaction, scan, or checkpoint write.
+            let mut pending = PendingWork::default();
+            for event in events {
+                pending.add(event);
+            }
+            assert!(pending.rescan_roots);
+            assert!(pending.paths.is_empty());
+            assert_eq!(pending.max_event_id, 7);
+        }
+
+        #[test]
+        fn failed_path_blocks_later_checkpoint_until_actual_recovery() {
+            use crate::model::{FileKind, FileRecord};
+            use std::os::unix::fs::symlink;
+            let temp = temp_dir("watch-retry");
+            let root = temp.join("root");
+            std::fs::create_dir_all(&root).unwrap();
+            let looping = root.join("loop");
+            symlink("loop", &looping).unwrap();
+            let failed = looping.join("indexed-dir");
+            let child = failed.join("keep.txt");
+            let good = root.join("good.txt");
+            std::fs::write(&good, "new").unwrap();
+            let db = Database::open(temp.join("index.sqlite")).unwrap();
+            for (path, kind) in [(&failed, FileKind::Directory), (&child, FileKind::File)] {
+                db.upsert_file(&FileRecord::new(
+                    path.to_string_lossy().into_owned(),
+                    kind,
+                    1,
+                ))
+                .unwrap();
+            }
+            db.set_meta(META_LAST_EVENT_ID, "100").unwrap();
+            let mut pending = PendingWork::default();
+            pending.add(event(&failed, 101));
+            process_actual(&db, std::slice::from_ref(&root), &mut pending);
+            assert!(!persist_checkpoint(&db, &mut pending));
+            pending.add(event(&good, 102));
+            // Model an old failure in backoff: only the fresh event is processed.
+            process_pending(
+                &mut pending,
+                false,
+                |path| {
+                    assert_eq!(path, good);
+                    refresh_path(&db, path, &[])
+                },
+                || panic!("fresh events must not force a root retry"),
+            );
+            assert!(!persist_checkpoint(&db, &mut pending));
+            assert_eq!(
+                db.get_meta(META_LAST_EVENT_ID).unwrap().as_deref(),
+                Some("100")
+            );
+            assert_eq!(
+                db.kind_for_path(&child.to_string_lossy()).unwrap(),
+                Some(FileKind::File)
+            );
+            assert_eq!(
+                db.kind_for_path(&good.to_string_lossy()).unwrap(),
+                Some(FileKind::File)
+            );
+            std::fs::remove_file(looping).unwrap();
+            std::fs::create_dir_all(&failed).unwrap();
+            std::fs::write(&child, "restored").unwrap();
+            process_actual(&db, std::slice::from_ref(&root), &mut pending);
+            assert!(persist_checkpoint(&db, &mut pending));
+            assert!(!pending.has_pending());
+            assert_eq!(
+                db.get_meta(META_LAST_EVENT_ID).unwrap().as_deref(),
+                Some("102")
+            );
+            drop(db);
+            std::fs::remove_dir_all(temp).unwrap();
+        }
+
+        #[test]
+        fn partial_root_rescan_retries_only_failed_subtree_and_defers_safe_cleanup() {
+            use crate::model::{FileKind, FileRecord};
+            use std::os::unix::fs::symlink;
+            let temp = temp_dir("watch-scoped-retry");
+            let healthy = temp.join("healthy");
+            std::fs::create_dir_all(&healthy).unwrap();
+            let looping = temp.join("loop");
+            symlink("loop", &looping).unwrap();
+            let failed = looping.join("indexed-dir");
+            let keep = failed.join("keep.txt");
+            let stale = healthy.join("deleted.txt");
+            let fresh = healthy.join("fresh.txt");
+            let roots = vec![healthy.clone(), failed.clone()];
+            let db = Database::open(temp.join("index.sqlite")).unwrap();
+            for (path, kind) in [
+                (&failed, FileKind::Directory),
+                (&keep, FileKind::File),
+                (&stale, FileKind::File),
+            ] {
+                db.upsert_file(&FileRecord::new(
+                    path.to_string_lossy().into_owned(),
+                    kind,
+                    1,
+                ))
+                .unwrap();
+            }
+            db.set_meta(META_LAST_EVENT_ID, "100").unwrap();
+            let mut pending = PendingWork::default();
+            pending.add(FsEvent {
+                path: healthy.to_string_lossy().into_owned(),
+                flags: FLAG_USER_DROPPED,
+                id: 201,
+            });
+            process_actual(&db, &roots, &mut pending);
+            assert!(!pending.rescan_roots && !pending.retry_roots);
+            assert_eq!(
+                pending.retry_paths.keys().cloned().collect::<Vec<_>>(),
+                [failed.to_string_lossy().into_owned()]
+            );
+            assert_eq!(pending.deferred_cleanups.len(), 2);
+            assert!(!persist_checkpoint(&db, &mut pending));
+            std::fs::write(&fresh, "fresh").unwrap();
+            pending.add(event(&fresh, 202));
+            process_pending(
+                &mut pending,
+                false,
+                |path| {
+                    assert_eq!(path, fresh);
+                    refresh_path(&db, path, &[])
+                },
+                || panic!("permanent subtree failure must not rescan healthy roots"),
+            );
+            assert!(db
+                .kind_for_path(&fresh.to_string_lossy())
+                .unwrap()
+                .is_some());
+            assert!(!persist_checkpoint(&db, &mut pending));
+            process_pending(
+                &mut pending,
+                true,
+                |path| {
+                    assert_eq!(path, failed);
+                    refresh_path(&db, path, &[])
+                },
+                || panic!("only the failed subtree may retry"),
+            );
+            assert!(!persist_checkpoint(&db, &mut pending));
+            assert!(db.kind_for_path(&keep.to_string_lossy()).unwrap().is_some());
+            std::fs::remove_file(looping).unwrap();
+            std::fs::create_dir_all(&failed).unwrap();
+            std::fs::write(&keep, "restored").unwrap();
+            process_pending(
+                &mut pending,
+                true,
+                |path| refresh_path(&db, path, &[]),
+                || panic!("recovery stays scoped"),
+            );
+            assert!(persist_checkpoint(&db, &mut pending));
+            assert!(db
+                .kind_for_path(&stale.to_string_lossy())
+                .unwrap()
+                .is_none());
+            assert!(db
+                .kind_for_path(&fresh.to_string_lossy())
+                .unwrap()
+                .is_some());
+            assert!(db.kind_for_path(&keep.to_string_lossy()).unwrap().is_some());
+            assert_eq!(
+                db.get_meta(META_LAST_EVENT_ID).unwrap().as_deref(),
+                Some("202")
+            );
+            drop(db);
+            std::fs::remove_dir_all(temp).unwrap();
+        }
+
+        #[test]
+        fn incomplete_root_rescan_keeps_recovery_and_checkpoint_pending() {
+            let temp = temp_dir("watch-partial");
+            let db = Database::open(temp.join("index.sqlite")).unwrap();
+            db.set_meta(META_LAST_EVENT_ID, "100").unwrap();
+            let mut pending = PendingWork::default();
+            pending.add(FsEvent {
+                path: "/excluded/.git".to_string(),
+                flags: FLAG_USER_DROPPED,
+                id: 201,
+            });
+            process_pending(
+                &mut pending,
+                true,
+                |_| panic!("root recovery must rescan"),
+                || {
+                    Ok(IndexSummary {
+                        warnings: vec!["unreadable directory".to_string()],
+                        ..IndexSummary::default()
+                    })
+                },
+            );
+            assert!(!persist_checkpoint(&db, &mut pending));
+            assert!(pending.retry_roots);
+            assert_eq!(
+                db.get_meta(META_LAST_EVENT_ID).unwrap().as_deref(),
+                Some("100")
+            );
+            process_pending(
+                &mut pending,
+                true,
+                |_| panic!("root recovery must rescan"),
+                || Ok(IndexSummary::default()),
+            );
+            assert!(persist_checkpoint(&db, &mut pending));
+            assert_eq!(
+                db.get_meta(META_LAST_EVENT_ID).unwrap().as_deref(),
+                Some("201")
+            );
+            drop(db);
+            std::fs::remove_dir_all(temp).unwrap();
+        }
+
+        #[test]
+        fn directory_create_modify_rename_and_delete_refresh_correctly() {
+            use crate::scanner::{index_paths, IndexRequest};
+            let temp = temp_dir("watch-lifecycle");
+            let root = temp.join("root");
+            std::fs::create_dir_all(&root).unwrap();
+            let db = Database::open(temp.join("index.sqlite")).unwrap();
+            index_paths(
+                &db,
+                &IndexRequest {
+                    roots: vec![root.clone()],
+                    excludes: vec![],
+                    rebuild: true,
+                },
+            )
+            .unwrap();
+            let mut pending = PendingWork::default();
+            let dir = root.join("new-dir");
+            let file = dir.join("new.txt");
+            std::fs::create_dir_all(&dir).unwrap();
+            std::fs::write(&file, "a").unwrap();
+            pending.add(event(&dir, 1));
+            pending.add(event(&file, 2));
+            process_actual(&db, std::slice::from_ref(&root), &mut pending);
+            assert!(persist_checkpoint(&db, &mut pending));
+            assert!(db.kind_for_path(&file.to_string_lossy()).unwrap().is_some());
+            std::fs::write(&file, "a longer file").unwrap();
+            pending.add(event(&file, 3));
+            process_actual(&db, std::slice::from_ref(&root), &mut pending);
+            assert!(persist_checkpoint(&db, &mut pending));
+            assert_eq!(
+                db.all_records()
+                    .unwrap()
+                    .iter()
+                    .find(|r| r.path == file.to_string_lossy())
+                    .unwrap()
+                    .size,
+                Some(13)
+            );
+            let renamed = root.join("renamed-dir");
+            std::fs::rename(&dir, &renamed).unwrap();
+            pending.add(event(&dir, 4));
+            pending.add(event(&renamed, 5));
+            process_actual(&db, std::slice::from_ref(&root), &mut pending);
+            assert!(persist_checkpoint(&db, &mut pending));
+            assert!(db.kind_for_path(&file.to_string_lossy()).unwrap().is_none());
+            assert!(db
+                .kind_for_path(&renamed.join("new.txt").to_string_lossy())
+                .unwrap()
+                .is_some());
+            std::fs::remove_dir_all(&renamed).unwrap();
+            pending.add(event(&renamed, 6));
+            process_actual(&db, std::slice::from_ref(&root), &mut pending);
+            assert!(persist_checkpoint(&db, &mut pending));
+            assert_eq!(db.all_records().unwrap().len(), 1);
+            assert_eq!(
+                db.get_meta(META_LAST_EVENT_ID).unwrap().as_deref(),
+                Some("6")
+            );
+            drop(db);
+            std::fs::remove_dir_all(temp).unwrap();
+        }
+
+        #[test]
+        fn fold_paths_handles_root_and_interleaved_lookalike_siblings() {
+            assert_eq!(
+                fold_refresh_paths(vec![
+                    "/a".to_string(),
+                    "/a-b".to_string(),
+                    "/a/c".to_string()
+                ]),
+                ["/a", "/a-b"]
+            );
+            assert_eq!(
+                fold_refresh_paths(vec!["/".to_string(), "/a".to_string(), "/b/c".to_string()]),
+                ["/"]
+            );
+        }
 
         #[test]
         fn dropped_or_root_changed_events_trigger_root_rescan() {

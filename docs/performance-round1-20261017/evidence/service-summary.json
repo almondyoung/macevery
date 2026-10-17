@@ -1,0 +1,58 @@
+{
+  "status": "PASS",
+  "burst_status_counts": {
+    "200": 4,
+    "503": 36
+  },
+  "backpressure_observed": true,
+  "cleanup": {
+    "pid": 73797,
+    "returncode": -15,
+    "method": "SIGTERM",
+    "process_group_gone": true,
+    "port_closed": true
+  },
+  "temporary_db_copies_removed": true,
+  "baseline_queries": {
+    "source-00000000.rs": {
+      "count": 1,
+      "sha256": "a8b9cd7d917d439e58101092355523529bef25d5fac142c64c5bccfe32cd5a8f"
+    },
+    "~rpt": {
+      "count": 300,
+      "sha256": "e1546d707da8658186048444270c63a4506e4b2736443f3f74f4052b66e5674c"
+    }
+  },
+  "source_before": {
+    "main": {
+      "path": "/private/tmp/macevery-audit-search/index.sqlite",
+      "bytes": 35037184,
+      "mtime_ns": 1792204524091562964,
+      "inode": 77855199,
+      "sha256": "efab68a6f47f30c983f7d3bb13225da5933323f3df7cab8597c764e56d103fe2"
+    },
+    "wal": {
+      "path": "/private/tmp/macevery-audit-search/index.sqlite-wal",
+      "bytes": 0,
+      "mtime_ns": 1792204524199071914,
+      "inode": 77855201,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  },
+  "source_after": {
+    "main": {
+      "path": "/private/tmp/macevery-audit-search/index.sqlite",
+      "bytes": 35037184,
+      "mtime_ns": 1792204524091562964,
+      "inode": 77855199,
+      "sha256": "efab68a6f47f30c983f7d3bb13225da5933323f3df7cab8597c764e56d103fe2"
+    },
+    "wal": {
+      "path": "/private/tmp/macevery-audit-search/index.sqlite-wal",
+      "bytes": 0,
+      "mtime_ns": 1792204524199071914,
+      "inode": 77855201,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  }
+}

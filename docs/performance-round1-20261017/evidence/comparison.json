@@ -1,0 +1,38 @@
+{
+  "real_rows": 7226486,
+  "queries": 9,
+  "baseline_processes": 4,
+  "candidate_processes": 2,
+  "ordered_results_match": true,
+  "query_group_cpu_s": {
+    "baseline": 22.555745499999993,
+    "candidate": 5.443197
+  },
+  "query_group_cpu_reduction_pct": 75.86780272902085,
+  "watch_cpu_s": {
+    "baseline": 3.1725849999999998,
+    "candidate": 0.017275
+  },
+  "watch_cpu_reduction_pct": 99.45549134223354,
+  "watch_final_state_match": true,
+  "process_peak_rss_bytes": {
+    "baseline": 10307084288.0,
+    "candidate": 3992895488.0,
+    "reduction_pct": 61.26066910456219
+  },
+  "load_end_rss_bytes": {
+    "baseline": 3984072704.0,
+    "candidate": 3984113664.0,
+    "reduction_pct": -0.0010280936881157388
+  },
+  "code_cpu_ms": {
+    "baseline": 4543.4365,
+    "candidate": 362.44899999999996,
+    "reduction_pct": 92.02258026496024
+  },
+  "nohit_cpu_ms": {
+    "baseline": 4509.529,
+    "candidate": 2082.8565,
+    "reduction_pct": 53.81210543274032
+  }
+}

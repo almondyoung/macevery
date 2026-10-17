@@ -1,0 +1,71 @@
+{
+  "date": "2026-10-17",
+  "development_label": "0.1.3-ga7e6d8a-dirty",
+  "baseline_commit": "a7e6d8a5b5f6cd58008db11ce2d6fc6a4638d1a8",
+  "source_files_sha256": {
+    "src/sqlite.rs": "4399f2c9111448781b0d31990f2ca53fea2427ce8edbde8140c667f66341390b",
+    "src/process_lifetime.rs": "fe4ded2a9adacdefb13926974b7c551f860f819a3f7188a2d8c476daf9698600",
+    "src/error.rs": "f625ef016471ec59f6d6d014fe78495867c7a65bca13d46879070012fde59d48",
+    "src/config.rs": "683701a84abc5617f6e3c80853e6f06ab8005a1bc861950f59f3f4de549ad4ff",
+    "src/macos.rs": "c9ac332b1140e4cb7b5db76bff34387717b149b4cd7bc311824a4ff3e6c72ace",
+    "src/lib.rs": "6a234c410c36eabd50616c6f7f54516207735b560e073c91db5c39918dc000ea",
+    "src/server.rs": "6cd6a12a3d2fdac609dfb2c012d6c5a5e74cdb1bf36714de8768c910fdf8639b",
+    "src/scanner.rs": "4a221ccced754c564fcd2ca85833c1aee872a5b7887170324438c1c541f0a642",
+    "src/db.rs": "2b623cdc976c3c946d6c5de931380aaf62ca37d7bc789e1efcd23fbe9ae43f3f",
+    "src/compact_index.rs": "ac8a0723ddfee652fe4bb228b727242a4ac53ea48376d9cf831cebb51ebc29b8",
+    "src/watch.rs": "6eb789a60820a6964f30c60cef6a2373f897ede12c94872e32142a509d3f9926",
+    "src/main.rs": "9841539de18a7cb5d38c5c117b53b0f5aff0c8d9874769e80efa7b12219c722d",
+    "src/search.rs": "698393a8f293a3af1471dd514b6093e9bff2803f15c9f5f42fc1aeb8530d85bf",
+    "src/model.rs": "11d8728e8b0149a4659debec5cdfcb4ec5754711b80990dbf813dce41f19da3d",
+    "src/bench.rs": "da942d038737d49c890fe01db972d53d9a99fd4bdbb7b936020628670c19331d",
+    "src/cli.rs": "80073d9ab6317f1b3f96c07d25e0149a5277901b0ac3ba7fd1c3cb4223e67668",
+    "macos/build-app.sh": "8f4d447aea6c90d2d24447588ef30e474b8dbc094395b5dd9e4928a89c4d65ef",
+    "macos/Entitlements.plist": "c706e295c8d105efa39a488b2fb7da1256f5652721633b37da9077c1d9145e32",
+    "macos/generate-icon.swift": "5b9ebead2952dc66be8231697c4893eb30a51f78dca66d957c18f7350fce2ffe",
+    "macos/MacEveryApp.swift": "5b843375207963eb799a4598b8a268ca4e58bb13ca186c273ad664d472758990",
+    "macos/notarize-app.sh": "7f0c3c745ef53ad481d49e226566ce9a1251d6144d43fb40cdb365183f0b714f",
+    "macos/Info.plist": "e352097cec49290538e07ffda3c50b5a796547fccd75fee1ad76b44847215139",
+    "tests/macos/GUIRegressionChecks.swift": "dc6a62bc6c2bbb405bae3a5cacaed3d91f1f7c5e7796f8f4418a3e295a3ae665",
+    "tools/check_service_round1.py": "5d9af62ce3ffe35350a4bea384310179fd83a83392ea4b2b18a4cd6117d4a08b",
+    "tools/compare_round1.py": "a85210ee7b843edd102ab8cb43cdbf6de6ee5883b3cd3c8b185de033e3b6f5eb",
+    "tools/perf_round1.rs": "d555f8d3c9092af2388266ca1031a81ab3a65966ec81f753ac556ffb901e6216",
+    "tools/watch_round1.py": "540cb15ba8fd355b045f5e0c622db762891550b1774ff51919971a6bdbda0300",
+    "Cargo.toml": "c3bda648bcd3be055a6f9c6961f6ce990d760c999fc640f207b2b3daf80bc9cf",
+    "Cargo.lock": "6330566cb39068b5ad8f8d070a716c7ca86d434c4973339d32aaa587b90207b0",
+    "Makefile": "35c83cd55cfb9e55a9156b306754f94dbc2d3cb680a574e3ebe78bc1b0700a8d",
+    "README.md": "36fa64cf83947dcb70ea93e2a82bac24d20cd2cf351760e02a39e31814c5fd02",
+    ".github/workflows/ci.yml": "9f0b9fcf29e9b6c25282e2d542bd9cde7c5522084f761adaaba27ae636cf34ae"
+  },
+  "tracked_patch_sha256": "5cf3bdb5129ddc32cc991163814c8b32cb81172d7ff1a98fe8cc799e84dd1f6c",
+  "snapshot": {
+    "rows": 7226486,
+    "backup_seconds": 15.3,
+    "snapshot_bytes": 5410697216,
+    "method": "SQLite online backup from read-only source inside read transaction"
+  },
+  "snapshot_sha256": "68bd22081af1eb5ec9164037407cb6c9c13349a7f8e460fa9aa682b3286b5b29",
+  "artifact_root": "/Users/yangtao/pine/code/macevery/.build/performance-round1-20261017",
+  "source": "/Users/yangtao/pine/code/macevery/.build/performance-round1-20261017/candidate-source",
+  "measurement_wrapper_matches_manifest": true,
+  "binaries": {
+    "baseline": {
+      "macevery": "0534162742724e4e705dbea3e5292b99f43f925e0a0da71933fa9557dda0b1af",
+      "libmacevery.rlib": "7b4179fb9622ae7eef7b74027f3e54d65feeab64590e473319478e40ad5bdb4b"
+    },
+    "candidate": {
+      "macevery": "744ffee27dfb470d3b518dae291ec463ef3167988989b50a3c8f1fce93551826",
+      "libmacevery.rlib": "29ebac3c029636ab5829a30d959d45fdc041fe51c884f5f38b28121dc696d54f"
+    }
+  },
+  "checks": {
+    "debug_tests": 55,
+    "release_tests": 55,
+    "strict_clippy": "PASS",
+    "make_test_gui": "PASS",
+    "search_full_results": "PASS",
+    "real_fsevents": "PASS",
+    "http_concurrency": "PASS"
+  },
+  "runtime_replaced": false,
+  "commit_push_release": false
+}

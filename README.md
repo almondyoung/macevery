@@ -79,6 +79,18 @@ Run the GUI:
 open .build/MacEvery.app
 ```
 
+Run Rust and GUI model/subprocess regression checks (macOS):
+
+```bash
+make test
+# GUI checks alone:
+make test-gui
+```
+
+The GUI checks compile the production source with test dependencies, without
+starting the app or accessing your index. For the first performance optimization
+and reproducible A/B tools, see [the validation report](docs/performance-round1-20261017/REPORT.md).
+
 ## CLI
 
 Create or rebuild an index:
@@ -162,6 +174,11 @@ Search service backends:
 The GUI defaults to `memory` because MacEvery is optimized for fast local use.
 Switch to Balanced or Low Memory in Settings if background memory matters more.
 For `auto`, set `MACEVERY_MEMORY_BUDGET_MB` to override the default budget.
+
+Search computations are limited to two concurrent requests by default, separately
+from the connection limit. Set `MACEVERY_MAX_ACTIVE_SEARCHES` to override this.
+When search slots are busy, the service returns HTTP 503; the GUI retries only
+the latest query with bounded backoff.
 
 Benchmark the current index:
 

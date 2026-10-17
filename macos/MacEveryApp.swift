@@ -1,5 +1,6 @@
 import AppKit
 import Carbon
+import Darwin
 import Foundation
 import Security
 import SwiftUI
@@ -399,14 +400,96 @@ final class GlobalHotKey {
     }
 }
 
+enum CommandRunError: LocalizedError {
+    case cancelled
+    case timedOut
+    case outputLimitExceeded
+    case outputReadTimedOut
+
+    var errorDescription: String? {
+        switch self {
+        case .cancelled: return "Command cancelled"
+        case .timedOut: return "Command timed out"
+        case .outputLimitExceeded: return "Command output exceeded the size limit"
+        case .outputReadTimedOut: return "Command output did not close after exit"
+        }
+    }
+}
+
+// A cancellation may arrive before launch, while the child runs, or after exit.
+// Serializing launch with cancellation ensures a cancelled queued search cannot start.
+final class CommandCancellation: @unchecked Sendable {
+    private let lock = NSLock()
+    private var cancelled = false
+    private var process: Process?
+
+    var isCancelled: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return cancelled
+    }
+
+    func start(_ process: Process) throws {
+        lock.lock()
+        defer { lock.unlock() }
+        guard !cancelled else { throw CommandRunError.cancelled }
+        try process.run()
+        self.process = process
+    }
+
+    func cancel() {
+        lock.lock()
+        cancelled = true
+        let running = process
+        lock.unlock()
+        if let running, running.isRunning {
+            running.terminate()
+        }
+    }
+
+    func detach() {
+        lock.lock()
+        process = nil
+        lock.unlock()
+    }
+}
+
+private final class CommandOutputBuffer: @unchecked Sendable {
+    private let lock = NSLock()
+    private var data = Data()
+    private var overflowed = false
+    private let limit: Int
+
+    init(limit: Int) { self.limit = max(0, limit) }
+
+    func append(_ chunk: Data) {
+        lock.lock()
+        defer { lock.unlock() }
+        let remaining = max(0, limit - data.count)
+        data.append(chunk.prefix(remaining))
+        if chunk.count > remaining { overflowed = true }
+    }
+
+    func snapshot() -> (Data, Bool) {
+        lock.lock()
+        defer { lock.unlock() }
+        return (data, overflowed)
+    }
+}
+
 final class MacEveryCLI {
     let executableURL: URL
 
-    init() {
-        executableURL = MacEveryCLI.findExecutable()
+    init(executableURL: URL? = nil) {
+        self.executableURL = executableURL ?? MacEveryCLI.findExecutable()
     }
 
-    func run(_ arguments: [String]) throws -> CommandOutput {
+    func run(
+        _ arguments: [String],
+        cancellation: CommandCancellation = CommandCancellation(),
+        timeout: TimeInterval = 120,
+        maxOutputBytes: Int = 8 * 1024 * 1024
+    ) throws -> CommandOutput {
         let process = Process()
         process.executableURL = executableURL
         process.arguments = arguments
@@ -415,12 +498,61 @@ final class MacEveryCLI {
         let stderr = Pipe()
         process.standardOutput = stdout
         process.standardError = stderr
+        let exited = DispatchSemaphore(value: 0)
+        process.terminationHandler = { _ in exited.signal() }
+        try cancellation.start(process)
+        defer { cancellation.detach() }
 
-        try process.run()
-        process.waitUntilExit()
+        // Drain both pipes while the child runs: waiting for exit first can
+        // deadlock when either stream fills its kernel pipe buffer.
+        let readers = DispatchGroup()
+        let outBuffer = CommandOutputBuffer(limit: maxOutputBytes)
+        let errBuffer = CommandOutputBuffer(limit: maxOutputBytes)
+        for (handle, buffer) in [
+            (stdout.fileHandleForReading, outBuffer),
+            (stderr.fileHandleForReading, errBuffer)
+        ] {
+            readers.enter()
+            DispatchQueue.global(qos: .utility).async {
+                defer {
+                    try? handle.close()
+                    readers.leave()
+                }
+                while let chunk = try? handle.read(upToCount: 64 * 1024), !chunk.isEmpty {
+                    buffer.append(chunk)
+                }
+            }
+        }
 
-        let outData = stdout.fileHandleForReading.readDataToEndOfFile()
-        let errData = stderr.fileHandleForReading.readDataToEndOfFile()
+        let deadline = ProcessInfo.processInfo.systemUptime + max(0, timeout)
+        var failure: CommandRunError?
+        while exited.wait(timeout: .now() + 0.05) == .timedOut {
+            if cancellation.isCancelled {
+                failure = .cancelled
+                break
+            }
+            if ProcessInfo.processInfo.systemUptime >= deadline {
+                failure = .timedOut
+                break
+            }
+        }
+        if failure != nil {
+            if process.isRunning { process.terminate() }
+            if exited.wait(timeout: .now() + 0.25) == .timedOut {
+                if process.isRunning { Darwin.kill(process.processIdentifier, SIGKILL) }
+                _ = exited.wait(timeout: .now() + 5)
+            }
+        }
+        if readers.wait(timeout: .now() + 2) == .timedOut {
+            try? stdout.fileHandleForReading.close()
+            try? stderr.fileHandleForReading.close()
+            throw failure ?? CommandRunError.outputReadTimedOut
+        }
+        if cancellation.isCancelled { throw CommandRunError.cancelled }
+        if let failure { throw failure }
+        let (outData, outOverflowed) = outBuffer.snapshot()
+        let (errData, errOverflowed) = errBuffer.snapshot()
+        guard !outOverflowed && !errOverflowed else { throw CommandRunError.outputLimitExceeded }
         return CommandOutput(
             stdout: String(data: outData, encoding: .utf8) ?? "",
             stderr: String(data: errData, encoding: .utf8) ?? "",
@@ -473,7 +605,22 @@ final class SearchViewModel: ObservableObject {
     @Published var sortColumn: ResultSortColumn = .relevance
     @Published var sortAscending = ResultSortColumn.relevance.defaultAscending
 
-    private let cli = MacEveryCLI()
+    private let cli: MacEveryCLI
+    private let searchSession: URLSession
+    private let managesChildProcesses: Bool
+    private let searchDebounceDelay: TimeInterval
+    // Old HTTP requests may still be computing after the GUI cancels them.
+    // Give the latest query up to 3.45 seconds of bounded backoff to get a slot.
+    private static let serviceBusyRetryDelays: [TimeInterval] = [0.15, 0.3, 0.6, 1.2, 1.2]
+    private let cliSearchQueue: OperationQueue = {
+        let queue = OperationQueue()
+        queue.name = "MacEvery.latest-cli-search"
+        queue.maxConcurrentOperationCount = 1
+        queue.qualityOfService = .userInitiated
+        return queue
+    }()
+    private var activeSearchTask: URLSessionDataTask?
+    private var activeCLICancellation: CommandCancellation?
     private var pendingSearch: DispatchWorkItem?
     private var searchGeneration = 0
     private var watchProcess: Process?
@@ -493,6 +640,18 @@ final class SearchViewModel: ObservableObject {
             .replacingOccurrences(of: "-", with: "")
             .lowercased()
     }()
+
+    init(
+        cli: MacEveryCLI = MacEveryCLI(),
+        searchSession: URLSession = .shared,
+        managesChildProcesses: Bool = true,
+        searchDebounceDelay: TimeInterval = 0.12
+    ) {
+        self.cli = cli
+        self.searchSession = searchSession
+        self.managesChildProcesses = managesChildProcesses
+        self.searchDebounceDelay = searchDebounceDelay
+    }
 
     var selectedResult: SearchResult? {
         guard let selectedPath else { return nil }
@@ -611,7 +770,7 @@ final class SearchViewModel: ObservableObject {
 
             let output: CommandOutput
             do {
-                output = try self.cli.run(args)
+                output = try self.cli.run(args, timeout: 3600)
             } catch {
                 DispatchQueue.main.async {
                     self.isIndexing = false
@@ -735,6 +894,7 @@ final class SearchViewModel: ObservableObject {
     }
 
     func startSearchServiceIfNeeded() {
+        guard managesChildProcesses else { return }
         if let searchServiceProcess, searchServiceProcess.isRunning { return }
 
         let process = Process()
@@ -816,6 +976,7 @@ final class SearchViewModel: ObservableObject {
     }
 
     func startWatcherIfNeeded() {
+        guard managesChildProcesses else { return }
         guard status?.roots.isEmpty == false else { return }
         if let watchProcess, watchProcess.isRunning { return }
 
@@ -841,9 +1002,11 @@ final class SearchViewModel: ObservableObject {
                 self?.message = text.trimmingCharacters(in: .whitespacesAndNewlines)
             }
         }
-        process.terminationHandler = { [weak self] _ in
+        process.terminationHandler = { [weak self] process in
             DispatchQueue.main.async {
-                self?.watchProcess = nil
+                if self?.watchProcess === process {
+                    self?.watchProcess = nil
+                }
             }
         }
 
@@ -881,13 +1044,25 @@ final class SearchViewModel: ObservableObject {
     }
 
     deinit {
+        pendingSearch?.cancel()
+        activeSearchTask?.cancel()
+        activeCLICancellation?.cancel()
+        cliSearchQueue.cancelAllOperations()
         hotKey?.unregister()
         stopSearchService()
         stopWatcher()
     }
 
     private func scheduleSearch() {
+        // Invalidate immediately, including clear and the debounce interval.
+        searchGeneration += 1
+        let generation = searchGeneration
         pendingSearch?.cancel()
+        activeSearchTask?.cancel()
+        activeSearchTask = nil
+        activeCLICancellation?.cancel()
+        activeCLICancellation = nil
+        cliSearchQueue.cancelAllOperations()
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
             results = []
@@ -897,89 +1072,117 @@ final class SearchViewModel: ObservableObject {
         }
 
         let item = DispatchWorkItem { [weak self] in
-            self?.performSearch(trimmed)
+            guard let self, generation == self.searchGeneration else { return }
+            self.performSearch(trimmed, generation: generation)
         }
         pendingSearch = item
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12, execute: item)
+        DispatchQueue.main.asyncAfter(deadline: .now() + searchDebounceDelay, execute: item)
     }
 
-    private func performSearch(_ query: String) {
-        searchGeneration += 1
-        let generation = searchGeneration
+    private func performSearch(_ query: String, generation: Int) {
+        guard generation == searchGeneration else { return }
         isSearching = true
         startSearchServiceIfNeeded()
         performServiceSearch(query, generation: generation)
     }
 
-    private func performServiceSearch(_ query: String, generation: Int) {
+    private func performServiceSearch(_ query: String, generation: Int, busyAttempt: Int = 0) {
         guard let url = serviceSearchURL(for: query) else {
             performCLISearch(query, generation: generation)
             return
         }
 
         var request = URLRequest(url: url)
+        request.timeoutInterval = 15
         request.setValue("Bearer \(authToken)", forHTTPHeaderField: "Authorization")
-        URLSession.shared.dataTask(with: request) { data, response, error in
-            if error != nil {
-                self.performCLISearch(query, generation: generation)
-                return
+        let task = searchSession.dataTask(with: request) { [weak self] data, response, error in
+            guard let self else { return }
+            let decoded: [SearchResult]?
+            if error == nil, (response as? HTTPURLResponse)?.statusCode == 200, let data {
+                decoded = try? JSONDecoder().decode([SearchResult].self, from: data)
+            } else {
+                decoded = nil
             }
-            if let status = (response as? HTTPURLResponse)?.statusCode, status != 200 {
-                self.performCLISearch(query, generation: generation)
-                return
-            }
-            guard let data else {
-                self.performCLISearch(query, generation: generation)
-                return
-            }
-
-            do {
-                let decoded = try JSONDecoder().decode([SearchResult].self, from: data)
-                DispatchQueue.main.async {
-                    guard generation == self.searchGeneration else { return }
-                    self.isSearching = false
-                    let sorted = self.sortedResults(decoded)
-                    self.results = sorted
-                    self.selectedPath = sorted.first?.path
-                    let backend = self.serviceStatus?.backendLabel ?? "service"
-                    self.message = "\(decoded.count) results • \(backend)"
+            DispatchQueue.main.async {
+                guard generation == self.searchGeneration else { return }
+                self.activeSearchTask = nil
+                // Cancellation is intentional and must never launch a CLI fallback.
+                if (error as? URLError)?.code == .cancelled { return }
+                let statusCode = (response as? HTTPURLResponse)?.statusCode
+                if statusCode == 429 || statusCode == 503 {
+                    // The service is applying backpressure. A second CLI search
+                    // would bypass that CPU limit, so retry only the latest query.
+                    if busyAttempt < Self.serviceBusyRetryDelays.count {
+                        let delay = Self.serviceBusyRetryDelays[busyAttempt]
+                        DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                            guard generation == self.searchGeneration else { return }
+                            self.performServiceSearch(query, generation: generation, busyAttempt: busyAttempt + 1)
+                        }
+                    } else {
+                        self.isSearching = false
+                        self.message = "Search service busy; try again"
+                    }
+                    return
                 }
-            } catch {
-                self.performCLISearch(query, generation: generation)
+                guard let decoded else {
+                    self.performCLISearch(query, generation: generation)
+                    return
+                }
+                self.isSearching = false
+                let sorted = self.sortedResults(decoded)
+                self.results = sorted
+                self.selectedPath = sorted.first?.path
+                let backend = self.serviceStatus?.backendLabel ?? "service"
+                self.message = "\(decoded.count) results • \(backend)"
             }
-        }.resume()
+        }
+        activeSearchTask = task
+        task.resume()
     }
 
     private func performCLISearch(_ query: String, generation: Int) {
-        DispatchQueue.global(qos: .userInitiated).async {
+        guard generation == searchGeneration else { return }
+        let cancellation = CommandCancellation()
+        activeCLICancellation = cancellation
+        // Only one child can run; cancelled queued operations never launch.
+        cliSearchQueue.addOperation { [weak self] in
+            guard let self, !cancellation.isCancelled else { return }
             let output: CommandOutput
             do {
-                output = try self.cli.run(["search", query, "--limit", "300", "--json"])
+                output = try self.cli.run(
+                    ["search", query, "--limit", "300", "--json"],
+                    cancellation: cancellation,
+                    timeout: 15
+                )
             } catch {
                 DispatchQueue.main.async {
-                    guard generation == self.searchGeneration else { return }
+                    guard generation == self.searchGeneration, !cancellation.isCancelled else { return }
+                    self.activeCLICancellation = nil
                     self.isSearching = false
                     self.message = "Search failed: \(error.localizedDescription)"
                 }
                 return
             }
-
+            guard !cancellation.isCancelled else { return }
+            let decoded = output.exitCode == 0
+                ? try? JSONDecoder().decode([SearchResult].self, from: Data(output.stdout.utf8))
+                : nil
             DispatchQueue.main.async {
-                guard generation == self.searchGeneration else { return }
+                guard generation == self.searchGeneration, !cancellation.isCancelled else { return }
+                self.activeCLICancellation = nil
                 self.isSearching = false
                 guard output.exitCode == 0 else {
                     self.message = output.stderr.trimmingCharacters(in: .whitespacesAndNewlines)
                     return
                 }
-                do {
-                    let decoded = try JSONDecoder().decode([SearchResult].self, from: Data(output.stdout.utf8))
-                    let sorted = self.sortedResults(decoded)
-                    self.results = sorted
-                    self.selectedPath = sorted.first?.path
-                    self.message = "\(decoded.count) results"
-                } catch {
-                    self.message = "Search decode failed: \(error.localizedDescription)"
+                guard let decoded else {
+                    self.message = "Search decode failed"
+                    return
                 }
+                let sorted = self.sortedResults(decoded)
+                self.results = sorted
+                self.selectedPath = sorted.first?.path
+                self.message = "\(decoded.count) results"
             }
         }
     }
@@ -1194,6 +1397,7 @@ struct IndexSettings {
     }
 }
 
+#if !MACEVERY_TESTING
 @main
 struct MacEveryDesktopApp: App {
     @StateObject private var model = SearchViewModel()
@@ -1233,6 +1437,8 @@ struct MacEveryDesktopApp: App {
         }
     }
 }
+
+#endif
 
 struct ContentView: View {
     @EnvironmentObject private var model: SearchViewModel

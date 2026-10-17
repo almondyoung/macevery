@@ -1,0 +1,2 @@
+   Compiling macevery v0.1.3 (/Users/yangtao/pine/code/macevery)
+    Finished `release` profile [optimized] target(s) in 4.93s

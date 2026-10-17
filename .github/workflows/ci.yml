@@ -27,3 +27,5 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - name: Build app bundle
         run: make app
+      - name: Run GUI model and subprocess regressions
+        run: make test-gui

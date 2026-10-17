@@ -1,0 +1,75 @@
+   Compiling macevery v0.1.3 (/Users/yangtao/pine/code/macevery)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.44s
+     Running unittests src/lib.rs (/private/tmp/macevery-round1-20261017/candidate-target/debug/deps/macevery-4edac588a5ad26c9)
+
+running 55 tests
+test bench::tests::percentile_handles_empty_and_sorted_values ... ok
+test scanner::tests::exclude_multi_segment_pattern_matches_relative_roots ... ok
+test scanner::tests::exclude_multi_segment_pattern ... ok
+test scanner::tests::exclude_does_not_match_partial_names ... ok
+test scanner::tests::exclude_common_defaults ... ok
+test scanner::tests::excludes_components_and_suffixes ... ok
+test search::tests::exact_beats_prefix_and_path ... ok
+test search::tests::glob_matches_case_insensitive_basename_and_path ... ok
+test compact_index::tests::compact_top_k_retains_stable_ties_at_the_limit_boundary ... ok
+test search::tests::inline_filters_match_extension_kind_path_and_mtime ... ok
+test search::tests::inline_filters_support_multi_ext_and_negated_path ... ok
+test search::tests::inline_kind_filter_matches_directories ... ok
+test search::tests::path_component_filter_requires_exact_segment ... ok
+test search::tests::plain_query_does_not_fuzzy_match ... ok
+test search::tests::quoted_filter_values_preserve_spaces ... ok
+test search::tests::tilde_query_enables_fuzzy_match ... ok
+test search::tests::uppercase_query_is_case_insensitive ... ok
+test server::tests::auth_header_accepts_case_insensitive_bearer_scheme ... ok
+test server::tests::auth_header_rejects_extra_bearer_parts ... ok
+test server::tests::auto_backend_respects_memory_budget ... ok
+test server::tests::parses_backend_preference_aliases ... ok
+test server::tests::request_slot_limit_is_enforced ... ok
+test server::tests::search_slots_are_bounded_and_released_on_drop ... ok
+test watch::macos_impl::tests::batch_uses_root_rescan_if_any_event_requires_it ... ok
+test watch::macos_impl::tests::checkpoint_equal_to_current_is_valid ... ok
+test watch::macos_impl::tests::checkpoint_exceeds_current_triggers_full_rescan ... ok
+test watch::macos_impl::tests::checkpoint_none_triggers_full_rescan ... ok
+test watch::macos_impl::tests::callback_excludes_noise_before_queue_but_keeps_recovery_events ... ok
+test watch::macos_impl::tests::checkpoint_since_now_triggers_full_rescan ... ok
+test watch::macos_impl::tests::checkpoint_valid_returns_use_checkpoint ... ok
+test watch::macos_impl::tests::database_events_are_ignored ... ok
+test watch::macos_impl::tests::dropped_or_root_changed_events_trigger_root_rescan ... ok
+test watch::macos_impl::tests::checkpoint_zero_triggers_full_rescan ... ok
+test watch::macos_impl::tests::fold_paths_handles_root_and_interleaved_lookalike_siblings ... ok
+test search::tests::top_k_preserves_input_order_for_equal_sort_keys ... ok
+test watch::macos_impl::tests::fold_refresh_paths_removes_children_when_parent_is_present ... ok
+test search::tests::public_single_record_ranking_retains_unprepared_options_semantics ... ok
+test watch::macos_impl::tests::runtime_excludes_adds_noisy_and_database_paths ... ok
+test compact_index::tests::compact_index_matches_glob_case_insensitive_search ... ok
+test db::prefix_cleanup_tests::prefix_cleanup_uses_path_index ... ok
+test scanner::tests::refresh_path_replacing_directory_with_file_removes_old_children ... ok
+test search::tests::sqlite_fuzzy_search_uses_candidates ... ok
+test scanner::tests::clock_rollback_keeps_recovered_rows_newer_than_deferred_cleanup ... ok
+test watch::macos_impl::tests::incomplete_root_rescan_keeps_recovery_and_checkpoint_pending ... ok
+test scanner::tests::excluded_refresh_does_not_open_a_transaction_or_change_records ... ok
+test scanner::tests::metadata_error_keeps_indexed_directory_and_children ... ok
+test scanner::tests::refresh_roots_removes_stale_deleted_entries ... ok
+test scanner::tests::leaf_event_removes_stale_subtree_when_ancestor_is_now_a_file ... ok
+test watch::macos_impl::tests::failed_path_blocks_later_checkpoint_until_actual_recovery ... ok
+test db::prefix_cleanup_tests::prefix_delete_preserves_case_siblings_and_literal_unicode_paths ... ok
+test watch::macos_impl::tests::partial_root_rescan_retries_only_failed_subtree_and_defers_safe_cleanup ... ok
+test db::prefix_cleanup_tests::stale_prefix_cleanup_preserves_new_generation_and_handles_root ... ok
+test watch::macos_impl::tests::directory_create_modify_rename_and_delete_refresh_correctly ... ok
+test compact_index::tests::compact_top_k_matches_independent_full_sort_reference ... ok
+test search::tests::prepared_search_and_owned_candidates_match_full_sort_reference ... ok
+
+test result: ok. 55 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.20s
+
+     Running unittests src/main.rs (/private/tmp/macevery-round1-20261017/candidate-target/debug/deps/macevery-8ca51c49de35a691)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests macevery
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

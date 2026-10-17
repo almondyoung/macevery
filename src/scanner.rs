@@ -5,6 +5,7 @@ use std::borrow::Cow;
 use std::fs;
 use std::os::unix::fs::MetadataExt;
 use std::path::{Component, Path, PathBuf};
+use std::sync::atomic::{AtomicI64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 #[derive(Clone, Debug)]
@@ -19,6 +20,8 @@ pub struct IndexSummary {
     pub indexed: u64,
     pub deleted: u64,
     pub warnings: Vec<String>,
+    pub retry_paths: Vec<PathBuf>,
+    pub deferred_cleanups: Vec<(PathBuf, i64)>,
 }
 
 pub fn index_paths(db: &Database, request: &IndexRequest) -> Result<IndexSummary> {
@@ -35,11 +38,12 @@ pub fn index_paths(db: &Database, request: &IndexRequest) -> Result<IndexSummary
     db.set_excludes(&request.excludes)?;
 
     let mut summary = IndexSummary::default();
+    let matcher = ExcludeMatcher::new(&request.excludes);
     db.begin()?;
     let result = (|| {
         let indexed_at = now_index_generation();
         for root in &request.roots {
-            scan_path(db, root, &request.excludes, indexed_at, &mut summary)?;
+            scan_path(db, root, &matcher, indexed_at, &mut summary)?;
         }
         if !request.rebuild {
             cleanup_stale_if_complete(db, &request.roots, indexed_at, &mut summary)?;
@@ -61,12 +65,29 @@ pub fn index_paths(db: &Database, request: &IndexRequest) -> Result<IndexSummary
 
 pub fn refresh_path(db: &Database, path: &Path, excludes: &[String]) -> Result<IndexSummary> {
     let mut summary = IndexSummary::default();
+    let matcher = ExcludeMatcher::new(excludes);
+    if matcher.is_excluded(path) {
+        return Ok(summary);
+    }
+    // Permission and transient I/O errors are not evidence of deletion.
+    let metadata = match fs::symlink_metadata(path) {
+        Ok(metadata) => Some(metadata),
+        Err(err)
+            if matches!(
+                err.kind(),
+                std::io::ErrorKind::NotFound | std::io::ErrorKind::NotADirectory
+            ) =>
+        {
+            None
+        }
+        Err(err) => return Err(err.into()),
+    };
     db.begin()?;
     let result = (|| {
         let path_text = path.to_string_lossy().to_string();
         let indexed_at = now_index_generation();
         let previous_kind = db.kind_for_path(&path_text)?;
-        if let Ok(metadata) = fs::symlink_metadata(path) {
+        if let Some(metadata) = metadata {
             let kind = classify(path, &metadata);
             let should_cleanup_children = metadata.is_dir() && kind != FileKind::Symlink;
             if matches!(previous_kind, Some(FileKind::Directory | FileKind::App))
@@ -74,7 +95,7 @@ pub fn refresh_path(db: &Database, path: &Path, excludes: &[String]) -> Result<I
             {
                 db.delete_path_prefix(&path_text)?;
             }
-            scan_path(db, path, excludes, indexed_at, &mut summary)?;
+            scan_path(db, path, &matcher, indexed_at, &mut summary)?;
             if should_cleanup_children {
                 cleanup_stale_if_complete(db, &[path.to_path_buf()], indexed_at, &mut summary)?;
             }
@@ -104,11 +125,12 @@ pub fn refresh_roots(
     excludes: &[String],
 ) -> Result<IndexSummary> {
     let mut summary = IndexSummary::default();
+    let matcher = ExcludeMatcher::new(excludes);
     db.begin()?;
     let result = (|| {
         let indexed_at = now_index_generation();
         for root in roots {
-            scan_path(db, root, excludes, indexed_at, &mut summary)?;
+            scan_path(db, root, &matcher, indexed_at, &mut summary)?;
         }
         cleanup_stale_if_complete(db, roots, indexed_at, &mut summary)?;
         db.set_meta("last_indexed_at", &now_epoch().to_string())?;
@@ -131,7 +153,7 @@ const MAX_SCAN_DEPTH: u32 = 256;
 fn scan_path(
     db: &Database,
     path: &Path,
-    excludes: &[String],
+    excludes: &ExcludeMatcher,
     indexed_at: i64,
     summary: &mut IndexSummary,
 ) -> Result<()> {
@@ -141,12 +163,13 @@ fn scan_path(
 fn scan_path_inner(
     db: &Database,
     path: &Path,
-    excludes: &[String],
+    excludes: &ExcludeMatcher,
     indexed_at: i64,
     summary: &mut IndexSummary,
     depth: u32,
 ) -> Result<()> {
     if depth > MAX_SCAN_DEPTH {
+        summary.retry_paths.push(path.to_path_buf());
         summary.warnings.push(format!(
             "{}: exceeded max depth {MAX_SCAN_DEPTH}",
             path.to_string_lossy()
@@ -154,13 +177,14 @@ fn scan_path_inner(
         return Ok(());
     }
 
-    if should_exclude(path, excludes) {
+    if excludes.is_excluded(path) {
         return Ok(());
     }
 
     let metadata = match fs::symlink_metadata(path) {
         Ok(metadata) => metadata,
         Err(err) => {
+            summary.retry_paths.push(path.to_path_buf());
             summary
                 .warnings
                 .push(format!("{}: {}", path.to_string_lossy(), err));
@@ -186,6 +210,7 @@ fn scan_path_inner(
         let entries = match fs::read_dir(path) {
             Ok(entries) => entries,
             Err(err) => {
+                summary.retry_paths.push(path.to_path_buf());
                 summary
                     .warnings
                     .push(format!("{}: {}", path.to_string_lossy(), err));
@@ -197,9 +222,12 @@ fn scan_path_inner(
                 Ok(entry) => {
                     scan_path_inner(db, &entry.path(), excludes, indexed_at, summary, depth + 1)?
                 }
-                Err(err) => summary
-                    .warnings
-                    .push(format!("{}: {}", path.to_string_lossy(), err)),
+                Err(err) => {
+                    summary.retry_paths.push(path.to_path_buf());
+                    summary
+                        .warnings
+                        .push(format!("{}: {}", path.to_string_lossy(), err));
+                }
             }
         }
     }
@@ -217,8 +245,11 @@ fn cleanup_stale_if_complete(
         summary.deleted += db.delete_stale_under_roots(roots, indexed_at)?;
     } else {
         summary
+            .deferred_cleanups
+            .extend(roots.iter().cloned().map(|root| (root, indexed_at)));
+        summary
             .warnings
-            .push("stale cleanup skipped because the scan was incomplete".to_string());
+            .push("stale cleanup deferred until incomplete subtrees recover".to_string());
     }
     Ok(())
 }
@@ -243,43 +274,48 @@ fn classify(path: &Path, metadata: &fs::Metadata) -> FileKind {
     }
 }
 
-fn should_exclude(path: &Path, excludes: &[String]) -> bool {
-    let path_components = path
-        .components()
-        .filter_map(component_text)
-        .collect::<Vec<_>>();
-    for pattern in excludes {
-        let pattern = pattern.trim();
-        if pattern.is_empty() {
-            continue;
-        }
+#[derive(Clone, Debug)]
+pub(crate) struct ExcludeMatcher {
+    patterns: Vec<Vec<String>>,
+}
 
-        let pattern_components = pattern
-            .split('/')
-            .filter(|component| !component.is_empty())
-            .collect::<Vec<_>>();
-        if pattern_components.is_empty() {
-            continue;
-        }
-
-        if pattern_components.len() == 1 {
-            if path_components
+impl ExcludeMatcher {
+    pub(crate) fn new(excludes: &[String]) -> Self {
+        Self {
+            patterns: excludes
                 .iter()
-                .any(|component| component.as_ref() == pattern_components[0])
-            {
-                return true;
-            }
-            continue;
-        }
-
-        if path_components
-            .windows(pattern_components.len())
-            .any(|window| components_match(window, &pattern_components))
-        {
-            return true;
+                .map(|pattern| {
+                    pattern
+                        .trim()
+                        .split('/')
+                        .filter(|part| !part.is_empty())
+                        .map(str::to_string)
+                        .collect::<Vec<_>>()
+                })
+                .filter(|parts| !parts.is_empty())
+                .collect(),
         }
     }
-    false
+
+    pub(crate) fn is_excluded(&self, path: &Path) -> bool {
+        let path_components = path
+            .components()
+            .filter_map(component_text)
+            .collect::<Vec<_>>();
+        self.patterns.iter().any(|pattern| {
+            path_components.windows(pattern.len()).any(|window| {
+                window
+                    .iter()
+                    .zip(pattern)
+                    .all(|(value, expected)| value.as_ref() == expected)
+            })
+        })
+    }
+}
+
+#[cfg(test)]
+fn should_exclude(path: &Path, excludes: &[String]) -> bool {
+    ExcludeMatcher::new(excludes).is_excluded(path)
 }
 
 fn component_text(component: Component<'_>) -> Option<Cow<'_, str>> {
@@ -292,13 +328,6 @@ fn component_text(component: Component<'_>) -> Option<Cow<'_, str>> {
     }
 }
 
-fn components_match(path_components: &[Cow<'_, str>], pattern_components: &[&str]) -> bool {
-    path_components
-        .iter()
-        .zip(pattern_components.iter())
-        .all(|(path_component, pattern_component)| path_component.as_ref() == *pattern_component)
-}
-
 fn now_epoch() -> i64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -307,10 +336,24 @@ fn now_epoch() -> i64 {
 }
 
 fn now_index_generation() -> i64 {
-    SystemTime::now()
+    static LAST_GENERATION: AtomicI64 = AtomicI64::new(0);
+    let wall_now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|value| value.as_nanos().min(i64::MAX as u128) as i64)
-        .unwrap_or(0)
+        .unwrap_or(0);
+    next_index_generation(&LAST_GENERATION, wall_now)
+}
+
+fn next_index_generation(last: &AtomicI64, wall_now: i64) -> i64 {
+    // Deferred cleanup must never see a later scan as older after a clock rollback.
+    // This orders this process's scans; persisted history from other processes is
+    // still wall-clock based, as before.
+    let previous = last
+        .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |previous| {
+            Some(wall_now.max(previous.saturating_add(1)))
+        })
+        .expect("generation update always returns Some");
+    wall_now.max(previous.saturating_add(1))
 }
 
 #[cfg(test)]
@@ -321,6 +364,43 @@ mod tests {
     use std::fs;
     use std::path::{Path, PathBuf};
     use std::time::{SystemTime, UNIX_EPOCH};
+
+    #[test]
+    fn clock_rollback_keeps_recovered_rows_newer_than_deferred_cleanup() {
+        use super::next_index_generation;
+        use crate::model::FileRecord;
+        use std::sync::atomic::AtomicI64;
+        let clock = AtomicI64::new(0);
+        let deferred_generation = next_index_generation(&clock, 100);
+        let recovered_generation = next_index_generation(&clock, 90);
+        assert_eq!(deferred_generation, 100);
+        assert_eq!(recovered_generation, 101);
+        assert_eq!(next_index_generation(&clock, 90), 102);
+        assert_eq!(next_index_generation(&clock, 200), 200);
+
+        let temp = unique_temp_dir("macevery-clock-rollback");
+        let db = Database::open(temp.join("index.sqlite")).unwrap();
+        for (path, generation) in [
+            ("/root/stale.txt", 1),
+            ("/root/recovered.txt", recovered_generation),
+        ] {
+            db.upsert_file(&FileRecord::new(
+                path.to_string(),
+                FileKind::File,
+                generation,
+            ))
+            .unwrap();
+        }
+        assert_eq!(
+            db.delete_stale_under_roots(&[PathBuf::from("/root")], deferred_generation)
+                .unwrap(),
+            1
+        );
+        assert!(db.kind_for_path("/root/stale.txt").unwrap().is_none());
+        assert!(db.kind_for_path("/root/recovered.txt").unwrap().is_some());
+        drop(db);
+        fs::remove_dir_all(temp).unwrap();
+    }
 
     #[test]
     fn excludes_components_and_suffixes() {
@@ -513,6 +593,87 @@ mod tests {
         assert!(!records.iter().any(|record| record.path == child_path));
 
         let _ = fs::remove_dir_all(temp);
+    }
+
+    #[test]
+    fn leaf_event_removes_stale_subtree_when_ancestor_is_now_a_file() {
+        let temp = unique_temp_dir("macevery-replaced-ancestor");
+        let root = temp.join("root");
+        let parent = root.join("parent");
+        let child = parent.join("child-dir");
+        let grandchild = child.join("gone.txt");
+        fs::create_dir_all(&child).unwrap();
+        fs::write(&grandchild, "old").unwrap();
+        let db = Database::open(temp.join("index.sqlite")).unwrap();
+        index_paths(
+            &db,
+            &IndexRequest {
+                roots: vec![root],
+                excludes: vec![],
+                rebuild: true,
+            },
+        )
+        .unwrap();
+        fs::remove_dir_all(&parent).unwrap();
+        fs::write(&parent, "now a file").unwrap();
+        refresh_path(&db, &child, &[]).unwrap();
+        assert!(db
+            .kind_for_path(&child.to_string_lossy())
+            .unwrap()
+            .is_none());
+        assert!(db
+            .kind_for_path(&grandchild.to_string_lossy())
+            .unwrap()
+            .is_none());
+        drop(db);
+        fs::remove_dir_all(temp).unwrap();
+    }
+
+    #[test]
+    fn excluded_refresh_does_not_open_a_transaction_or_change_records() {
+        let temp = unique_temp_dir("macevery-excluded-refresh");
+        let db = Database::open(temp.join("index.sqlite")).unwrap();
+        let excluded = temp.join("project/.git/objects");
+        db.begin().unwrap();
+        let summary = refresh_path(&db, &excluded, &[".git".to_string()]).unwrap();
+        assert_eq!(summary.indexed, 0);
+        assert_eq!(summary.deleted, 0);
+        // A nested BEGIN or COMMIT in refresh_path would fail this contract.
+        db.rollback().unwrap();
+        assert!(db.all_records().unwrap().is_empty());
+        drop(db);
+        fs::remove_dir_all(temp).unwrap();
+    }
+
+    #[test]
+    fn metadata_error_keeps_indexed_directory_and_children() {
+        use crate::model::FileRecord;
+        use std::os::unix::fs::symlink;
+        let temp = unique_temp_dir("macevery-metadata-error");
+        fs::create_dir_all(&temp).unwrap();
+        let loop_path = temp.join("loop");
+        symlink("loop", &loop_path).unwrap();
+        let path = loop_path.join("indexed-dir");
+        let child = path.join("keep.txt");
+        let db = Database::open(temp.join("index.sqlite")).unwrap();
+        for (path, kind) in [(&path, FileKind::Directory), (&child, FileKind::File)] {
+            db.upsert_file(&FileRecord::new(
+                path.to_string_lossy().into_owned(),
+                kind,
+                1,
+            ))
+            .unwrap();
+        }
+        // ELOOP is deterministic even when tests run with elevated privileges.
+        assert!(refresh_path(&db, &path, &[]).is_err());
+        assert_eq!(db.all_records().unwrap().len(), 2);
+        fs::remove_file(loop_path).unwrap();
+        fs::create_dir_all(&path).unwrap();
+        fs::write(&child, "restored").unwrap();
+        assert!(refresh_path(&db, &path, &[]).unwrap().warnings.is_empty());
+        assert_eq!(db.all_records().unwrap().len(), 2);
+        drop(db);
+        fs::remove_dir_all(temp).unwrap();
     }
 
     fn unique_temp_dir(prefix: &str) -> PathBuf {

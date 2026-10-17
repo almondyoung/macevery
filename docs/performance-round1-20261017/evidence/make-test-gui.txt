@@ -1,0 +1,17 @@
+mkdir -p .build/gui-tests/module-cache
+swiftc -O -parse-as-library -D MACEVERY_TESTING \
+		-module-cache-path .build/gui-tests/module-cache \
+		-target arm64-apple-macos13.0 \
+		-o .build/gui-tests/gui-regression-checks \
+		macos/MacEveryApp.swift tests/macos/GUIRegressionChecks.swift
+.build/gui-tests/gui-regression-checks
+PASS: concurrently drained 2 MiB stdout and 2 MiB stderr
+PASS: output memory cap
+PASS: timeout reaps a child that ignores SIGTERM
+PASS: running and queued command cancellation
+PASS: clear query invalidates generation and cancels its URL task
+PASS: superseded service failure never launches CLI fallback
+PASS: five bounded 503/429 retries, recovery after 1.05s busy, and stale retry suppression
+PASS: single-flight CLI cancels obsolete child before launching latest
+PASS: clearing an in-flight CLI reaps child without refilling results
+PASS: GUI search generation/cancellation/backpressure/single-flight and CLI pipe/timeout/output checks

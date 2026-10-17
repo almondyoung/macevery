@@ -1,0 +1,53 @@
+{
+  "created_at_utc": "2026-10-17T03:02:28.968809+00:00",
+  "arguments": {
+    "baseline_lib": "/private/tmp/macevery-round1-20261017/baseline-target/release/libmacevery.rlib",
+    "candidate_lib": "/private/tmp/macevery-round1-20261017/candidate-target/release/libmacevery.rlib",
+    "output": "/private/tmp/macevery-round1-20261017/final-synthetic-memory",
+    "dataset": "synthetic",
+    "snapshot": null,
+    "backend": "memory",
+    "rows": 100000,
+    "rounds": 3,
+    "order": "aba",
+    "query_rounds": 1,
+    "queries": "broad,plain,nohit,glob,fuzzy,filters,mtime,unicode,path",
+    "fixed_now": 1792195200,
+    "limit": 300,
+    "sample_ms": 5.0
+  },
+  "platform": "macOS-26.4-arm64-arm-64bit",
+  "machine": "arm64",
+  "logical_cpus": 18,
+  "python": "3.9.6 (default, May 22 2026, 11:13:45) \n[Clang 21.0.0 (clang-2100.1.1.101)]",
+  "rustc": "rustc 1.95.0 (59807616e 2026-04-14)",
+  "driver_compile_flags": [
+    "--edition=2021",
+    "-O",
+    "-C",
+    "lto=fat"
+  ],
+  "driver_sha256": "d555f8d3c9092af2388266ca1031a81ab3a65966ec81f753ac556ffb901e6216",
+  "wrapper_sha256": "4a8502f3c3daf184edb11b4c79b1102090a08a6d78c7813f6068b82e796f288f",
+  "snapshot_identity": null,
+  "libraries": {
+    "baseline": {
+      "identity": {
+        "path": "/private/tmp/macevery-round1-20261017/baseline-target/release/libmacevery.rlib",
+        "size": 1349320,
+        "mtime_ns": 1792204822331676210,
+        "inode": 77857003
+      },
+      "sha256": "7b4179fb9622ae7eef7b74027f3e54d65feeab64590e473319478e40ad5bdb4b"
+    },
+    "candidate": {
+      "identity": {
+        "path": "/private/tmp/macevery-round1-20261017/candidate-target/release/libmacevery.rlib",
+        "size": 1523200,
+        "mtime_ns": 1792205871549914567,
+        "inode": 77950345
+      },
+      "sha256": "29ebac3c029636ab5829a30d959d45fdc041fe51c884f5f38b28121dc696d54f"
+    }
+  }
+}

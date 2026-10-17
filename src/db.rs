@@ -3,6 +3,14 @@ use crate::model::{FileKind, FileRecord, IndexStats, PathFilter, PathFilterMode,
 use crate::sqlite::{Connection, Step};
 use std::path::{Path, PathBuf};
 
+const DELETE_PATH_PREFIX_SQL: &str = "DELETE FROM files
+    WHERE path = ?1 COLLATE BINARY
+       OR (path >= ?2 COLLATE BINARY AND path < ?3 COLLATE BINARY);";
+const DELETE_STALE_PREFIX_SQL: &str = "DELETE FROM files
+    WHERE indexed_at < ?1
+      AND (path = ?2 COLLATE BINARY
+           OR (path >= ?3 COLLATE BINARY AND path < ?4 COLLATE BINARY));";
+
 pub struct Database {
     path: PathBuf,
     conn: Connection,
@@ -180,13 +188,13 @@ impl Database {
     }
 
     pub fn delete_path_prefix(&self, path: &str) -> Result<()> {
-        let mut stmt = self.conn.prepare(
-            "DELETE FROM files
-             WHERE path = ?1 OR path LIKE ?2 ESCAPE '\\';",
-        )?;
-        let prefix = format!("{}/%", escape_like(path.trim_end_matches('/')));
-        stmt.bind_text(1, Some(path))?;
-        stmt.bind_text(2, Some(&prefix))?;
+        let Some((path, lower, upper)) = path_prefix_bounds(path) else {
+            return Ok(());
+        };
+        let mut stmt = self.conn.prepare(DELETE_PATH_PREFIX_SQL)?;
+        stmt.bind_text(1, Some(&path))?;
+        stmt.bind_text(2, Some(&lower))?;
+        stmt.bind_text(3, Some(&upper))?;
         expect_done(stmt.step()?)
     }
 
@@ -210,22 +218,17 @@ impl Database {
     }
 
     pub fn delete_stale_under_roots(&self, roots: &[PathBuf], indexed_at: i64) -> Result<u64> {
-        let mut stmt = self.conn.prepare(
-            "DELETE FROM files
-             WHERE indexed_at < ?1
-               AND (path = ?2 OR path LIKE ?3 ESCAPE '\\');",
-        )?;
+        let mut stmt = self.conn.prepare(DELETE_STALE_PREFIX_SQL)?;
         let mut deleted = 0;
         for root in roots {
-            let root = root.to_string_lossy().trim_end_matches('/').to_string();
-            if root.is_empty() {
+            let Some((root, lower, upper)) = path_prefix_bounds(&root.to_string_lossy()) else {
                 continue;
-            }
-            let prefix = format!("{}/%", escape_like(&root));
+            };
             stmt.reset()?;
             stmt.bind_i64(1, Some(indexed_at))?;
             stmt.bind_text(2, Some(&root))?;
-            stmt.bind_text(3, Some(&prefix))?;
+            stmt.bind_text(3, Some(&lower))?;
+            stmt.bind_text(4, Some(&upper))?;
             expect_done(stmt.step()?)?;
             deleted += self.conn.changes();
         }
@@ -498,6 +501,29 @@ impl Database {
     }
 }
 
+// The slash terminating a descendant prefix is ASCII 0x2f, so replacing it
+// with 0x30 gives its exclusive BINARY upper bound, including Unicode paths.
+fn path_prefix_bounds(path: &str) -> Option<(String, String, String)> {
+    let trimmed = path.trim_end_matches('/');
+    let root = if trimmed.is_empty() && path.starts_with('/') {
+        "/"
+    } else {
+        trimmed
+    };
+    if root.is_empty() {
+        return None;
+    }
+    let lower = if root == "/" {
+        "/".to_string()
+    } else {
+        format!("{root}/")
+    };
+    let mut upper = lower.clone();
+    upper.pop();
+    upper.push('0');
+    Some((root.to_string(), lower, upper))
+}
+
 enum Binding {
     Text(String),
     Int(i64),
@@ -614,5 +640,167 @@ fn path_filter_like(filter: &PathFilter) -> String {
                 format!("%/{}%", escape_like(&filter.value))
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod prefix_cleanup_tests {
+    use super::*;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn temp_database() -> (Database, PathBuf) {
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+        let serial = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let dir = std::env::temp_dir().join(format!(
+            "macevery-prefix-{}-{unique}-{serial}",
+            std::process::id()
+        ));
+        (Database::open(dir.join("index.sqlite")).unwrap(), dir)
+    }
+
+    fn insert(db: &Database, path: &str, generation: i64) {
+        db.upsert_file(&FileRecord::new(
+            path.to_string(),
+            FileKind::File,
+            generation,
+        ))
+        .unwrap();
+    }
+
+    fn remaining(db: &Database) -> Vec<String> {
+        let mut paths = db
+            .all_records()
+            .unwrap()
+            .into_iter()
+            .map(|r| r.path)
+            .collect::<Vec<_>>();
+        paths.sort();
+        paths
+    }
+
+    #[test]
+    fn prefix_delete_preserves_case_siblings_and_literal_unicode_paths() {
+        let (db, dir) = temp_database();
+        for path in [
+            "/Foo",
+            "/Foo/a",
+            "/Foo/目录/文件",
+            "/foo/b",
+            "/Foobar/c",
+            "/Foo-old/d",
+            "/Foo0/x",
+            "/特殊%_\\",
+            "/特殊%_\\/子",
+            "/特殊X_\\/子",
+        ] {
+            insert(&db, path, 1);
+        }
+        db.delete_path_prefix("/Foo/").unwrap();
+        assert_eq!(
+            remaining(&db),
+            [
+                "/Foo-old/d",
+                "/Foo0/x",
+                "/Foobar/c",
+                "/foo/b",
+                "/特殊%_\\",
+                "/特殊%_\\/子",
+                "/特殊X_\\/子"
+            ]
+        );
+        db.delete_path_prefix("/特殊%_\\").unwrap();
+        assert_eq!(
+            remaining(&db),
+            [
+                "/Foo-old/d",
+                "/Foo0/x",
+                "/Foobar/c",
+                "/foo/b",
+                "/特殊X_\\/子"
+            ]
+        );
+        drop(db);
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn stale_prefix_cleanup_preserves_new_generation_and_handles_root() {
+        let (db, dir) = temp_database();
+        for path in [
+            "/",
+            "/Foo",
+            "/Foo/old",
+            "/foo/keep",
+            "/Foobar/keep",
+            "relative",
+            "relative/old",
+        ] {
+            insert(&db, path, 1);
+        }
+        insert(&db, "/Foo/new", 2);
+        assert_eq!(
+            db.delete_stale_under_roots(&[PathBuf::from("/Foo/")], 2)
+                .unwrap(),
+            2
+        );
+        assert!(remaining(&db).contains(&"/Foo/new".to_string()));
+        assert!(remaining(&db).contains(&"/foo/keep".to_string()));
+        assert_eq!(
+            db.delete_stale_under_roots(&[PathBuf::from("/")], 2)
+                .unwrap(),
+            3
+        );
+        assert_eq!(remaining(&db), ["/Foo/new", "relative", "relative/old"]);
+        db.delete_path_prefix("").unwrap();
+        assert_eq!(remaining(&db).len(), 3);
+        db.delete_path_prefix("/").unwrap();
+        assert_eq!(remaining(&db), ["relative", "relative/old"]);
+        db.delete_path_prefix("relative/").unwrap();
+        assert!(remaining(&db).is_empty());
+        drop(db);
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn prefix_cleanup_uses_path_index() {
+        let (db, dir) = temp_database();
+        for (sql, stale) in [
+            (DELETE_PATH_PREFIX_SQL, false),
+            (DELETE_STALE_PREFIX_SQL, true),
+        ] {
+            let mut stmt = db
+                .conn
+                .prepare(&format!("EXPLAIN QUERY PLAN {sql}"))
+                .unwrap();
+            let offset = if stale {
+                stmt.bind_i64(1, Some(2)).unwrap();
+                1
+            } else {
+                0
+            };
+            for (index, value) in ["/目录%_", "/目录%_/", "/目录%_0"].iter().enumerate() {
+                stmt.bind_text(index as i32 + 1 + offset, Some(value))
+                    .unwrap();
+            }
+            let mut details = Vec::new();
+            while let Step::Row = stmt.step().unwrap() {
+                details.push(stmt.column_text(3).unwrap());
+            }
+            println!("{sql} => {}", details.join("; "));
+            assert!(
+                details.iter().any(|line| line.contains("SEARCH files")),
+                "{details:?}"
+            );
+            assert!(
+                !details.iter().any(|line| line.contains("SCAN files")),
+                "{details:?}"
+            );
+        }
+        drop(db);
+        std::fs::remove_dir_all(dir).unwrap();
     }
 }

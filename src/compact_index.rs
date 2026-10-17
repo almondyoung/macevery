@@ -1,9 +1,7 @@
 use crate::db::{Database, DbRecordRef};
 use crate::error::Result;
 use crate::model::{FileKind, FileRecord, SearchOptions, SearchResult};
-use crate::search::{rank_view, RecordView};
-
-const DEFAULT_LIMIT: usize = 50;
+use crate::search::{effective_limit, top_hits, PreparedQuery, RecordView};
 
 #[derive(Default)]
 pub struct CompactIndex {
@@ -34,11 +32,6 @@ struct Slice {
     len: usize,
 }
 
-struct CompactHit {
-    index: usize,
-    score: i64,
-}
-
 impl CompactIndex {
     pub fn load(db: &Database) -> Result<Self> {
         let mut index = Self::default();
@@ -61,34 +54,15 @@ impl CompactIndex {
 
     pub fn search(&self, options: &SearchOptions) -> Vec<SearchResult> {
         let options = options.normalized();
-        let limit = if options.limit == 0 {
-            DEFAULT_LIMIT
-        } else {
-            options.limit
-        };
-        let mut hits = self
-            .records
-            .iter()
-            .enumerate()
-            .filter_map(|(index, record)| {
-                rank_view(&self.view(record), &options).map(|score| CompactHit { index, score })
-            })
-            .collect::<Vec<_>>();
-
-        hits.sort_by(|lhs, rhs| {
-            let lhs_record = &self.records[lhs.index];
-            let rhs_record = &self.records[rhs.index];
-            lhs.score
-                .cmp(&rhs.score)
-                .then_with(|| rhs_record.mtime.cmp(&lhs_record.mtime))
-                .then_with(|| {
-                    self.get(lhs_record.path)
-                        .len()
-                        .cmp(&self.get(rhs_record.path).len())
-                })
-                .then_with(|| self.get(lhs_record.path).cmp(self.get(rhs_record.path)))
-        });
-        hits.truncate(limit);
+        let query = PreparedQuery::new(&options);
+        let hits = top_hits(
+            self.records
+                .iter()
+                .enumerate()
+                .map(|(index, record)| (index, self.view(record))),
+            &query,
+            effective_limit(options.limit),
+        );
 
         hits.into_iter()
             .map(|hit| SearchResult {
@@ -229,6 +203,91 @@ mod tests {
         assert_eq!(results[0].record.basename, "ChatGPT Notes.PDF");
 
         let _ = fs::remove_dir_all(temp);
+    }
+
+    fn from_records(records: &[FileRecord]) -> CompactIndex {
+        let mut index = CompactIndex::default();
+        for record in records {
+            index.push_ref(DbRecordRef {
+                id: record.id,
+                path: &record.path,
+                basename: &record.basename,
+                basename_lower: &record.basename_lower,
+                ext_lower: record.ext_lower.as_deref(),
+                kind: record.kind.clone(),
+                size: record.size,
+                mtime: record.mtime,
+                ctime: record.ctime,
+                dev: record.dev,
+                inode: record.inode,
+                indexed_at: record.indexed_at,
+            });
+        }
+        index
+    }
+
+    #[test]
+    fn compact_top_k_matches_independent_full_sort_reference() {
+        let records = crate::search::test_reference::records();
+        let index = from_records(&records);
+        // Compare the actual compact representation, including its existing Unicode
+        // lowercase behavior, rather than changing normalization in this optimization.
+        let materialized = index
+            .records
+            .iter()
+            .map(|record| index.to_file_record(record))
+            .collect::<Vec<_>>();
+        for mut options in crate::search::test_reference::options() {
+            for limit in [
+                0,
+                1,
+                2,
+                7,
+                50,
+                80,
+                300,
+                records.len(),
+                records.len() + 1,
+                usize::MAX,
+            ] {
+                options.limit = limit;
+                assert_eq!(
+                    index.search(&options),
+                    crate::search::test_reference::search_records(&materialized, &options),
+                    "compact {options:?}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn compact_top_k_retains_stable_ties_at_the_limit_boundary() {
+        let records = (0..128)
+            .map(|i| {
+                let mut record = FileRecord::new("/tmp/report".into(), FileKind::File, 1);
+                record.id = 1000 - i;
+                record.mtime = Some(42);
+                record
+            })
+            .collect::<Vec<_>>();
+        let index = from_records(&records);
+        let options = SearchOptions {
+            query: "report".into(),
+            limit: 63,
+            ..Default::default()
+        };
+        assert_eq!(
+            index
+                .search(&options)
+                .iter()
+                .map(|hit| hit.record.id)
+                .collect::<Vec<_>>(),
+            records
+                .iter()
+                .take(63)
+                .map(|record| record.id)
+                .collect::<Vec<_>>()
+        );
     }
 
     fn unique_temp_dir(prefix: &str) -> std::path::PathBuf {

@@ -1,12 +1,22 @@
 SHELL := /bin/zsh
 
-.PHONY: build test release app notarize dist clean
+.PHONY: build test test-gui release app notarize dist clean
 
 build:
 	cargo build
 
 test:
 	cargo test
+	$(MAKE) test-gui
+
+test-gui:
+	mkdir -p .build/gui-tests/module-cache
+	swiftc -O -parse-as-library -D MACEVERY_TESTING \
+		-module-cache-path .build/gui-tests/module-cache \
+		-target $(shell uname -m)-apple-macos13.0 \
+		-o .build/gui-tests/gui-regression-checks \
+		macos/MacEveryApp.swift tests/macos/GUIRegressionChecks.swift
+	.build/gui-tests/gui-regression-checks
 
 release:
 	cargo build --release
@@ -24,4 +34,4 @@ dist: app
 
 clean:
 	cargo clean
-	rm -rf .build/MacEvery.app .build/macevery-swift-module-cache
+	rm -rf .build/MacEvery.app .build/macevery-swift-module-cache .build/gui-tests

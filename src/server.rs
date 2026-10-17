@@ -21,6 +21,7 @@ const DEFAULT_MEMORY_BUDGET_BYTES: u64 = 2_560 * 1024 * 1024;
 const ESTIMATED_RECORD_BYTES: u64 = 900;
 const ESTIMATED_COMPACT_RECORD_BYTES: u64 = 420;
 const DEFAULT_MAX_ACTIVE_REQUESTS: usize = 64;
+const DEFAULT_MAX_ACTIVE_SEARCHES: usize = 2;
 const REQUEST_HEADER_LIMIT: usize = 64 * 1024;
 const REQUEST_READ_TIMEOUT: Duration = Duration::from_millis(250);
 const REQUEST_TOTAL_TIMEOUT: Duration = Duration::from_secs(5);
@@ -81,6 +82,10 @@ pub fn serve(addr: Option<String>, backend: BackendPreference) -> Result<()> {
     let state = Arc::new(RwLock::new(ServiceState::load(db_path, backend)?));
     let active_requests = Arc::new(AtomicUsize::new(0));
     let max_active_requests = max_active_requests();
+    let search_slots = Arc::new(SearchSlots {
+        active: Arc::new(AtomicUsize::new(0)),
+        limit: max_active_searches(),
+    });
     for stream in listener.incoming() {
         match stream {
             Ok(mut stream) => {
@@ -95,12 +100,15 @@ pub fn serve(addr: Option<String>, backend: BackendPreference) -> Result<()> {
                 }
                 let state = Arc::clone(&state);
                 let auth_token = auth_token.clone();
+                let search_slots = Arc::clone(&search_slots);
                 let guard = ActiveRequestGuard {
                     active: Arc::clone(&active_requests),
                 };
                 thread::spawn(move || {
                     let _guard = guard;
-                    if let Err(err) = handle_stream(stream, state, auth_token.as_deref()) {
+                    if let Err(err) =
+                        handle_stream(stream, state, auth_token.as_deref(), search_slots)
+                    {
                         eprintln!("serve: request failed: {err}");
                     }
                 });
@@ -118,6 +126,19 @@ struct ActiveRequestGuard {
 impl Drop for ActiveRequestGuard {
     fn drop(&mut self) {
         self.active.fetch_sub(1, Ordering::AcqRel);
+    }
+}
+
+struct SearchSlots {
+    active: Arc<AtomicUsize>,
+    limit: usize,
+}
+
+impl SearchSlots {
+    fn try_acquire(&self) -> Option<ActiveRequestGuard> {
+        try_acquire_request_slot(&self.active, self.limit).then(|| ActiveRequestGuard {
+            active: Arc::clone(&self.active),
+        })
     }
 }
 
@@ -269,8 +290,10 @@ fn handle_stream(
     mut stream: TcpStream,
     state: Arc<RwLock<ServiceState>>,
     auth_token: Option<&str>,
+    search_slots: Arc<SearchSlots>,
 ) -> Result<()> {
     stream.set_read_timeout(Some(REQUEST_READ_TIMEOUT))?;
+    stream.set_write_timeout(Some(REQUEST_TOTAL_TIMEOUT))?;
     let request = read_request(&mut stream)?;
     let Some(first_line) = request.lines().next() else {
         return write_response(
@@ -331,6 +354,14 @@ fn handle_stream(
         }
         "/search" => {
             let options = parse_search_options(query)?;
+            let Some(_search_guard) = search_slots.try_acquire() else {
+                return write_response(
+                    &mut stream,
+                    "503 Service Unavailable",
+                    "text/plain; charset=utf-8",
+                    "search busy; retry the latest query\n",
+                );
+            };
             let needs_reload = {
                 let state = state
                     .read()
@@ -414,6 +445,14 @@ fn max_active_requests() -> usize {
         .and_then(|value| value.parse::<usize>().ok())
         .filter(|value| *value > 0)
         .unwrap_or(DEFAULT_MAX_ACTIVE_REQUESTS)
+}
+
+fn max_active_searches() -> usize {
+    std::env::var("MACEVERY_MAX_ACTIVE_SEARCHES")
+        .ok()
+        .and_then(|value| value.parse::<usize>().ok())
+        .filter(|value| *value > 0)
+        .unwrap_or(DEFAULT_MAX_ACTIVE_SEARCHES)
 }
 
 fn try_acquire_request_slot(active: &AtomicUsize, limit: usize) -> bool {
@@ -684,6 +723,22 @@ fn now_epoch() -> i64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn search_slots_are_bounded_and_released_on_drop() {
+        let slots = SearchSlots {
+            active: Arc::new(AtomicUsize::new(0)),
+            limit: 2,
+        };
+        let first = slots.try_acquire().unwrap();
+        let second = slots.try_acquire().unwrap();
+        assert!(slots.try_acquire().is_none());
+        drop(first);
+        let replacement = slots.try_acquire().unwrap();
+        drop(second);
+        drop(replacement);
+        assert_eq!(slots.active.load(Ordering::Acquire), 0);
+    }
 
     #[test]
     fn parses_backend_preference_aliases() {
