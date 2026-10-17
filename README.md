@@ -90,6 +90,8 @@ make test-gui
 The GUI checks compile the production source with test dependencies, without
 starting the app or accessing your index. For the first performance optimization
 and reproducible A/B tools, see [the validation report](docs/performance-round1-20261017/REPORT.md).
+Packed index storage, content revision tracking, and reload measurements are
+documented in [the second-round report](docs/performance-round2-20261017/REPORT.md).
 
 ## CLI
 
@@ -166,13 +168,16 @@ curl 'http://127.0.0.1:17649/search?q=invoice%20pdf&limit=20'
 
 Search service backends:
 
-- `memory`: fastest. Loads full records into memory.
-- `compact`: balanced. Keeps an in-memory compressed index.
+- `memory`: Fastest. Uses a packed in-memory index while preserving every result field.
+- `compact`: Balanced. Uses the same packed storage; the preference name remains compatible.
 - `sqlite`: low memory. Queries SQLite directly.
 - `auto`: chooses a backend from index size and memory budget.
 
 The GUI defaults to `memory` because MacEvery is optimized for fast local use.
-Switch to Balanced or Low Memory in Settings if background memory matters more.
+Switch to Low Memory in Settings to query SQLite with less resident index memory.
+The service's `actual_index_bytes` reports allocated index capacity, not process RSS.
+Status polling and watcher checkpoints do not reload the index; committed file
+changes are loaded lazily from one consistent database snapshot on the next search.
 For `auto`, set `MACEVERY_MEMORY_BUDGET_MB` to override the default budget.
 
 Search computations are limited to two concurrent requests by default, separately

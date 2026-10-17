@@ -133,9 +133,22 @@ elif mode == 'search':
         try fixture.write(to: executable, atomically: true, encoding: .utf8)
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: executable.path)
         let cli = MacEveryCLI(executableURL: executable)
+        try statusChecks()
         try commandChecks(cli)
         try searchChecks(cli, events: events)
         print("PASS: GUI search generation/cancellation/backpressure/single-flight and CLI pipe/timeout/output checks")
+    }
+
+    private static func statusChecks() throws {
+        let oldJSON = #"{"backend":"memory","requested_backend":"memory","records":12,"estimated_memory_bytes":10800}"#
+        let oldStatus = try JSONDecoder().decode(SearchServiceStatus.self, from: Data(oldJSON.utf8))
+        try check(oldStatus.actualIndexBytes == nil && !oldStatus.memoryLabel.isEmpty,
+                  "Legacy service status no longer decodes")
+        let newJSON = #"{"backend":"memory","requested_backend":"memory","records":12,"estimated_memory_bytes":10800,"actual_index_bytes":2048,"ready":true,"stale":false}"#
+        let newStatus = try JSONDecoder().decode(SearchServiceStatus.self, from: Data(newJSON.utf8))
+        try check(newStatus.actualIndexBytes == 2048 && newStatus.backendLabel == "Fastest",
+                  "Packed capacity or existing performance preference did not decode")
+        print("PASS: old/new service status and actual index capacity compatibility")
     }
 
     private static func commandChecks(_ cli: MacEveryCLI) throws {

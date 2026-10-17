@@ -22,6 +22,7 @@ const SQLITE_DONE: c_int = 101;
 const SQLITE_INTEGER: c_int = 1;
 const SQLITE_TEXT: c_int = 3;
 const SQLITE_NULL: c_int = 5;
+const SQLITE_OPEN_READONLY: c_int = 0x0000_0001;
 const SQLITE_OPEN_READWRITE: c_int = 0x0000_0002;
 const SQLITE_OPEN_CREATE: c_int = 0x0000_0004;
 const SQLITE_OPEN_FULLMUTEX: c_int = 0x0001_0000;
@@ -79,16 +80,40 @@ pub struct Connection {
     raw: *mut sqlite3,
 }
 
+// Every connection is opened FULLMUTEX. Moving exclusive ownership to another
+// thread is safe; Connection deliberately is not Sync, and Statement borrows
+// prevent moving a connection while any statement is alive.
+unsafe impl Send for Connection {}
+
 impl Connection {
     pub fn open(path: &Path) -> Result<Self> {
-        if let Some(parent) = path.parent() {
-            std::fs::create_dir_all(parent)?;
+        Self::open_with_flags(path, false, true)
+    }
+
+    pub fn open_read_only(path: &Path) -> Result<Self> {
+        Self::open_with_flags(path, true, false)
+    }
+
+    pub fn open_existing(path: &Path) -> Result<Self> {
+        Self::open_with_flags(path, false, false)
+    }
+
+    fn open_with_flags(path: &Path, read_only: bool, create: bool) -> Result<Self> {
+        if create {
+            if let Some(parent) = path.parent() {
+                std::fs::create_dir_all(parent)?;
+            }
         }
 
         let filename = CString::new(path.to_string_lossy().as_bytes())
             .map_err(|_| MacEveryError::Sqlite("database path contains NUL byte".to_string()))?;
         let mut raw = ptr::null_mut();
-        let flags = SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_FULLMUTEX;
+        let flags = SQLITE_OPEN_FULLMUTEX
+            | if read_only {
+                SQLITE_OPEN_READONLY
+            } else {
+                SQLITE_OPEN_READWRITE | if create { SQLITE_OPEN_CREATE } else { 0 }
+            };
         let code = unsafe { sqlite3_open_v2(filename.as_ptr(), &mut raw, flags, ptr::null()) };
         if code != SQLITE_OK {
             let message = if raw.is_null() {
@@ -109,12 +134,10 @@ impl Connection {
         if code != SQLITE_OK {
             return Err(MacEveryError::Sqlite(unsafe { errmsg(conn.raw) }));
         }
-        conn.execute_batch(
-            "PRAGMA journal_mode=WAL;
-             PRAGMA synchronous=NORMAL;
-             PRAGMA temp_store=MEMORY;
-             PRAGMA foreign_keys=ON;",
-        )?;
+        if !read_only {
+            conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL;")?;
+        }
+        conn.execute_batch("PRAGMA temp_store=MEMORY; PRAGMA foreign_keys=ON;")?;
         Ok(conn)
     }
 

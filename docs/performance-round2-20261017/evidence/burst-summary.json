@@ -1,0 +1,20 @@
+{
+  "status": "PASS",
+  "error": null,
+  "burst_status_counts": {
+    "200": 2,
+    "503": 38
+  },
+  "backpressure_observed": true,
+  "cleanup": {
+    "pid": 46755,
+    "returncode": -15,
+    "method": "SIGTERM",
+    "process_group_gone": true,
+    "port_closed": true
+  },
+  "snapshot": {
+    "rows": 300002,
+    "sha256": "6adc824ddffeb02d3d2103221b695225ff272bc3b8a2eedd3385ac092324f5b5"
+  }
+}

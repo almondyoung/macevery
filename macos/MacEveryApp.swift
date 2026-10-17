@@ -35,12 +35,14 @@ struct SearchServiceStatus: Codable {
     let requestedBackend: String
     let records: Int64
     let estimatedMemoryBytes: UInt64
+    var actualIndexBytes: UInt64? = nil
 
     enum CodingKeys: String, CodingKey {
         case backend
         case requestedBackend = "requested_backend"
         case records
         case estimatedMemoryBytes = "estimated_memory_bytes"
+        case actualIndexBytes = "actual_index_bytes"
     }
 
     var backendLabel: String {
@@ -53,7 +55,7 @@ struct SearchServiceStatus: Codable {
     }
 
     var memoryLabel: String {
-        ByteCountFormatter.string(fromByteCount: Int64(estimatedMemoryBytes), countStyle: .memory)
+        ByteCountFormatter.string(fromByteCount: Int64(actualIndexBytes ?? estimatedMemoryBytes), countStyle: .memory)
     }
 }
 
@@ -87,7 +89,7 @@ enum SearchPerformanceMode: String, CaseIterable, Identifiable {
         case .fastest:
             return "Loads the index into memory for the lowest latency."
         case .balanced:
-            return "Keeps an in-memory index while reducing background memory use."
+            return "Keeps a compact in-memory index for local searching."
         case .lowMemory:
             return "Uses SQLite directly to keep background memory low."
         }
@@ -1563,7 +1565,7 @@ struct ContentView: View {
                     .font(.headline)
                 MetricLine(label: "Mode", value: model.serviceStatus?.backendLabel ?? model.searchPerformance.title)
                 if let serviceStatus = model.serviceStatus {
-                    MetricLine(label: "Estimate", value: serviceStatus.memoryLabel)
+                    MetricLine(label: serviceStatus.actualIndexBytes == nil ? "Estimate" : "Index", value: serviceStatus.memoryLabel)
                 }
             }
 
@@ -2188,6 +2190,12 @@ struct SettingsView: View {
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
+                if let buildLabel = Bundle.main.object(forInfoDictionaryKey: "MacEveryBuildLabel") as? String {
+                    Text("Build \(buildLabel)")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                        .textSelection(.enabled)
+                }
             }
 
             VStack(alignment: .leading, spacing: 8) {

@@ -2,11 +2,12 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-APP_DIR="$ROOT_DIR/.build/MacEvery.app"
+APP_DIR="${MACEVERY_APP_DIR:-$ROOT_DIR/.build/MacEvery.app}"
 CONTENTS_DIR="$APP_DIR/Contents"
 MACOS_DIR="$CONTENTS_DIR/MacOS"
 RESOURCES_DIR="$CONTENTS_DIR/Resources"
 MODULE_CACHE="$ROOT_DIR/.build/macevery-swift-module-cache"
+CARGO_OUTPUT="${CARGO_TARGET_DIR:-$ROOT_DIR/target}"
 ARCH="${MACEVERY_APP_ARCH:-$(uname -m)}"
 TARGET="${MACEVERY_SWIFT_TARGET:-${ARCH}-apple-macos13.0}"
 
@@ -28,8 +29,22 @@ swiftc \
   -o "$MACOS_DIR/MacEveryApp" \
   "$ROOT_DIR/macos/MacEveryApp.swift"
 
-cp "$ROOT_DIR/target/release/macevery" "$MACOS_DIR/macevery"
+cp "$CARGO_OUTPUT/release/macevery" "$MACOS_DIR/macevery"
 cp "$ROOT_DIR/macos/Info.plist" "$CONTENTS_DIR/Info.plist"
+
+# Development installs keep the release version and identify their exact source.
+SOURCE_COMMIT="$(git rev-parse HEAD)"
+SOURCE_SHORT="$(git rev-parse --short HEAD)"
+SOURCE_DIRTY="$(git status --porcelain --untracked-files=normal)"
+BUILD_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+APP_VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$CONTENTS_DIR/Info.plist")"
+BUILD_LABEL="$APP_VERSION-g$SOURCE_SHORT"
+if [[ -n "$SOURCE_DIRTY" ]]; then
+  BUILD_LABEL="$BUILD_LABEL-dirty"
+fi
+/usr/libexec/PlistBuddy -c "Add :MacEveryGitCommit string $SOURCE_COMMIT" "$CONTENTS_DIR/Info.plist"
+/usr/libexec/PlistBuddy -c "Add :MacEveryBuildTime string $BUILD_TIME" "$CONTENTS_DIR/Info.plist"
+/usr/libexec/PlistBuddy -c "Add :MacEveryBuildLabel string $BUILD_LABEL" "$CONTENTS_DIR/Info.plist"
 
 chmod +x "$MACOS_DIR/MacEveryApp" "$MACOS_DIR/macevery"
 

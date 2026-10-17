@@ -1,0 +1,24 @@
+{
+  "base_commit": "ce375fe0bf8ed72f6ad25794a7a70bc68c9d19b0",
+  "sources": {
+    "src/compact_index.rs": "1c13a631df1472dce3c96a262e55f9c04a24285a8850aabb36cd6d61ea2eed51",
+    "src/db.rs": "983f6054b7c3f20790de72373b166c1135946daf10f61b7dfe4a4480c5192dee",
+    "src/server.rs": "d654a99b20ee28c5f19d7de5ca7fcbdeaa09fd4632e2e247829cca863bc0fded",
+    "src/sqlite.rs": "447b2fc3e34d33a7b3d39d2cd9c8b38a54b026311c5e81c286c212a5f6e9eb0c",
+    "macos/MacEveryApp.swift": "979e47abfded1a12c98149f72d7b128fd680274e77bb7de88439e01aeaaf11be",
+    "macos/build-app.sh": "2c338890fb8921c8548291cd853f1db4472b88e561d2421a0d18140c3fad1745",
+    "tests/macos/GUIRegressionChecks.swift": "4b94a3be8ee2342cf12fbb8c1042f11c83694dc07b60c71f484af02f0197fe00",
+    "tools/compare_round1.py": "414c0aae7dd8c57c38575e2a493c2a1f03dff39caf650043bdeb3f531176b84e",
+    "tools/check_service_round2.py": "41e09df119b34b0a84832e759a1068c09eb88bb82f7cb21ec02ef0bb2cac2e59"
+  },
+  "artifacts": {
+    "macevery": "3afc13f417f94568597072eb4da2a9e24e782dbadaa541be643b80c86b893615",
+    "libmacevery.rlib": "57c701a7ac941379b1a37f07c778c466e519ae245e3c8b2d6363ab6ca8a4282a"
+  },
+  "verification": {
+    "rust_debug": "75/75 PASS",
+    "rust_release": "75/75 PASS",
+    "strict_clippy_all_targets": "PASS",
+    "swift_gui_regression": "PASS including old/new status decode"
+  }
+}

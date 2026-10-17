@@ -1,7 +1,9 @@
 use crate::error::{MacEveryError, Result};
 use crate::model::{FileKind, FileRecord, IndexStats, PathFilter, PathFilterMode, SearchOptions};
 use crate::sqlite::{Connection, Step};
+use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
+use std::sync::Mutex;
 
 const DELETE_PATH_PREFIX_SQL: &str = "DELETE FROM files
     WHERE path = ?1 COLLATE BINARY
@@ -11,14 +13,86 @@ const DELETE_STALE_PREFIX_SQL: &str = "DELETE FROM files
       AND (path = ?2 COLLATE BINARY
            OR (path >= ?3 COLLATE BINARY AND path < ?4 COLLATE BINARY));";
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct DatabaseFileIdentity {
+    pub device: u64,
+    pub inode: u64,
+}
+
+impl DatabaseFileIdentity {
+    fn at(path: &Path) -> Result<Self> {
+        let metadata = std::fs::metadata(path)?;
+        Ok(Self {
+            device: metadata.dev(),
+            inode: metadata.ino(),
+        })
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ContentStamp {
+    pub database_id: String,
+    pub revision: i64,
+    pub file_identity: DatabaseFileIdentity,
+}
+
 pub struct Database {
     path: PathBuf,
     conn: Connection,
+    identity: DatabaseFileIdentity,
+}
+
+// The observer serializes its connection, and reconnects after atomic database
+// replacement. A failed reopen leaves None so a later request can retry.
+pub struct ContentObserver {
+    path: PathBuf,
+    database: Mutex<Option<Database>>,
+}
+
+impl ContentObserver {
+    pub fn open(path: PathBuf) -> Result<Self> {
+        let database = Database::open_read_only(path.clone())?;
+        Ok(Self {
+            path,
+            database: Mutex::new(Some(database)),
+        })
+    }
+
+    pub fn content_stamp(&self) -> Result<ContentStamp> {
+        let mut database = self
+            .database
+            .lock()
+            .map_err(|_| MacEveryError::Sqlite("content observer lock poisoned".to_string()))?;
+        let identity = match DatabaseFileIdentity::at(&self.path) {
+            Ok(identity) => identity,
+            Err(err) => {
+                *database = None;
+                return Err(err);
+            }
+        };
+        if database.as_ref().is_none_or(|db| db.identity != identity) {
+            // Close the old inode before opening a new connection at the same
+            // pathname, including its associated WAL and SHM lifecycle.
+            *database = None;
+            *database = Some(Database::open_read_only(self.path.clone())?);
+        }
+        let stamp = database
+            .as_ref()
+            .ok_or_else(|| MacEveryError::Sqlite("content observer is disconnected".to_string()))?
+            .content_stamp();
+        if stamp.is_err() {
+            // SQLite can retain an I/O error after a temporary rename/removal.
+            // Discard that connection so the next observation starts afresh.
+            *database = None;
+        }
+        stamp
+    }
 }
 
 pub struct DbRecordRef<'a> {
     pub id: i64,
     pub path: &'a str,
+    pub path_lower: Option<&'a str>,
     pub basename: &'a str,
     pub basename_lower: &'a str,
     pub ext_lower: Option<&'a str>,
@@ -33,14 +107,95 @@ pub struct DbRecordRef<'a> {
 
 impl Database {
     pub fn open(path: PathBuf) -> Result<Self> {
+        let before = match DatabaseFileIdentity::at(&path) {
+            Ok(identity) => Some(identity),
+            Err(MacEveryError::Io(err)) if err.kind() == std::io::ErrorKind::NotFound => None,
+            Err(err) => return Err(err),
+        };
         let conn = Connection::open(&path)?;
-        let db = Self { path, conn };
+        let identity = DatabaseFileIdentity::at(&path)?;
+        if before.is_some_and(|before| before != identity) {
+            return Err(MacEveryError::Sqlite(
+                "database replaced while opening; retry".to_string(),
+            ));
+        }
+        let db = Self {
+            path,
+            conn,
+            identity,
+        };
         db.init()?;
         Ok(db)
     }
 
+    /// Migrate an existing database in place, without SQLITE_OPEN_CREATE.
+    pub fn open_existing(path: PathBuf) -> Result<Self> {
+        let before = DatabaseFileIdentity::at(&path)?;
+        let conn = Connection::open_existing(&path)?;
+        let identity = DatabaseFileIdentity::at(&path)?;
+        if identity != before {
+            return Err(MacEveryError::Sqlite(
+                "database replaced while opening; retry".to_string(),
+            ));
+        }
+        let db = Self {
+            path,
+            conn,
+            identity,
+        };
+        db.init()?;
+        Ok(db)
+    }
+
+    /// Open an existing migrated database without creating it or running schema DDL.
+    pub fn open_read_only(path: PathBuf) -> Result<Self> {
+        let before = DatabaseFileIdentity::at(&path)?;
+        let conn = Connection::open_read_only(&path)?;
+        let identity = DatabaseFileIdentity::at(&path)?;
+        if identity != before {
+            return Err(MacEveryError::Sqlite(
+                "database replaced while opening; retry".to_string(),
+            ));
+        }
+        Ok(Self {
+            path,
+            conn,
+            identity,
+        })
+    }
+
     pub fn path(&self) -> &Path {
         &self.path
+    }
+
+    /// A single-row read; includes WAL commits and excludes control-plane metadata.
+    /// Every API-visible files value, including indexed_at, participates; no-op
+    /// updates leave the revision unchanged.
+    pub fn content_stamp(&self) -> Result<ContentStamp> {
+        let mut stmt = self.conn.prepare(
+            "SELECT database_id, revision FROM macevery_content_state WHERE singleton = 1;",
+        )?;
+        if !matches!(stmt.step()?, Step::Row) {
+            return Err(MacEveryError::Sqlite(
+                "missing content revision state".to_string(),
+            ));
+        }
+        let database_id = stmt
+            .column_text(0)
+            .ok_or_else(|| MacEveryError::Sqlite("invalid database identity".to_string()))?;
+        let revision = stmt
+            .column_i64(1)
+            .ok_or_else(|| MacEveryError::Sqlite("invalid content revision".to_string()))?;
+        Ok(ContentStamp {
+            database_id,
+            revision,
+            file_identity: self.identity,
+        })
+    }
+
+    /// The first SELECT pins a WAL read snapshot; callers must commit or roll back.
+    pub fn begin_read(&self) -> Result<()> {
+        self.conn.execute_batch("BEGIN DEFERRED TRANSACTION;")
     }
 
     pub fn init(&self) -> Result<()> {
@@ -86,7 +241,56 @@ impl Database {
         self.conn.execute_batch(
             "CREATE INDEX IF NOT EXISTS idx_files_path_lower ON files(path_lower);",
         )?;
+        self.init_content_revision()?;
         Ok(())
+    }
+
+    fn init_content_revision(&self) -> Result<()> {
+        const MIGRATION: &str = "schema_content_revision_v1";
+        if self.get_meta(MIGRATION)?.as_deref() == Some("1") {
+            return Ok(());
+        }
+        self.begin()?;
+        let migration = (|| {
+            // Another opener may have installed the migration while BEGIN waited.
+            if self.get_meta(MIGRATION)?.as_deref() != Some("1") {
+                self.conn.execute_batch(
+                    "CREATE TABLE IF NOT EXISTS macevery_content_state (
+                        singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
+                        database_id TEXT NOT NULL,
+                        revision INTEGER NOT NULL CHECK (typeof(revision) = 'integer' AND revision >= 0)
+                     );
+                     INSERT OR IGNORE INTO macevery_content_state(singleton, database_id, revision)
+                     VALUES (1, lower(hex(randomblob(16))), 0);
+                     CREATE TRIGGER IF NOT EXISTS macevery_files_insert_revision_v1
+                     AFTER INSERT ON files BEGIN
+                        UPDATE macevery_content_state SET revision = revision + 1 WHERE singleton = 1;
+                     END;
+                     CREATE TRIGGER IF NOT EXISTS macevery_files_delete_revision_v1
+                     AFTER DELETE ON files BEGIN
+                        UPDATE macevery_content_state SET revision = revision + 1 WHERE singleton = 1;
+                     END;
+                     CREATE TRIGGER IF NOT EXISTS macevery_files_update_revision_v1
+                     AFTER UPDATE ON files
+                     WHEN OLD.id IS NOT NEW.id OR OLD.path IS NOT NEW.path
+                       OR OLD.path_lower IS NOT NEW.path_lower
+                       OR OLD.basename IS NOT NEW.basename OR OLD.basename_lower IS NOT NEW.basename_lower
+                       OR OLD.ext_lower IS NOT NEW.ext_lower OR OLD.kind IS NOT NEW.kind
+                       OR OLD.size IS NOT NEW.size OR OLD.mtime IS NOT NEW.mtime OR OLD.ctime IS NOT NEW.ctime
+                       OR OLD.dev IS NOT NEW.dev OR OLD.inode IS NOT NEW.inode
+                       OR OLD.indexed_at IS NOT NEW.indexed_at
+                     BEGIN
+                        UPDATE macevery_content_state SET revision = revision + 1 WHERE singleton = 1;
+                     END;"
+                )?;
+                self.set_meta(MIGRATION, "1")?;
+            }
+            self.commit()
+        })();
+        if migration.is_err() {
+            let _ = self.rollback();
+        }
+        migration
     }
 
     pub fn begin(&self) -> Result<()> {
@@ -533,6 +737,7 @@ fn row_to_record_ref<'a>(stmt: &'a crate::sqlite::Statement<'_>) -> Result<DbRec
     Ok(DbRecordRef {
         id: stmt.column_i64(0).unwrap_or(0),
         path: stmt.column_str(1).unwrap_or_default(),
+        path_lower: stmt.column_str(2).filter(|value| !value.is_empty()),
         basename: stmt.column_str(3).unwrap_or_default(),
         basename_lower: stmt.column_str(4).unwrap_or_default(),
         ext_lower: stmt.column_str(5),
@@ -802,5 +1007,232 @@ mod prefix_cleanup_tests {
         }
         drop(db);
         std::fs::remove_dir_all(dir).unwrap();
+    }
+}
+
+#[cfg(test)]
+mod content_revision_tests {
+    use super::*;
+    use std::sync::atomic::{AtomicU64, Ordering};
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    struct Fixture(PathBuf);
+
+    impl Fixture {
+        fn new(label: &str) -> Self {
+            static NEXT: AtomicU64 = AtomicU64::new(0);
+            let nanos = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos();
+            let dir = std::env::temp_dir().join(format!(
+                "macevery-content-{label}-{}-{nanos}-{}",
+                std::process::id(),
+                NEXT.fetch_add(1, Ordering::Relaxed)
+            ));
+            std::fs::create_dir_all(&dir).unwrap();
+            Self(dir)
+        }
+        fn database(&self) -> PathBuf {
+            self.0.join("index.sqlite")
+        }
+    }
+
+    impl Drop for Fixture {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+
+    fn scalar(db: &Database, sql: &str) -> i64 {
+        let mut stmt = db.conn.prepare(sql).unwrap();
+        assert!(matches!(stmt.step().unwrap(), Step::Row));
+        stmt.column_i64(0).unwrap()
+    }
+
+    fn record(path: &str, generation: i64) -> FileRecord {
+        FileRecord::new(path.to_string(), FileKind::File, generation)
+    }
+
+    #[test]
+    fn control_metadata_and_noop_updates_do_not_change_file_content_stamp() {
+        let fixture = Fixture::new("control");
+        let db = Database::open(fixture.database()).unwrap();
+        db.upsert_file(&record("/root/a.txt", 10)).unwrap();
+        let initial = db.content_stamp().unwrap();
+        db.set_meta("watch_last_event_id", "20").unwrap();
+        db.set_meta("last_indexed_at", "30").unwrap();
+        db.set_roots(&["/root".to_string()]).unwrap();
+        db.set_excludes(&[".git".to_string()]).unwrap();
+        db.upsert_file(&record("/root/a.txt", 10)).unwrap();
+        assert_eq!(db.content_stamp().unwrap(), initial);
+        db.upsert_file(&record("/root/a.txt", 11)).unwrap();
+        // indexed_at remains an API-visible FileRecord field, so changing it is
+        // intentionally a content change until that public contract is revised.
+        assert_eq!(db.content_stamp().unwrap().revision, initial.revision + 1);
+    }
+
+    #[test]
+    fn external_file_writes_and_reused_ids_advance_revision_transactionally() {
+        let fixture = Fixture::new("external");
+        let db = Database::open(fixture.database()).unwrap();
+        db.upsert_file(&record("/root/a.txt", 10)).unwrap();
+        let initial = db.content_stamp().unwrap();
+        // This connection bypasses every Database write method. The persistent
+        // triggers apply equally to sqlite3/Python or any other SQLite client.
+        let external = Connection::open(&fixture.database()).unwrap();
+        external
+            .execute_batch("BEGIN; UPDATE files SET size = 42; ROLLBACK;")
+            .unwrap();
+        assert_eq!(db.content_stamp().unwrap(), initial);
+        external.execute_batch("BEGIN; DELETE FROM files; INSERT INTO files(id,path,path_lower,basename,basename_lower,kind,indexed_at) VALUES(1,'/root/b.txt','/root/b.txt','b.txt','b.txt','file',10); COMMIT;").unwrap();
+        let changed = db.content_stamp().unwrap();
+        assert_eq!(changed.database_id, initial.database_id);
+        assert_eq!(changed.revision, initial.revision + 2);
+        assert_eq!(scalar(&db, "SELECT count(*) FROM files"), 1);
+        assert_eq!(scalar(&db, "SELECT max(indexed_at) FROM files"), 10);
+        assert_eq!(db.all_records().unwrap()[0].path, "/root/b.txt");
+        external
+            .execute_batch("UPDATE files SET basename = 'renamed.txt';")
+            .unwrap();
+        assert_eq!(db.content_stamp().unwrap().revision, changed.revision + 1);
+    }
+
+    #[test]
+    fn read_snapshot_stamp_matches_rows_while_external_wal_writer_commits() {
+        let fixture = Fixture::new("snapshot");
+        let writer = Database::open(fixture.database()).unwrap();
+        writer.upsert_file(&record("/root/a.txt", 10)).unwrap();
+        let reader = Database::open_read_only(fixture.database()).unwrap();
+        reader.begin_read().unwrap();
+        let before = reader.content_stamp().unwrap();
+        writer.upsert_file(&record("/root/b.txt", 20)).unwrap();
+        assert_eq!(reader.all_records().unwrap().len(), 1);
+        assert_eq!(reader.content_stamp().unwrap(), before);
+        reader.commit().unwrap();
+        assert_eq!(reader.all_records().unwrap().len(), 2);
+        assert!(reader.content_stamp().unwrap().revision > before.revision);
+        reader.begin_read().unwrap();
+        assert_eq!(reader.all_records().unwrap().len(), 2);
+        reader.rollback().unwrap();
+        writer.upsert_file(&record("/root/c.txt", 30)).unwrap();
+        assert_eq!(reader.all_records().unwrap().len(), 3);
+    }
+
+    #[test]
+    fn observer_sees_wal_content_changes_but_ignores_checkpoint_and_meta() {
+        fn assert_send_sync<T: Send + Sync>() {}
+        assert_send_sync::<ContentObserver>();
+        let fixture = Fixture::new("wal");
+        let db = Database::open(fixture.database()).unwrap();
+        db.conn
+            .execute_batch("PRAGMA wal_checkpoint(TRUNCATE);")
+            .unwrap();
+        let observer = ContentObserver::open(fixture.database()).unwrap();
+        let initial = observer.content_stamp().unwrap();
+        db.upsert_file(&record("/root/a.txt", 10)).unwrap();
+        assert!(
+            std::fs::metadata(format!("{}-wal", fixture.database().display()))
+                .unwrap()
+                .len()
+                > 0
+        );
+        let changed = observer.content_stamp().unwrap();
+        assert_eq!(changed.revision, initial.revision + 1);
+        db.set_meta("watch_last_event_id", "100").unwrap();
+        assert_eq!(observer.content_stamp().unwrap(), changed);
+        db.conn
+            .execute_batch("PRAGMA wal_checkpoint(TRUNCATE);")
+            .unwrap();
+        assert_eq!(observer.content_stamp().unwrap(), changed);
+    }
+
+    #[test]
+    fn observer_reopens_replaced_database_even_for_clones_with_equal_revision() {
+        let fixture = Fixture::new("replacement");
+        let path = fixture.database();
+        let original = Database::open(path.clone()).unwrap();
+        original
+            .upsert_file(&record("/root/original.txt", 1))
+            .unwrap();
+        original
+            .conn
+            .execute_batch("PRAGMA wal_checkpoint(TRUNCATE);")
+            .unwrap();
+        drop(original);
+        let observer = ContentObserver::open(path.clone()).unwrap();
+        let before = observer.content_stamp().unwrap();
+        let replacement_path = fixture.0.join("replacement.sqlite");
+        let replacement = Database::open(replacement_path.clone()).unwrap();
+        replacement
+            .upsert_file(&record("/root/replacement.txt", 1))
+            .unwrap();
+        drop(replacement);
+        std::fs::rename(&replacement_path, &path).unwrap();
+        let changed = observer.content_stamp().unwrap();
+        assert_ne!(changed.database_id, before.database_id);
+        assert_ne!(changed.file_identity, before.file_identity);
+        let clone_path = fixture.0.join("clone.sqlite");
+        std::fs::copy(&path, &clone_path).unwrap();
+        std::fs::rename(&clone_path, &path).unwrap();
+        let cloned = observer.content_stamp().unwrap();
+        assert_eq!(cloned.database_id, changed.database_id);
+        assert_eq!(cloned.revision, changed.revision);
+        assert_ne!(cloned.file_identity, changed.file_identity);
+        std::fs::rename(&path, &clone_path).unwrap();
+        assert!(observer.content_stamp().is_err());
+        std::fs::rename(&clone_path, &path).unwrap();
+        assert_eq!(observer.content_stamp().unwrap(), cloned);
+    }
+
+    #[test]
+    fn legacy_database_migrates_once_without_rewriting_files_on_reopen() {
+        let fixture = Fixture::new("legacy");
+        let legacy = Connection::open(&fixture.database()).unwrap();
+        legacy.execute_batch("CREATE TABLE files(id INTEGER PRIMARY KEY,path TEXT NOT NULL UNIQUE,basename TEXT NOT NULL,basename_lower TEXT NOT NULL,ext_lower TEXT,kind TEXT NOT NULL,size INTEGER,mtime INTEGER,ctime INTEGER,dev INTEGER,inode INTEGER,indexed_at INTEGER NOT NULL); INSERT INTO files(path,basename,basename_lower,kind,indexed_at) VALUES('/legacy/A.txt','A.txt','a.txt','file',7);").unwrap();
+        drop(legacy);
+        let migrated = Database::open_existing(fixture.database()).unwrap();
+        assert_eq!(
+            migrated.all_records().unwrap()[0].path_lower,
+            "/legacy/a.txt"
+        );
+        let stamp = migrated.content_stamp().unwrap();
+        assert_eq!(stamp.database_id.len(), 32);
+        assert_eq!(stamp.revision, 0);
+        let schema_version = scalar(&migrated, "PRAGMA schema_version;");
+        drop(migrated);
+        let reopened = Database::open(fixture.database()).unwrap();
+        assert_eq!(reopened.content_stamp().unwrap(), stamp);
+        assert_eq!(scalar(&reopened, "PRAGMA schema_version;"), schema_version);
+        assert_eq!(scalar(&reopened, "SELECT count(*) FROM sqlite_master WHERE type='trigger' AND name LIKE 'macevery_files_%_revision_v1';"), 3);
+        reopened
+            .conn
+            .execute_batch("UPDATE files SET size=99;")
+            .unwrap();
+        assert_eq!(
+            reopened.content_stamp().unwrap().revision,
+            stamp.revision + 1
+        );
+    }
+
+    #[test]
+    fn existing_writable_open_never_creates_a_missing_database_or_parent() {
+        let fixture = Fixture::new("existing");
+        for missing in [fixture.database(), fixture.0.join("absent/index.sqlite")] {
+            assert!(Database::open_existing(missing.clone()).is_err());
+            assert!(!missing.exists());
+        }
+        assert!(!fixture.0.join("absent").exists());
+        // Check the low-level flag contract too, independent of the stat guard.
+        assert!(Connection::open_existing(&fixture.database()).is_err());
+        assert!(!fixture.database().exists());
+    }
+
+    #[test]
+    fn readonly_open_never_creates_a_missing_database_or_parent() {
+        let fixture = Fixture::new("readonly");
+        let missing = fixture.0.join("absent/index.sqlite");
+        assert!(Database::open_read_only(missing.clone()).is_err());
+        assert!(!missing.parent().unwrap().exists());
     }
 }

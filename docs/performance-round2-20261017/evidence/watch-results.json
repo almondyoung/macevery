@@ -1,0 +1,104 @@
+[
+  {
+    "binary": "/Users/yangtao/pine/code/macevery/.build/performance-round1-20261017/candidate/release/macevery",
+    "rows_seeded": 300000,
+    "elapsed_s": 8.792734291999999,
+    "cpu_s": 0.016072,
+    "peak_rss_bytes": 11665408,
+    "cpu_percent": 0.18278728170624903,
+    "checks": [
+      "create",
+      "modify",
+      "rename",
+      "directory create",
+      "directory rename",
+      "directory delete",
+      "file delete",
+      "excluded directory write storm",
+      "update after excluded events"
+    ],
+    "final_rows": [
+      [
+        ".",
+        "dir",
+        null
+      ],
+      [
+        "after-noise.txt",
+        "file",
+        2
+      ]
+    ],
+    "stress_elapsed_s": 5.7971221250000005,
+    "log": "/private/tmp/macevery-round2-20261017/watch-aba/baseline/watch.log",
+    "label": "baseline"
+  },
+  {
+    "binary": "/private/tmp/macevery-round2-20261017/target/release/macevery",
+    "rows_seeded": 300000,
+    "elapsed_s": 8.792400291999998,
+    "cpu_s": 0.017549,
+    "peak_rss_bytes": 11698176,
+    "cpu_percent": 0.19959282354293434,
+    "checks": [
+      "create",
+      "modify",
+      "rename",
+      "directory create",
+      "directory rename",
+      "directory delete",
+      "file delete",
+      "excluded directory write storm",
+      "update after excluded events"
+    ],
+    "final_rows": [
+      [
+        ".",
+        "dir",
+        null
+      ],
+      [
+        "after-noise.txt",
+        "file",
+        2
+      ]
+    ],
+    "stress_elapsed_s": 5.85370825,
+    "log": "/private/tmp/macevery-round2-20261017/watch-aba/candidate/watch.log",
+    "label": "candidate"
+  },
+  {
+    "binary": "/Users/yangtao/pine/code/macevery/.build/performance-round1-20261017/candidate/release/macevery",
+    "rows_seeded": 300000,
+    "elapsed_s": 8.764283875,
+    "cpu_s": 0.016533,
+    "peak_rss_bytes": 11649024,
+    "cpu_percent": 0.18864062638546153,
+    "checks": [
+      "create",
+      "modify",
+      "rename",
+      "directory create",
+      "directory rename",
+      "directory delete",
+      "file delete",
+      "excluded directory write storm",
+      "update after excluded events"
+    ],
+    "final_rows": [
+      [
+        ".",
+        "dir",
+        null
+      ],
+      [
+        "after-noise.txt",
+        "file",
+        2
+      ]
+    ],
+    "stress_elapsed_s": 5.800198541,
+    "log": "/private/tmp/macevery-round2-20261017/watch-aba/baseline-repeat/watch.log",
+    "label": "baseline-repeat"
+  }
+]

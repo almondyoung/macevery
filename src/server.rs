@@ -1,18 +1,17 @@
 use crate::compact_index::CompactIndex;
 use crate::config::default_db_path;
-use crate::db::Database;
+use crate::db::{ContentObserver, ContentStamp, Database};
 use crate::error::{MacEveryError, Result};
-use crate::model::{FileKind, FileRecord, SearchOptions, SearchResult};
+use crate::model::{FileKind, SearchOptions, SearchResult};
 use crate::process_lifetime;
 use crate::search;
 use std::collections::HashMap;
-use std::fs;
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, Mutex, RwLock};
 use std::thread;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
@@ -143,147 +142,273 @@ impl SearchSlots {
 }
 
 enum Backend {
-    Memory {
-        records: Vec<FileRecord>,
-        marker: u128,
-    },
-    Compact {
-        index: CompactIndex,
-        marker: u128,
-    },
-    Sqlite,
+    Packed(CompactIndex),
+    Sqlite(Mutex<Database>),
+    Unavailable,
 }
 
 impl Backend {
-    fn mode(&self) -> &'static str {
+    fn memory_usage_bytes(&self) -> u64 {
         match self {
-            Self::Memory { .. } => "memory",
-            Self::Compact { .. } => "compact",
-            Self::Sqlite => "sqlite",
+            Self::Packed(index) => index.memory_usage_bytes(),
+            Self::Sqlite(_) | Self::Unavailable => 0,
         }
     }
 
-    fn marker(&self) -> Option<u128> {
+    fn loaded_records(&self) -> usize {
         match self {
-            Self::Memory { marker, .. } | Self::Compact { marker, .. } => Some(*marker),
-            Self::Sqlite => None,
+            Self::Packed(index) => index.len(),
+            Self::Sqlite(_) | Self::Unavailable => 0,
         }
+    }
+
+    fn is_ready(&self) -> bool {
+        !matches!(self, Self::Unavailable)
     }
 }
 
 struct ServiceState {
     db_path: PathBuf,
     requested_backend: BackendPreference,
+    selected_backend: BackendPreference,
+    observer: ContentObserver,
     backend: Backend,
+    loaded_stamp: Option<ContentStamp>,
     records_total: i64,
     estimated_memory_bytes: u64,
     loaded_at: i64,
+    load_attempts: u64,
+    successful_loads: u64,
+    last_load_error: Option<String>,
+}
+
+// The first stamp SELECT pins the same WAL snapshot used by the full load.
+// A later commit is deliberately picked up by the next request's observer check.
+fn with_read_snapshot<T>(
+    db: &Database,
+    read: impl FnOnce(&ContentStamp) -> Result<T>,
+) -> Result<(ContentStamp, T)> {
+    db.begin_read()?;
+    let result = (|| {
+        let stamp = db.content_stamp()?;
+        let value = read(&stamp)?;
+        Ok((stamp, value))
+    })();
+    match result {
+        Ok(value) => {
+            if let Err(error) = db.commit() {
+                let _ = db.rollback();
+                return Err(error);
+            }
+            Ok(value)
+        }
+        Err(error) => {
+            let _ = db.rollback();
+            Err(error)
+        }
+    }
 }
 
 impl ServiceState {
     fn load(db_path: PathBuf, requested_backend: BackendPreference) -> Result<Self> {
-        let db = Database::open(db_path.clone())?;
-        let stats = db.stats()?;
-        let records_total = stats.files + stats.dirs + stats.symlinks + stats.apps + stats.others;
-        let full_memory_estimate = estimate_memory_bytes(records_total);
-        drop(db);
-
-        let selected = select_backend(requested_backend, records_total);
-        let estimated_memory_bytes = estimate_backend_memory_bytes(selected, records_total);
-        let backend = match selected {
-            BackendPreference::Memory => {
-                let db = Database::open(db_path.clone())?;
-                let records = db.all_records()?;
-                let marker = db_marker(&db_path);
-                eprintln!(
-                    "serve: loaded {} indexed records into memory ({})",
-                    records.len(),
-                    format_bytes(full_memory_estimate)
-                );
-                Backend::Memory { records, marker }
-            }
-            BackendPreference::Compact => {
-                let db = Database::open(db_path.clone())?;
-                let index = CompactIndex::load(&db)?;
-                let marker = db_marker(&db_path);
-                eprintln!(
-                    "serve: loaded {} indexed records into balanced index ({})",
-                    index.len(),
-                    format_bytes(estimated_memory_bytes)
-                );
-                Backend::Compact { index, marker }
-            }
-            BackendPreference::Sqlite | BackendPreference::Auto => {
-                eprintln!(
-                    "serve: using SQLite-backed search for {} indexed records",
-                    records_total
-                );
-                Backend::Sqlite
-            }
-        };
-
-        Ok(Self {
+        // Bootstrap/migrate once. Hot-path observation and queries are read-only
+        // and do not rerun schema initialization for each HTTP request.
+        drop(Database::open(db_path.clone())?);
+        let observer = ContentObserver::open(db_path.clone())?;
+        let mut state = Self {
             db_path,
             requested_backend,
-            backend,
-            records_total,
-            estimated_memory_bytes,
-            loaded_at: now_epoch(),
-        })
+            selected_backend: requested_backend,
+            observer,
+            backend: Backend::Unavailable,
+            loaded_stamp: None,
+            records_total: 0,
+            estimated_memory_bytes: 0,
+            loaded_at: 0,
+            load_attempts: 0,
+            successful_loads: 0,
+            last_load_error: None,
+        };
+        if let Err(error) = state.reload() {
+            // Keep the listener usable after a failed full load. A later search
+            // can retry; no old or partially loaded records are published.
+            eprintln!("serve: initial index load failed, will retry: {error}");
+        }
+        Ok(state)
+    }
+
+    fn load_backend(&self) -> Result<(Backend, BackendPreference, ContentStamp, i64)> {
+        let mut db = Database::open_read_only(self.db_path.clone())?;
+        if matches!(
+            db.content_stamp(),
+            Err(MacEveryError::Sqlite(ref message))
+                if message.contains("no such table: macevery_content_state")
+        ) {
+            // An older database may have been atomically installed after startup.
+            // Migrate it once, without CREATE, then reopen the snapshot read-only.
+            drop(db);
+            drop(Database::open_existing(self.db_path.clone())?);
+            db = Database::open_read_only(self.db_path.clone())?;
+        }
+        let (stamp, (selected, index, records_total)) = with_read_snapshot(&db, |_| {
+            let selected = if self.requested_backend == BackendPreference::Auto {
+                let stats = db.stats()?;
+                select_backend(
+                    BackendPreference::Auto,
+                    stats.files + stats.dirs + stats.symlinks + stats.apps + stats.others,
+                )
+            } else {
+                self.requested_backend
+            };
+            if matches!(
+                selected,
+                BackendPreference::Memory | BackendPreference::Compact
+            ) {
+                let index = CompactIndex::load(&db)?;
+                let records_total = index.len() as i64;
+                Ok((selected, Some(index), records_total))
+            } else {
+                let stats = db.stats()?;
+                Ok((
+                    selected,
+                    None,
+                    (stats.files + stats.dirs + stats.symlinks + stats.apps + stats.others),
+                ))
+            }
+        })?;
+        let backend = match index {
+            Some(index) => Backend::Packed(index),
+            None => Backend::Sqlite(Mutex::new(db)),
+        };
+        Ok((backend, selected, stamp, records_total))
     }
 
     fn reload(&mut self) -> Result<()> {
-        *self = Self::load(self.db_path.clone(), self.requested_backend)?;
-        Ok(())
+        self.load_attempts = self.load_attempts.saturating_add(1);
+        // Drop all old index arenas before allocating a replacement. While the
+        // write lock is held searches wait; /health does not take this lock.
+        self.backend = Backend::Unavailable;
+        self.loaded_stamp = None;
+        self.records_total = 0;
+        self.estimated_memory_bytes = 0;
+        self.loaded_at = 0;
+        match self.load_backend() {
+            Ok((backend, selected, stamp, records_total)) => {
+                self.backend = backend;
+                self.selected_backend = selected;
+                self.loaded_stamp = Some(stamp);
+                self.records_total = records_total;
+                self.estimated_memory_bytes =
+                    estimate_backend_memory_bytes(selected, records_total);
+                self.loaded_at = now_epoch();
+                self.successful_loads = self.successful_loads.saturating_add(1);
+                self.last_load_error = None;
+                eprintln!(
+                    "serve: loaded {} records, backend={}, index storage {} (allocated capacity, not process RSS)",
+                    records_total,
+                    selected.as_str(),
+                    format_bytes(self.backend.memory_usage_bytes())
+                );
+                Ok(())
+            }
+            Err(error) => {
+                self.last_load_error = Some(error.to_string());
+                Err(error)
+            }
+        }
+    }
+
+    fn needs_reload(&self) -> Result<bool> {
+        if !self.backend.is_ready() {
+            return Ok(true);
+        }
+        // Missing/replaced/legacy databases also enter the retryable loader,
+        // rather than trapping every later request in an observer-only error.
+        Ok(match self.observer.content_stamp() {
+            Ok(current) => self.loaded_stamp.as_ref() != Some(&current),
+            Err(_) => true,
+        })
     }
 
     fn reload_if_changed(&mut self) -> Result<()> {
-        if let Some(marker) = self.backend.marker() {
-            let current = db_marker(&self.db_path);
-            if current != marker {
-                self.reload()?;
-            }
-        }
-        Ok(())
-    }
-
-    fn refresh_status(&mut self) -> Result<()> {
-        if self.backend.marker().is_some() {
-            self.reload_if_changed()?;
-        } else {
-            let db = Database::open(self.db_path.clone())?;
-            let stats = db.stats()?;
-            self.records_total =
-                stats.files + stats.dirs + stats.symlinks + stats.apps + stats.others;
-            self.estimated_memory_bytes =
-                estimate_backend_memory_bytes(BackendPreference::Sqlite, self.records_total);
-            self.loaded_at = now_epoch();
+        // Recheck after taking the write lock: competing requests perform one load.
+        if self.needs_reload()? {
+            self.reload()?;
         }
         Ok(())
     }
 
     fn search(&self, options: &SearchOptions) -> Result<Vec<SearchResult>> {
         match &self.backend {
-            Backend::Memory { records, .. } => Ok(search::search_records(records, options)),
-            Backend::Compact { index, .. } => Ok(index.search(options)),
-            Backend::Sqlite => {
-                let db = Database::open(self.db_path.clone())?;
+            Backend::Packed(index) => Ok(index.search(options)),
+            Backend::Sqlite(database) => {
+                let db = database.lock().map_err(|_| {
+                    MacEveryError::Sqlite("search database lock poisoned".to_string())
+                })?;
                 search::search(&db, options)
             }
+            Backend::Unavailable => Err(MacEveryError::Cli(
+                "search index is unavailable; retry".to_string(),
+            )),
         }
     }
 
     fn status_json(&self) -> String {
+        // Report loaded state plus a cheap freshness check. Merely looking at
+        // status must not allocate or reload a multi-million-record index.
+        let observed = self.observer.content_stamp();
+        let stale = observed
+            .as_ref()
+            .map_or(true, |stamp| self.loaded_stamp.as_ref() != Some(stamp));
+        let ready = self.backend.is_ready();
+        let revision = self
+            .loaded_stamp
+            .as_ref()
+            .map(|stamp| stamp.revision.to_string())
+            .unwrap_or_else(|| "null".into());
+        let current_revision = observed
+            .as_ref()
+            .map(|stamp| stamp.revision.to_string())
+            .unwrap_or_else(|_| "null".into());
+        let observation_error = observed.err().map(|error| error.to_string());
+        let error = self.last_load_error.as_ref().or(observation_error.as_ref());
+        let error_json = error
+            .map(|message| format!("\"{}\"", json_escape(message)))
+            .unwrap_or_else(|| "null".into());
         format!(
-            "{{\"ok\":true,\"backend\":\"{}\",\"requested_backend\":\"{}\",\"records\":{},\"estimated_memory_bytes\":{},\"loaded_at\":{},\"db_path\":\"{}\"}}\n",
-            self.backend.mode(),
+            "{{\"ok\":{},\"ready\":{},\"stale\":{},\"backend\":\"{}\",\"requested_backend\":\"{}\",\"records\":{},\"loaded_records\":{},\"estimated_memory_bytes\":{},\"actual_index_bytes\":{},\"loaded_at\":{},\"reload_count\":{},\"reload_attempts\":{},\"content_revision\":{},\"current_content_revision\":{},\"last_load_error\":{},\"db_path\":\"{}\"}}\n",
+            ready && !stale,
+            ready,
+            stale,
+            self.selected_backend.as_str(),
             self.requested_backend.as_str(),
             self.records_total,
+            self.backend.loaded_records(),
             self.estimated_memory_bytes,
+            self.backend.memory_usage_bytes(),
             self.loaded_at,
+            self.successful_loads.saturating_sub(1),
+            self.load_attempts.saturating_sub(1),
+            revision,
+            current_revision,
+            error_json,
             json_escape(&self.db_path.to_string_lossy())
         )
     }
+}
+
+fn ensure_fresh(state: &RwLock<ServiceState>) -> Result<()> {
+    let needs_reload = state
+        .read()
+        .map_err(|_| MacEveryError::Cli("service state lock poisoned".to_string()))?
+        .needs_reload()?;
+    if needs_reload {
+        state
+            .write()
+            .map_err(|_| MacEveryError::Cli("service state lock poisoned".to_string()))?
+            .reload_if_changed()?;
+    }
+    Ok(())
 }
 
 fn handle_stream(
@@ -333,23 +458,26 @@ fn handle_stream(
     match path {
         "/health" => write_response(&mut stream, "200 OK", "application/json", "{\"ok\":true}\n"),
         "/reload" => {
-            let body = {
+            let (status, body) = {
                 let mut state = state
                     .write()
                     .map_err(|_| MacEveryError::Cli("service state lock poisoned".to_string()))?;
-                state.reload()?;
-                state.status_json()
+                let status = match state.reload() {
+                    Ok(()) => "200 OK",
+                    Err(error) => {
+                        eprintln!("serve: reload failed, will retry: {error}");
+                        "503 Service Unavailable"
+                    }
+                };
+                (status, state.status_json())
             };
-            write_response(&mut stream, "200 OK", "application/json", &body)
+            write_response(&mut stream, status, "application/json", &body)
         }
         "/status" => {
-            let body = {
-                let mut state = state
-                    .write()
-                    .map_err(|_| MacEveryError::Cli("service state lock poisoned".to_string()))?;
-                state.refresh_status()?;
-                state.status_json()
-            };
+            let body = state
+                .read()
+                .map_err(|_| MacEveryError::Cli("service state lock poisoned".to_string()))?
+                .status_json();
             write_response(&mut stream, "200 OK", "application/json", &body)
         }
         "/search" => {
@@ -362,26 +490,35 @@ fn handle_stream(
                     "search busy; retry the latest query\n",
                 );
             };
-            let needs_reload = {
-                let state = state
-                    .read()
-                    .map_err(|_| MacEveryError::Cli("service state lock poisoned".to_string()))?;
-                match state.backend.marker() {
-                    Some(marker) => db_marker(&state.db_path) != marker,
-                    None => false,
-                }
-            };
-            if needs_reload {
-                let mut state = state
-                    .write()
-                    .map_err(|_| MacEveryError::Cli("service state lock poisoned".to_string()))?;
-                state.reload_if_changed()?;
+            if let Err(error) = ensure_fresh(&state) {
+                eprintln!("serve: index unavailable, will retry: {error}");
+                return write_response(
+                    &mut stream,
+                    "503 Service Unavailable",
+                    "text/plain; charset=utf-8",
+                    "search index unavailable; retry the latest query\n",
+                );
             }
             let results = {
                 let state = state
                     .read()
                     .map_err(|_| MacEveryError::Cli("service state lock poisoned".to_string()))?;
-                state.search(&options)?
+                state.search(&options)
+            };
+            let results = match results {
+                Ok(results) => results,
+                Err(error) => {
+                    // A forced reload can fail between ensure_fresh and this read.
+                    // Return backpressure rather than closing TCP and provoking
+                    // the GUI's separate CLI fallback.
+                    eprintln!("serve: search unavailable, will retry: {error}");
+                    return write_response(
+                        &mut stream,
+                        "503 Service Unavailable",
+                        "text/plain; charset=utf-8",
+                        "search index unavailable; retry the latest query\n",
+                    );
+                }
             };
             write_response(
                 &mut stream,
@@ -688,31 +825,6 @@ fn json_escape(value: &str) -> String {
     out
 }
 
-fn db_marker(path: &Path) -> u128 {
-    [
-        path.to_path_buf(),
-        sidecar_path(path, "wal"),
-        sidecar_path(path, "shm"),
-    ]
-    .iter()
-    .filter_map(|path| fs::metadata(path).ok())
-    .filter_map(|metadata| metadata.modified().ok())
-    .map(system_time_nanos)
-    .max()
-    .unwrap_or(0)
-}
-
-fn sidecar_path(path: &Path, suffix: &str) -> PathBuf {
-    PathBuf::from(format!("{}-{suffix}", path.to_string_lossy()))
-}
-
-fn system_time_nanos(value: SystemTime) -> u128 {
-    value
-        .duration_since(UNIX_EPOCH)
-        .map(|duration| duration.as_nanos())
-        .unwrap_or(0)
-}
-
 fn now_epoch() -> i64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -723,6 +835,258 @@ fn now_epoch() -> i64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn test_database(label: &str) -> (PathBuf, PathBuf) {
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let directory = std::env::temp_dir().join(format!(
+            "macevery-server-{label}-{}-{unique}",
+            std::process::id()
+        ));
+        std::fs::create_dir_all(&directory).unwrap();
+        let path = directory.join("index.sqlite");
+        let db = Database::open(path.clone()).unwrap();
+        db.upsert_file(&crate::model::FileRecord::new(
+            "/fixture/alpha.txt".into(),
+            FileKind::File,
+            1,
+        ))
+        .unwrap();
+        drop(db);
+        (directory, path)
+    }
+
+    fn query(value: &str) -> SearchOptions {
+        SearchOptions {
+            query: value.into(),
+            limit: 300,
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn packed_memory_preserves_name_and_metadata_only_changes_do_not_reload() {
+        let (directory, path) = test_database("metadata");
+        let mut state = ServiceState::load(path.clone(), BackendPreference::Memory).unwrap();
+        assert!(matches!(state.backend, Backend::Packed(_)));
+        assert_eq!(state.selected_backend, BackendPreference::Memory);
+        assert_eq!(state.backend.loaded_records(), 1);
+        assert!(state.backend.memory_usage_bytes() > 0);
+        let initial_stamp = state.loaded_stamp.clone();
+        let initial_capacity = state.backend.memory_usage_bytes();
+        let db = Database::open(path.clone()).unwrap();
+        db.set_meta("watch_last_event_id", "4242").unwrap();
+        db.set_roots(&["/different/root".into()]).unwrap();
+        db.set_excludes(&["node_modules".into()]).unwrap();
+        drop(db);
+        let connection = crate::sqlite::Connection::open(&path).unwrap();
+        connection
+            .execute_batch("PRAGMA wal_checkpoint(TRUNCATE);")
+            .unwrap();
+        drop(connection);
+        assert!(!state.needs_reload().unwrap());
+        state.reload_if_changed().unwrap();
+        assert_eq!(state.successful_loads, 1);
+        assert_eq!(state.load_attempts, 1);
+        assert_eq!(state.loaded_stamp, initial_stamp);
+        assert_eq!(state.backend.memory_usage_bytes(), initial_capacity);
+        let status = state.status_json();
+        assert!(status.contains("\"backend\":\"memory\""));
+        assert!(status.contains("\"reload_count\":0"));
+        assert!(status.contains("\"loaded_records\":1"));
+        assert!(status.contains("\"stale\":false"));
+        drop(state);
+        std::fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn external_file_commit_is_lazy_and_visible_after_one_reload() {
+        let (directory, path) = test_database("external");
+        let state = Arc::new(RwLock::new(
+            ServiceState::load(path.clone(), BackendPreference::Memory).unwrap(),
+        ));
+        let connection = crate::sqlite::Connection::open(&path).unwrap();
+        // No Database::upsert_file call: externally issued DML must invalidate too.
+        connection.execute_batch("UPDATE files SET basename='renamed.txt', basename_lower='renamed.txt' WHERE path='/fixture/alpha.txt';").unwrap();
+        drop(connection);
+        {
+            let loaded = state.read().unwrap();
+            assert!(loaded.needs_reload().unwrap());
+            assert!(loaded.status_json().contains("\"stale\":true"));
+            assert_eq!(loaded.successful_loads, 1); // /status did not load anything.
+        }
+        let workers = (0..8)
+            .map(|_| {
+                let state = Arc::clone(&state);
+                thread::spawn(move || {
+                    ensure_fresh(&state).unwrap();
+                    let loaded = state.read().unwrap();
+                    let results = loaded.search(&query("renamed")).unwrap();
+                    assert_eq!(results.len(), 1);
+                    assert_eq!(results[0].record.basename, "renamed.txt");
+                })
+            })
+            .collect::<Vec<_>>();
+        for worker in workers {
+            worker.join().unwrap();
+        }
+        let loaded = state.read().unwrap();
+        assert_eq!(loaded.successful_loads, 2);
+        assert_eq!(loaded.load_attempts, 2);
+        assert!(!loaded.needs_reload().unwrap());
+        drop(loaded);
+        drop(state);
+        std::fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn failed_full_load_drops_old_index_and_recovers_without_poisoning() {
+        let (directory, path) = test_database("recover");
+        let state =
+            RwLock::new(ServiceState::load(path.clone(), BackendPreference::Memory).unwrap());
+        let connection = crate::sqlite::Connection::open(&path).unwrap();
+        connection
+            .execute_batch("ALTER TABLE files RENAME TO temporarily_unavailable;")
+            .unwrap();
+        {
+            let mut loaded = state.write().unwrap();
+            assert!(loaded.reload().is_err());
+            assert!(matches!(loaded.backend, Backend::Unavailable));
+            assert_eq!(loaded.backend.memory_usage_bytes(), 0);
+            assert_eq!(loaded.records_total, 0);
+            assert!(loaded.loaded_stamp.is_none());
+            assert!(loaded.last_load_error.is_some());
+            assert!(loaded.search(&query("alpha")).is_err());
+            assert!(loaded.status_json().contains("\"ready\":false"));
+        }
+        connection
+            .execute_batch("ALTER TABLE temporarily_unavailable RENAME TO files;")
+            .unwrap();
+        drop(connection);
+        ensure_fresh(&state).unwrap();
+        let loaded = state.read().unwrap();
+        assert_eq!(loaded.search(&query("alpha")).unwrap().len(), 1);
+        assert_eq!(loaded.successful_loads, 2);
+        assert_eq!(loaded.load_attempts, 3);
+        assert!(loaded.last_load_error.is_none());
+        drop(loaded);
+        drop(state);
+        std::fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn database_replacement_reopens_observer_and_cached_sqlite_search() {
+        for preference in [BackendPreference::Memory, BackendPreference::Sqlite] {
+            let (directory, path) = test_database("replacement");
+            let mut state = ServiceState::load(path.clone(), preference).unwrap();
+            let initial_identity = state.loaded_stamp.as_ref().unwrap().file_identity;
+            let replacement = directory.join("replacement.sqlite");
+            let db = Database::open(replacement.clone()).unwrap();
+            db.upsert_file(&crate::model::FileRecord::new(
+                "/fixture/beta.txt".into(),
+                FileKind::File,
+                1,
+            ))
+            .unwrap();
+            drop(db);
+            std::fs::rename(replacement, &path).unwrap();
+            assert!(state.needs_reload().unwrap());
+            state.reload_if_changed().unwrap();
+            assert_ne!(
+                state.loaded_stamp.as_ref().unwrap().file_identity,
+                initial_identity
+            );
+            assert!(state.search(&query("alpha")).unwrap().is_empty());
+            assert_eq!(state.search(&query("beta")).unwrap().len(), 1);
+            assert_eq!(state.successful_loads, 2);
+            drop(state);
+            std::fs::remove_dir_all(directory).unwrap();
+        }
+    }
+
+    #[test]
+    fn temporarily_missing_database_is_not_recreated_and_recovers() {
+        let (directory, path) = test_database("missing");
+        let state =
+            RwLock::new(ServiceState::load(path.clone(), BackendPreference::Memory).unwrap());
+        let moved = directory.join("temporarily-moved.sqlite");
+        std::fs::rename(&path, &moved).unwrap();
+        assert!(ensure_fresh(&state).is_err());
+        assert!(
+            !path.exists(),
+            "Reload must not create an empty replacement database"
+        );
+        assert!(matches!(
+            state.read().unwrap().backend,
+            Backend::Unavailable
+        ));
+        std::fs::rename(moved, &path).unwrap();
+        ensure_fresh(&state).unwrap();
+        assert_eq!(
+            state.read().unwrap().search(&query("alpha")).unwrap().len(),
+            1
+        );
+        drop(state);
+        std::fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn replacing_with_a_legacy_database_migrates_once_and_recovers() {
+        let (directory, path) = test_database("legacy");
+        let state =
+            RwLock::new(ServiceState::load(path.clone(), BackendPreference::Memory).unwrap());
+        let replacement = directory.join("legacy.sqlite");
+        let writer = crate::sqlite::Connection::open(&replacement).unwrap();
+        writer
+            .execute_batch(
+                "CREATE TABLE files (
+                id INTEGER PRIMARY KEY, path TEXT NOT NULL UNIQUE, path_lower TEXT,
+                basename TEXT NOT NULL, basename_lower TEXT NOT NULL, ext_lower TEXT,
+                kind TEXT NOT NULL, size INTEGER, mtime INTEGER, ctime INTEGER,
+                dev INTEGER, inode INTEGER, indexed_at INTEGER NOT NULL
+             );
+             INSERT INTO files(path,path_lower,basename,basename_lower,kind,indexed_at)
+             VALUES('/fixture/beta.txt','/fixture/beta.txt','beta.txt','beta.txt','file',1);",
+            )
+            .unwrap();
+        drop(writer);
+        std::fs::rename(replacement, &path).unwrap();
+        ensure_fresh(&state).unwrap();
+        let loaded = state.read().unwrap();
+        assert_eq!(loaded.search(&query("beta")).unwrap().len(), 1);
+        assert!(loaded.search(&query("alpha")).unwrap().is_empty());
+        assert!(!loaded.needs_reload().unwrap());
+        assert_eq!(loaded.successful_loads, 2);
+        drop(loaded);
+        drop(state);
+        std::fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn stamp_and_full_index_are_pinned_to_one_read_snapshot() {
+        let (directory, path) = test_database("snapshot");
+        let observer = ContentObserver::open(path.clone()).unwrap();
+        let reader = Database::open_read_only(path.clone()).unwrap();
+        let (loaded_stamp, index) = with_read_snapshot(&reader, |_| {
+            // This commit happens after the stamp SELECT pinned the read snapshot.
+            let writer = crate::sqlite::Connection::open(&path)?;
+            writer.execute_batch("INSERT INTO files(path,path_lower,basename,basename_lower,kind,indexed_at) VALUES('/fixture/beta.txt','/fixture/beta.txt','beta.txt','beta.txt','file',2);")?;
+            CompactIndex::load(&reader)
+        }).unwrap();
+        assert_eq!(index.len(), 1);
+        assert!(index.search(&query("beta")).is_empty());
+        assert_ne!(loaded_stamp, observer.content_stamp().unwrap());
+        let (new_stamp, new_index) =
+            with_read_snapshot(&reader, |_| CompactIndex::load(&reader)).unwrap();
+        assert_eq!(new_index.len(), 2);
+        assert_eq!(new_index.search(&query("beta")).len(), 1);
+        assert_eq!(new_stamp, observer.content_stamp().unwrap());
+        drop(reader);
+        drop(observer);
+        std::fs::remove_dir_all(directory).unwrap();
+    }
 
     #[test]
     fn search_slots_are_bounded_and_released_on_drop() {

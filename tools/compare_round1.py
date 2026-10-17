@@ -91,11 +91,13 @@ def clone_snapshot(src, dst):
 def run_one(args, driver, variant, block, ordinal, out):
     run_id = f"run-{ordinal:02d}-{variant}"
     metadata = {"run_id": run_id, "variant": variant, "block": block, "ordinal": ordinal}
+    backend = (args.baseline_backend if variant == "baseline" else args.candidate_backend) or args.backend
+    metadata["storage_backend"] = backend
     with tempfile.TemporaryDirectory(prefix=run_id + "-", dir=out) as scratch:
         db = Path(scratch) / "index.sqlite"
         if args.dataset == "snapshot":
             metadata["snapshot_copy_mode"] = clone_snapshot(args.snapshot, db)
-        command = [str(driver), "--dataset", args.dataset, "--backend", args.backend,
+        command = [str(driver), "--dataset", args.dataset, "--backend", backend,
                    "--rows", str(args.rows), "--db", str(db), "--query-rounds", str(args.query_rounds),
                    "--fixed-now", str(args.fixed_now), "--limit", str(args.limit), "--queries", args.queries]
         metadata["command"] = command
@@ -250,6 +252,10 @@ def main():
     p.add_argument("--dataset", choices=["synthetic", "snapshot"], default="synthetic")
     p.add_argument("--snapshot", type=Path)
     p.add_argument("--backend", choices=["memory", "compact"], default="memory")
+    p.add_argument("--baseline-backend", choices=["memory", "compact"],
+                   help="Override baseline storage; round 2 compares full records with packed storage")
+    p.add_argument("--candidate-backend", choices=["memory", "compact"],
+                   help="Override candidate storage; both are compared against complete ordered results")
     p.add_argument("--rows", type=int, default=100_000)
     p.add_argument("--rounds", type=int, default=3)
     p.add_argument("--order", choices=["ab", "aba"], default="aba")
