@@ -1,6 +1,6 @@
-use crate::compact_index::CompactIndex;
+use crate::compact_index::{ApplyOutcome, CompactIndex};
 use crate::config::default_db_path;
-use crate::db::{ContentObserver, ContentStamp, Database};
+use crate::db::{ContentObserver, ContentStamp, Database, FileChange, FileChangeRead};
 use crate::error::{MacEveryError, Result};
 use crate::model::{FileKind, SearchOptions, SearchResult};
 use crate::process_lifetime;
@@ -21,6 +21,8 @@ const ESTIMATED_RECORD_BYTES: u64 = 900;
 const ESTIMATED_COMPACT_RECORD_BYTES: u64 = 420;
 const DEFAULT_MAX_ACTIVE_REQUESTS: usize = 64;
 const DEFAULT_MAX_ACTIVE_SEARCHES: usize = 2;
+const MAX_INCREMENTAL_EVENTS: usize = 4096;
+const MAX_INCREMENTAL_IDS: usize = 4096;
 const REQUEST_HEADER_LIMIT: usize = 64 * 1024;
 const REQUEST_READ_TIMEOUT: Duration = Duration::from_millis(250);
 const REQUEST_TOTAL_TIMEOUT: Duration = Duration::from_secs(5);
@@ -180,6 +182,15 @@ struct ServiceState {
     load_attempts: u64,
     successful_loads: u64,
     last_load_error: Option<String>,
+    incremental_attempts: u64,
+    incremental_applies: u64,
+    incremental_change_ids: u64,
+    last_incremental_change_ids: usize,
+    refreshed_at: i64,
+    last_refresh_method: &'static str,
+    last_fallback_reason: Option<&'static str>,
+    last_refresh_error: Option<String>,
+    pending_full_reason: Option<&'static str>,
 }
 
 // The first stamp SELECT pins the same WAL snapshot used by the full load.
@@ -228,8 +239,17 @@ impl ServiceState {
             load_attempts: 0,
             successful_loads: 0,
             last_load_error: None,
+            incremental_attempts: 0,
+            incremental_applies: 0,
+            incremental_change_ids: 0,
+            last_incremental_change_ids: 0,
+            refreshed_at: 0,
+            last_refresh_method: "unavailable",
+            last_fallback_reason: None,
+            last_refresh_error: None,
+            pending_full_reason: None,
         };
-        if let Err(error) = state.reload() {
+        if let Err(error) = state.full_reload("startup_full", None) {
             // Keep the listener usable after a failed full load. A later search
             // can retry; no old or partially loaded records are published.
             eprintln!("serve: initial index load failed, will retry: {error}");
@@ -243,9 +263,11 @@ impl ServiceState {
             db.content_stamp(),
             Err(MacEveryError::Sqlite(ref message))
                 if message.contains("no such table: macevery_content_state")
-        ) {
-            // An older database may have been atomically installed after startup.
-            // Migrate it once, without CREATE, then reopen the snapshot read-only.
+        ) || !db.has_change_journal()?
+        {
+            // An older database may have been atomically installed after startup,
+            // or may predate the bounded change journal. Install once without
+            // CREATE, then reopen the full snapshot read-only.
             drop(db);
             drop(Database::open_existing(self.db_path.clone())?);
             db = Database::open_read_only(self.db_path.clone())?;
@@ -283,15 +305,29 @@ impl ServiceState {
         Ok((backend, selected, stamp, records_total))
     }
 
-    fn reload(&mut self) -> Result<()> {
-        self.load_attempts = self.load_attempts.saturating_add(1);
-        // Drop all old index arenas before allocating a replacement. While the
-        // write lock is held searches wait; /health does not take this lock.
+    fn invalidate_backend(&mut self) {
         self.backend = Backend::Unavailable;
         self.loaded_stamp = None;
         self.records_total = 0;
         self.estimated_memory_bytes = 0;
         self.loaded_at = 0;
+        self.refreshed_at = 0;
+    }
+
+    fn reload(&mut self) -> Result<()> {
+        self.full_reload("explicit_full", None)
+    }
+
+    fn full_reload(
+        &mut self,
+        method: &'static str,
+        fallback_reason: Option<&'static str>,
+    ) -> Result<()> {
+        self.load_attempts = self.load_attempts.saturating_add(1);
+        self.last_fallback_reason = fallback_reason;
+        // Drop all old index arenas before allocating a replacement. While the
+        // write lock is held searches wait; /health does not take this lock.
+        self.invalidate_backend();
         match self.load_backend() {
             Ok((backend, selected, stamp, records_total)) => {
                 self.backend = backend;
@@ -301,8 +337,12 @@ impl ServiceState {
                 self.estimated_memory_bytes =
                     estimate_backend_memory_bytes(selected, records_total);
                 self.loaded_at = now_epoch();
+                self.refreshed_at = self.loaded_at;
                 self.successful_loads = self.successful_loads.saturating_add(1);
                 self.last_load_error = None;
+                self.last_refresh_error = None;
+                self.last_refresh_method = method;
+                self.pending_full_reason = None;
                 eprintln!(
                     "serve: loaded {} records, backend={}, index storage {} (allocated capacity, not process RSS)",
                     records_total,
@@ -313,6 +353,8 @@ impl ServiceState {
             }
             Err(error) => {
                 self.last_load_error = Some(error.to_string());
+                self.last_refresh_error = Some(error.to_string());
+                self.last_refresh_method = "full_failed";
                 Err(error)
             }
         }
@@ -331,11 +373,101 @@ impl ServiceState {
     }
 
     fn reload_if_changed(&mut self) -> Result<()> {
-        // Recheck after taking the write lock: competing requests perform one load.
-        if self.needs_reload()? {
-            self.reload()?;
+        // Recheck after taking the write lock: competing requests apply one batch.
+        if !self.needs_reload()? {
+            return Ok(());
         }
-        Ok(())
+        if !self.backend.is_ready() {
+            let reason = self.pending_full_reason.unwrap_or("index_unavailable");
+            return self.full_reload("fallback_full", Some(reason));
+        }
+        let current = match self.observer.content_stamp() {
+            Ok(stamp) => stamp,
+            Err(_) => return self.full_reload("fallback_full", Some("database_unavailable")),
+        };
+        let Some(base) = self.loaded_stamp.clone() else {
+            return self.full_reload("fallback_full", Some("missing_loaded_stamp"));
+        };
+        if current.database_id != base.database_id || current.file_identity != base.file_identity {
+            return self.full_reload("fallback_full", Some("database_replaced"));
+        }
+        if !matches!(self.backend, Backend::Packed(_)) {
+            return self.full_reload("fallback_full", Some("backend_not_packed"));
+        }
+        self.incremental_attempts = self.incremental_attempts.saturating_add(1);
+        let delta: Result<FileChangeRead> = (|| {
+            let db = Database::open_read_only(self.db_path.clone())?;
+            let (_, delta) = with_read_snapshot(&db, |_| {
+                db.file_changes_since(&base, MAX_INCREMENTAL_EVENTS, MAX_INCREMENTAL_IDS)
+            })?;
+            Ok(delta)
+        })();
+        match delta {
+            Ok(FileChangeRead::Fallback { reason }) => {
+                self.full_reload("fallback_full", Some(reason))
+            }
+            Ok(FileChangeRead::Available { target, changes }) => self.apply_delta(target, changes),
+            Err(error) => {
+                // No packed mutation occurred. Keep the old snapshot labelled
+                // stale; callers receive 503 until a refresh succeeds.
+                self.last_refresh_method = "incremental_failed";
+                self.last_refresh_error = Some(error.to_string());
+                Err(error)
+            }
+        }
+    }
+
+    fn apply_delta(&mut self, target: ContentStamp, changes: Vec<FileChange>) -> Result<()> {
+        let change_ids = changes.len();
+        let outcome = match &mut self.backend {
+            Backend::Packed(index) => index.apply_changes(&changes),
+            _ => return self.full_reload("fallback_full", Some("backend_not_packed")),
+        };
+        drop(changes);
+        match outcome {
+            Ok(ApplyOutcome::NeedsFullReload(reason)) => {
+                self.full_reload("fallback_full", Some(reason))
+            }
+            Ok(ApplyOutcome::Applied) => {
+                let records_total = self.backend.loaded_records() as i64;
+                let selected = if self.requested_backend == BackendPreference::Auto {
+                    select_backend(BackendPreference::Auto, records_total)
+                } else {
+                    self.selected_backend
+                };
+                if selected == BackendPreference::Sqlite {
+                    return self.full_reload("fallback_full", Some("auto_backend_change"));
+                }
+                // The read transaction has committed and every mutation
+                // succeeded before the snapshot stamp becomes visible.
+                self.loaded_stamp = Some(target);
+                self.records_total = records_total;
+                self.selected_backend = selected;
+                self.estimated_memory_bytes =
+                    estimate_backend_memory_bytes(selected, records_total);
+                self.refreshed_at = now_epoch();
+                self.incremental_applies = self.incremental_applies.saturating_add(1);
+                self.incremental_change_ids = self
+                    .incremental_change_ids
+                    .saturating_add(change_ids as u64);
+                self.last_incremental_change_ids = change_ids;
+                self.last_refresh_method = "incremental";
+                self.last_fallback_reason = None;
+                self.last_load_error = None;
+                self.last_refresh_error = None;
+                Ok(())
+            }
+            Err(error) => {
+                // An unexpected apply failure may have changed slots or
+                // arenas. Never expose a partially updated old snapshot.
+                self.invalidate_backend();
+                self.pending_full_reason = Some("apply_failed");
+                self.last_fallback_reason = Some("apply_failed");
+                self.last_refresh_method = "incremental_failed";
+                self.last_refresh_error = Some(error.to_string());
+                Err(error)
+            }
+        }
     }
 
     fn search(&self, options: &SearchOptions) -> Result<Vec<SearchResult>> {
@@ -376,7 +508,7 @@ impl ServiceState {
             .map(|message| format!("\"{}\"", json_escape(message)))
             .unwrap_or_else(|| "null".into());
         format!(
-            "{{\"ok\":{},\"ready\":{},\"stale\":{},\"backend\":\"{}\",\"requested_backend\":\"{}\",\"records\":{},\"loaded_records\":{},\"estimated_memory_bytes\":{},\"actual_index_bytes\":{},\"loaded_at\":{},\"reload_count\":{},\"reload_attempts\":{},\"content_revision\":{},\"current_content_revision\":{},\"last_load_error\":{},\"db_path\":\"{}\"}}\n",
+            "{{\"ok\":{},\"ready\":{},\"stale\":{},\"backend\":\"{}\",\"requested_backend\":\"{}\",\"records\":{},\"loaded_records\":{},\"estimated_memory_bytes\":{},\"actual_index_bytes\":{},\"loaded_at\":{},\"reload_count\":{},\"reload_attempts\":{},\"content_revision\":{},\"current_content_revision\":{},\"last_load_error\":{},\"incremental_attempts\":{},\"incremental_applies\":{},\"incremental_change_ids\":{},\"last_incremental_change_ids\":{},\"refreshed_at\":{},\"last_refresh_method\":\"{}\",\"last_fallback_reason\":{},\"last_refresh_error\":{},\"db_path\":\"{}\"}}\n",
             ready && !stale,
             ready,
             stale,
@@ -392,6 +524,14 @@ impl ServiceState {
             revision,
             current_revision,
             error_json,
+            self.incremental_attempts,
+            self.incremental_applies,
+            self.incremental_change_ids,
+            self.last_incremental_change_ids,
+            self.refreshed_at,
+            self.last_refresh_method,
+            self.last_fallback_reason.map(|reason| format!("\"{}\"", json_escape(reason))).unwrap_or_else(|| "null".into()),
+            self.last_refresh_error.as_ref().map(|error| format!("\"{}\"", json_escape(error))).unwrap_or_else(|| "null".into()),
             json_escape(&self.db_path.to_string_lossy())
         )
     }
@@ -866,6 +1006,293 @@ mod tests {
         }
     }
 
+    fn assert_matches_full_snapshot(state: &ServiceState, path: &std::path::Path) {
+        let db = Database::open_read_only(path.to_path_buf()).unwrap();
+        let expected = search::search_records(&db.all_records().unwrap(), &query("*"));
+        assert_eq!(state.search(&query("*")).unwrap(), expected);
+        assert_eq!(
+            state.records_total as usize,
+            db.all_records().unwrap().len()
+        );
+    }
+
+    fn seed_records(path: &std::path::Path, count: usize) {
+        let db = Database::open_existing(path.to_path_buf()).unwrap();
+        db.begin().unwrap();
+        for index in 0..count {
+            db.upsert_file(&crate::model::FileRecord::new(
+                format!("/fixture/seed-{index:05}.txt"),
+                FileKind::File,
+                1,
+            ))
+            .unwrap();
+        }
+        db.commit().unwrap();
+    }
+
+    #[test]
+    fn incremental_mixed_waves_id_mutation_and_reused_id_match_full_snapshot() {
+        let (directory, path) = test_database("mixed-delta");
+        seed_records(&path, 64);
+        let mut state = ServiceState::load(path.clone(), BackendPreference::Memory).unwrap();
+        let writer = crate::sqlite::Connection::open(&path).unwrap();
+        for sql in [
+            "BEGIN IMMEDIATE;
+             UPDATE files SET basename='renamed-alpha.txt',basename_lower='renamed-alpha.txt',size=99,mtime=300 WHERE id=1;
+             DELETE FROM files WHERE id=2;
+             UPDATE files SET id=1000 WHERE id=3;
+             INSERT INTO files(path,path_lower,basename,basename_lower,kind,indexed_at) VALUES('/fixture/new.txt','/fixture/new.txt','new.txt','new.txt','file',2);
+             COMMIT;",
+            "DELETE FROM files WHERE id=1001;",
+            "INSERT INTO files(id,path,path_lower,basename,basename_lower,kind,indexed_at) VALUES(1001,'/fixture/reused.txt','/fixture/reused.txt','reused.txt','reused.txt','file',3);",
+        ] {
+            writer.execute_batch(sql).unwrap();
+            let before = state.incremental_applies;
+            state.reload_if_changed().unwrap();
+            assert_eq!(state.incremental_applies, before + 1);
+            assert_eq!(state.successful_loads, 1);
+            assert_matches_full_snapshot(&state, &path);
+            assert!(!state.needs_reload().unwrap());
+        }
+        assert_eq!(state.incremental_applies, 3);
+        // Explicit reload remains full even when there are no new commits.
+        state.reload().unwrap();
+        assert_eq!(state.successful_loads, 2);
+        assert_eq!(state.last_refresh_method, "explicit_full");
+        assert_matches_full_snapshot(&state, &path);
+        drop(writer);
+        drop(state);
+        std::fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn sqlite_replace_hidden_victims_are_removed_from_packed_snapshot() {
+        let (directory, path) = test_database("replace-victims");
+        seed_records(&path, 64);
+        let writer = crate::sqlite::Connection::open(&path).unwrap();
+        writer
+            .execute_batch(
+                "UPDATE files SET path='/fixture/a' WHERE id=1;
+            UPDATE files SET path='/fixture/b' WHERE id=2;
+            UPDATE files SET path='/fixture/c' WHERE id=3;
+            UPDATE files SET path='/fixture/d' WHERE id=4;",
+            )
+            .unwrap();
+        let mut state = ServiceState::load(path.clone(), BackendPreference::Memory).unwrap();
+        writer
+            .execute_batch(
+                "PRAGMA recursive_triggers=OFF; BEGIN IMMEDIATE;
+            INSERT OR REPLACE INTO files(id,path,path_lower,basename,basename_lower,kind,indexed_at)
+                VALUES(1000,'/fixture/a','/fixture/a','a','a','file',2);
+            DELETE FROM files WHERE id=1000;
+            UPDATE OR REPLACE files SET id=4,path='/fixture/b' WHERE id=3;
+            COMMIT;",
+            )
+            .unwrap();
+        state.reload_if_changed().unwrap();
+        assert_eq!(state.successful_loads, 1);
+        assert_eq!(state.incremental_applies, 1);
+        assert_eq!(state.last_incremental_change_ids, 5);
+        assert_matches_full_snapshot(&state, &path);
+        drop(writer);
+        drop(state);
+        std::fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn journal_gap_missing_and_event_overflow_fall_back_to_full_and_recover() {
+        for (label, mutation, reason) in [
+            (
+                "gap",
+                "UPDATE files SET size=99 WHERE id=1; DELETE FROM macevery_file_changes;"
+                    .to_string(),
+                "history_gap",
+            ),
+            (
+                "missing",
+                "UPDATE files SET size=99 WHERE id=1; DROP TABLE macevery_file_changes;"
+                    .to_string(),
+                "journal_unavailable",
+            ),
+            (
+                "overflow",
+                format!(
+                    "BEGIN IMMEDIATE;{}COMMIT;",
+                    "UPDATE files SET size=COALESCE(size,0)+1 WHERE id=1;"
+                        .repeat(MAX_INCREMENTAL_EVENTS + 1)
+                ),
+                "event_limit",
+            ),
+        ] {
+            let (directory, path) = test_database(label);
+            let mut state = ServiceState::load(path.clone(), BackendPreference::Memory).unwrap();
+            let writer = crate::sqlite::Connection::open(&path).unwrap();
+            writer.execute_batch(&mutation).unwrap();
+            state.reload_if_changed().unwrap();
+            assert_eq!(state.successful_loads, 2, "{label}");
+            assert_eq!(state.incremental_applies, 0, "{label}");
+            assert_eq!(state.last_fallback_reason, Some(reason), "{label}");
+            assert_matches_full_snapshot(&state, &path);
+            assert!(Database::open_read_only(path.clone())
+                .unwrap()
+                .has_change_journal()
+                .unwrap());
+            // Manual schema corruption can leave the DDL writer's parsed
+            // trigger schema stale. A fresh external writer also verifies the
+            // repaired on-disk journal, rather than that connection's cache.
+            drop(writer);
+            let writer = crate::sqlite::Connection::open(&path).unwrap();
+            writer
+                .execute_batch("UPDATE files SET size=100001 WHERE id=1;")
+                .unwrap();
+            state.reload_if_changed().unwrap();
+            assert_eq!(
+                state.incremental_applies, 1,
+                "{label} did not recover incrementally"
+            );
+            assert_eq!(state.successful_loads, 2, "{label}");
+            assert_matches_full_snapshot(&state, &path);
+            drop(writer);
+            drop(state);
+            std::fs::remove_dir_all(directory).unwrap();
+        }
+    }
+
+    #[test]
+    fn journal_unique_id_cap_and_nonmonotonic_new_ids_fall_back_safely() {
+        let (directory, path) = test_database("id-limit");
+        seed_records(&path, 2050);
+        let mut state = ServiceState::load(path.clone(), BackendPreference::Memory).unwrap();
+        let writer = crate::sqlite::Connection::open(&path).unwrap();
+        writer
+            .execute_batch("UPDATE files SET id=id+10000 WHERE id>1;")
+            .unwrap();
+        state.reload_if_changed().unwrap();
+        assert_eq!(state.last_fallback_reason, Some("id_limit"));
+        assert_eq!(state.successful_loads, 2);
+        assert_matches_full_snapshot(&state, &path);
+        writer.execute_batch("INSERT INTO files(id,path,path_lower,basename,basename_lower,kind,indexed_at) VALUES(-50,'/fixture/nonmonotonic.txt','/fixture/nonmonotonic.txt','nonmonotonic.txt','nonmonotonic.txt','file',2);").unwrap();
+        state.reload_if_changed().unwrap();
+        assert_eq!(state.successful_loads, 3);
+        assert_eq!(state.last_refresh_method, "fallback_full");
+        assert!(state.last_fallback_reason.is_some());
+        assert_matches_full_snapshot(&state, &path);
+        drop(writer);
+        drop(state);
+        std::fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn delta_snapshot_publishes_only_its_target_then_picks_up_later_commit() {
+        let (directory, path) = test_database("delta-snapshot");
+        let mut state = ServiceState::load(path.clone(), BackendPreference::Memory).unwrap();
+        let base = state.loaded_stamp.clone().unwrap();
+        let writer = crate::sqlite::Connection::open(&path).unwrap();
+        writer
+            .execute_batch("UPDATE files SET size=10 WHERE id=1;")
+            .unwrap();
+        let reader = Database::open_read_only(path.clone()).unwrap();
+        let (_, delta) = with_read_snapshot(&reader, |_| {
+            writer.execute_batch("UPDATE files SET size=20 WHERE id=1;")?;
+            reader.file_changes_since(&base, MAX_INCREMENTAL_EVENTS, MAX_INCREMENTAL_IDS)
+        })
+        .unwrap();
+        let FileChangeRead::Available { target, changes } = delta else {
+            panic!("expected bounded delta")
+        };
+        let pinned = target.clone();
+        state.apply_delta(target, changes).unwrap();
+        assert_eq!(state.loaded_stamp.as_ref(), Some(&pinned));
+        assert_eq!(
+            state.search(&query("alpha")).unwrap()[0].record.size,
+            Some(10)
+        );
+        assert!(state.needs_reload().unwrap());
+        assert!(state.status_json().contains("\"stale\":true"));
+        state.reload_if_changed().unwrap();
+        assert_eq!(
+            state.search(&query("alpha")).unwrap()[0].record.size,
+            Some(20)
+        );
+        assert_eq!(state.successful_loads, 1);
+        assert_eq!(state.incremental_applies, 2);
+        assert_matches_full_snapshot(&state, &path);
+        drop(reader);
+        drop(writer);
+        drop(state);
+        std::fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn delta_read_error_keeps_old_stamp_stale_and_can_retry_without_poisoning() {
+        let (directory, path) = test_database("delta-read-error");
+        let state =
+            RwLock::new(ServiceState::load(path.clone(), BackendPreference::Memory).unwrap());
+        let base = state.read().unwrap().loaded_stamp.clone();
+        let writer = crate::sqlite::Connection::open(&path).unwrap();
+        writer.execute_batch("UPDATE files SET size=77 WHERE id=1; ALTER TABLE files RENAME TO temporarily_unavailable;").unwrap();
+        assert!(ensure_fresh(&state).is_err());
+        {
+            let loaded = state.read().unwrap();
+            assert_eq!(loaded.loaded_stamp, base);
+            assert_eq!(loaded.incremental_applies, 0);
+            assert!(loaded.needs_reload().unwrap());
+            assert!(loaded.last_refresh_error.is_some());
+            assert!(loaded.status_json().contains("\"stale\":true"));
+        }
+        writer
+            .execute_batch("ALTER TABLE temporarily_unavailable RENAME TO files;")
+            .unwrap();
+        ensure_fresh(&state).unwrap();
+        let loaded = state.read().unwrap();
+        assert_eq!(
+            loaded.search(&query("alpha")).unwrap()[0].record.size,
+            Some(77)
+        );
+        assert_eq!(loaded.successful_loads, 1);
+        assert_eq!(loaded.incremental_applies, 1);
+        drop(loaded);
+        drop(writer);
+        drop(state);
+        std::fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn unexpected_apply_error_discards_index_and_forces_full_recovery() {
+        let (directory, path) = test_database("delta-apply-error");
+        let state =
+            RwLock::new(ServiceState::load(path.clone(), BackendPreference::Memory).unwrap());
+        {
+            let mut loaded = state.write().unwrap();
+            let target = loaded.loaded_stamp.clone().unwrap();
+            let mut malformed =
+                crate::model::FileRecord::new("/fixture/invalid.txt".into(), FileKind::File, 1);
+            malformed.id = 999;
+            assert!(loaded
+                .apply_delta(
+                    target,
+                    vec![FileChange {
+                        id: 1,
+                        record: Some(malformed)
+                    }]
+                )
+                .is_err());
+            assert!(matches!(loaded.backend, Backend::Unavailable));
+            assert!(loaded.loaded_stamp.is_none());
+            assert_eq!(loaded.backend.memory_usage_bytes(), 0);
+            assert!(loaded.search(&query("alpha")).is_err());
+        }
+        ensure_fresh(&state).unwrap();
+        let loaded = state.read().unwrap();
+        assert_eq!(loaded.last_fallback_reason, Some("apply_failed"));
+        assert_eq!(loaded.successful_loads, 2);
+        assert_eq!(loaded.incremental_applies, 0);
+        assert_matches_full_snapshot(&loaded, &path);
+        drop(loaded);
+        drop(state);
+        std::fs::remove_dir_all(directory).unwrap();
+    }
+
     #[test]
     fn packed_memory_preserves_name_and_metadata_only_changes_do_not_reload() {
         let (directory, path) = test_database("metadata");
@@ -902,7 +1329,7 @@ mod tests {
     }
 
     #[test]
-    fn external_file_commit_is_lazy_and_visible_after_one_reload() {
+    fn external_file_commit_is_lazy_and_visible_after_one_incremental_refresh() {
         let (directory, path) = test_database("external");
         let state = Arc::new(RwLock::new(
             ServiceState::load(path.clone(), BackendPreference::Memory).unwrap(),
@@ -933,8 +1360,11 @@ mod tests {
             worker.join().unwrap();
         }
         let loaded = state.read().unwrap();
-        assert_eq!(loaded.successful_loads, 2);
-        assert_eq!(loaded.load_attempts, 2);
+        assert_eq!(loaded.successful_loads, 1);
+        assert_eq!(loaded.load_attempts, 1);
+        assert_eq!(loaded.incremental_attempts, 1);
+        assert_eq!(loaded.incremental_applies, 1);
+        assert_eq!(loaded.last_refresh_method, "incremental");
         assert!(!loaded.needs_reload().unwrap());
         drop(loaded);
         drop(state);

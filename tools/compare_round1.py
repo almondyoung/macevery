@@ -208,6 +208,9 @@ def summarize(runs):
             for field in fields:
                 if event.get(field) is not None:
                     metrics.setdefault(prefix + ":" + field, {}).setdefault(variant, []).append(event[field])
+        for field in ["wall_ms", "cpu_ms"]:
+            total = sum(event[field] for event in run["events"] if event["event"] == "query_end")
+            metrics.setdefault("query_group:" + field, {}).setdefault(variant, []).append(total)
     mismatches = {query: hashes for query, hashes in digests.items() if len(hashes) != 1}
     # Each block compares its candidate against the median of surrounding A runs.
     paired = {}
@@ -240,6 +243,9 @@ def summarize_metrics(runs):
             for field in fields:
                 if event.get(field) is not None:
                     metrics.setdefault(prefix + ":" + field, {}).setdefault(run["variant"], []).append(event[field])
+        for field in ["wall_ms", "cpu_ms"]:
+            total = sum(event[field] for event in run["events"] if event["event"] == "query_end")
+            metrics.setdefault("query_group:" + field, {}).setdefault(run["variant"], []).append(total)
     return {key: comparison(v["baseline"], v["candidate"]) for key, v in metrics.items()
             if "baseline" in v and "candidate" in v}
 

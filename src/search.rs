@@ -145,38 +145,81 @@ impl PartialOrd for RankedHit<'_> {
     }
 }
 
+pub(crate) struct TopHits<'a> {
+    hits: BinaryHeap<RankedHit<'a>>,
+    limit: usize,
+}
+
+impl<'a> TopHits<'a> {
+    pub(crate) fn new(limit: usize) -> Self {
+        Self {
+            hits: BinaryHeap::new(),
+            limit,
+        }
+    }
+
+    pub(crate) fn consider(
+        &mut self,
+        index: usize,
+        score: i64,
+        mtime: Option<i64>,
+        path_len: usize,
+        path: impl FnOnce() -> &'a str,
+    ) {
+        if self.limit == 0 {
+            return;
+        }
+        if self.hits.len() >= self.limit {
+            let worst = self.hits.peek().unwrap();
+            // Most broad matches lose before a path needs to be sliced/decoded.
+            if score
+                .cmp(&worst.score)
+                .then_with(|| worst.mtime.cmp(&mtime))
+                .then_with(|| path_len.cmp(&worst.path.len()))
+                == Ordering::Greater
+            {
+                return;
+            }
+        }
+        let hit = RankedHit {
+            index,
+            score,
+            mtime,
+            path: path(),
+        };
+        if self.hits.len() < self.limit {
+            self.hits.push(hit);
+        } else if self.hits.peek().is_some_and(|worst| hit < *worst) {
+            *self.hits.peek_mut().unwrap() = hit;
+        }
+    }
+
+    pub(crate) fn finish(self) -> Vec<ScoredIndex> {
+        self.hits
+            .into_sorted_vec()
+            .into_iter()
+            .map(|hit| ScoredIndex {
+                index: hit.index,
+                score: hit.score,
+            })
+            .collect()
+    }
+}
+
 pub(crate) fn top_hits<'a>(
     records: impl IntoIterator<Item = (usize, RecordView<'a>)>,
     query: &PreparedQuery<'_>,
     limit: usize,
 ) -> Vec<ScoredIndex> {
-    let mut hits = BinaryHeap::new();
-    if limit == 0 {
-        return Vec::new();
-    }
+    let mut hits = TopHits::new(limit);
     for (index, record) in records {
-        let Some(score) = query.rank(&record) else {
-            continue;
-        };
-        let hit = RankedHit {
-            index,
-            score,
-            mtime: record.mtime,
-            path: record.path,
-        };
-        if hits.len() < limit {
-            hits.push(hit);
-        } else if hits.peek().is_some_and(|worst| hit < *worst) {
-            *hits.peek_mut().unwrap() = hit;
+        if let Some(score) = query.rank(&record) {
+            hits.consider(index, score, record.mtime, record.path.len(), || {
+                record.path
+            });
         }
     }
-    hits.into_sorted_vec()
-        .into_iter()
-        .map(|hit| ScoredIndex {
-            index: hit.index,
-            score: hit.score,
-        })
-        .collect()
+    hits.finish()
 }
 
 fn fuzzy_candidate_limit(limit: usize) -> usize {
@@ -196,169 +239,322 @@ pub fn rank_view(record: &RecordView<'_>, options: &SearchOptions) -> Option<i64
     PreparedQuery::new(options).rank(record)
 }
 
-struct PreparedTerm {
+// Rust's short-string search remains useful for the common few-character query.
+// Longer patterns reuse one Horspool table per request, with a linear fallback
+// on highly repetitive inputs instead of a per-record pattern construction.
+struct Finder {
     value: String,
-    is_glob: bool,
+    skip: Option<Box<[usize; 256]>>,
+    prefix: Vec<usize>,
+}
+
+impl Finder {
+    fn new(value: String) -> Self {
+        let bytes = value.as_bytes();
+        let (skip, prefix) = if bytes.len() >= 8 {
+            let mut skip = Box::new([bytes.len(); 256]);
+            for (i, byte) in bytes[..bytes.len() - 1].iter().enumerate() {
+                skip[*byte as usize] = bytes.len() - i - 1;
+            }
+            let mut prefix = vec![0; bytes.len()];
+            for i in 1..bytes.len() {
+                let mut matched = prefix[i - 1];
+                while matched > 0 && bytes[i] != bytes[matched] {
+                    matched = prefix[matched - 1];
+                }
+                if bytes[i] == bytes[matched] {
+                    matched += 1;
+                }
+                prefix[i] = matched;
+            }
+            (Some(skip), prefix)
+        } else {
+            (None, Vec::new())
+        };
+        Self {
+            value,
+            skip,
+            prefix,
+        }
+    }
+
+    fn find(&self, haystack: &str) -> Option<usize> {
+        let Some(skip) = &self.skip else {
+            return haystack.find(&self.value);
+        };
+        let needle = self.value.as_bytes();
+        let haystack = haystack.as_bytes();
+        if needle.len() > haystack.len() {
+            return None;
+        }
+        let mut offset = 0;
+        let mut compared = 0usize;
+        let budget = haystack.len().saturating_mul(4);
+        while offset <= haystack.len() - needle.len() {
+            let mut i = needle.len();
+            while i > 0 && haystack[offset + i - 1] == needle[i - 1] {
+                i -= 1;
+                compared += 1;
+            }
+            if i == 0 {
+                return Some(offset);
+            }
+            compared += 1;
+            if compared > budget {
+                return self.linear_find(haystack);
+            }
+            offset += skip[haystack[offset + needle.len() - 1] as usize];
+        }
+        None
+    }
+
+    fn linear_find(&self, haystack: &[u8]) -> Option<usize> {
+        let needle = self.value.as_bytes();
+        let mut matched = 0;
+        for (i, byte) in haystack.iter().enumerate() {
+            while matched > 0 && *byte != needle[matched] {
+                matched = self.prefix[matched - 1];
+            }
+            if *byte == needle[matched] {
+                matched += 1;
+            }
+            if matched == needle.len() {
+                return Some(i + 1 - matched);
+            }
+        }
+        None
+    }
+}
+
+struct PreparedGlob {
+    pattern: String,
+    literal: Option<Finder>,
+    all_stars: bool,
+    single_literal: bool,
+}
+
+impl PreparedGlob {
+    fn new(pattern: String) -> Self {
+        let mut literals = pattern.split(['*', '?']).filter(|part| !part.is_empty());
+        let literal = literals.next().map(|value| Finder::new(value.into()));
+        let single_literal = !pattern.contains('?') && literals.next().is_none();
+        let all_stars = pattern.bytes().all(|byte| byte == b'*');
+        Self {
+            pattern,
+            literal,
+            all_stars,
+            single_literal,
+        }
+    }
+
+    fn score(&self, haystack: &str) -> Option<i64> {
+        if self.all_stars {
+            return Some(self.pattern.len() as i64);
+        }
+        // A required literal being absent rules out the whole glob immediately.
+        let start = match &self.literal {
+            Some(literal) => literal.find(haystack)?,
+            None => 0,
+        };
+        let matches = if self.single_literal {
+            let literal = self.literal.as_ref().unwrap().value.as_str();
+            (self.pattern.starts_with('*') || haystack.starts_with(literal))
+                && (self.pattern.ends_with('*') || haystack.ends_with(literal))
+        } else {
+            glob_match(haystack.as_bytes(), self.pattern.as_bytes())
+        };
+        matches.then_some(start as i64 * 2 + self.pattern.len() as i64)
+    }
+}
+
+struct PreparedTerm {
+    finder: Finder,
+    glob: Option<PreparedGlob>,
+}
+
+struct PreparedPathFilter {
+    mode: PathFilterMode,
+    finder: Finder,
+    glob: Option<PreparedGlob>,
+}
+
+impl PreparedPathFilter {
+    fn new(filter: &PathFilter) -> Self {
+        Self {
+            mode: filter.mode.clone(),
+            finder: Finder::new(filter.value.clone()),
+            glob: has_glob_syntax(&filter.value).then(|| PreparedGlob::new(filter.value.clone())),
+        }
+    }
+    fn matches(&self, path: &str) -> bool {
+        let matches = |text: &str, component: bool| match &self.glob {
+            Some(glob) => glob.score(text).is_some(),
+            None if component => text == self.finder.value,
+            None => self.finder.find(text).is_some(),
+        };
+        match self.mode {
+            PathFilterMode::Contains => matches(path, false),
+            PathFilterMode::Component => path
+                .split('/')
+                .filter(|part| !part.is_empty())
+                .any(|part| matches(part, true)),
+        }
+    }
 }
 
 pub(crate) struct PreparedQuery<'a> {
     options: &'a SearchOptions,
     terms: Vec<PreparedTerm>,
+    path_filters: Vec<PreparedPathFilter>,
+    excluded_path_filters: Vec<PreparedPathFilter>,
     fuzzy: bool,
+    needs_text: bool,
 }
 
 impl<'a> PreparedQuery<'a> {
     pub(crate) fn new(options: &'a SearchOptions) -> Self {
+        let terms = options
+            .terms()
+            .into_iter()
+            .map(|term| {
+                let value = term.to_lowercase();
+                PreparedTerm {
+                    glob: has_glob_syntax(&term).then(|| PreparedGlob::new(value.clone())),
+                    finder: Finder::new(value),
+                }
+            })
+            .collect::<Vec<_>>();
+        let needs_text = !options.path_filters.is_empty()
+            || !options.excluded_path_filters.is_empty()
+            || terms
+                .iter()
+                .any(|term| term.glob.as_ref().is_none_or(|glob| !glob.all_stars));
         Self {
             options,
-            terms: options
-                .terms()
-                .into_iter()
-                .map(|term| PreparedTerm {
-                    is_glob: has_glob_syntax(&term),
-                    value: term.to_lowercase(),
-                })
+            terms,
+            path_filters: options
+                .path_filters
+                .iter()
+                .map(PreparedPathFilter::new)
+                .collect(),
+            excluded_path_filters: options
+                .excluded_path_filters
+                .iter()
+                .map(PreparedPathFilter::new)
                 .collect(),
             fuzzy: options.fuzzy_enabled(),
+            needs_text,
         }
     }
 
-    pub(crate) fn rank(&self, record: &RecordView<'_>) -> Option<i64> {
-        if !record_matches_filters(record, self.options) {
-            return None;
-        }
-        if self.terms.is_empty() {
-            return Some(10_000 - record.mtime.unwrap_or(0).min(9_000));
-        }
-        let basename = record.basename_lower;
-        let path = record.path_lower;
-        let mut score = 0;
-        for term in &self.terms {
-            let token = term.value.as_str();
-            let token_score = if term.is_glob && self.options.path_only {
-                glob_score(path, token).map(|value| value + 450)
-            } else if term.is_glob {
-                glob_score(basename, token)
-                    .map(|value| value + 180)
-                    .or_else(|| glob_score(path, token).map(|value| value + 520))
-            } else if self.options.path_only {
-                path.find(token).map(|index| 300 + index.min(500) as i64)
-            } else if basename == token {
-                Some(0)
-            } else if basename.starts_with(token) {
-                Some(100 + token.len() as i64)
-            } else if let Some(index) = basename.find(token) {
-                Some(250 + index as i64)
-            } else if let Some(index) = path.find(token) {
-                Some(550 + index.min(500) as i64)
-            } else if self.fuzzy {
-                rank_text(basename, token, 0)
-                    .map(|value| value + 1_000)
-                    .or_else(|| rank_text(path, token, 500).map(|value| value + 1_400))
-            } else {
-                None
-            };
-            match token_score {
-                Some(value) => score += value,
-                None => return None,
-            }
-        }
-        score += (record.path.len() as i64).min(500);
-        Some(score)
+    pub(crate) fn needs_text(&self) -> bool {
+        self.needs_text
     }
-}
-
-fn record_matches_filters(record: &RecordView<'_>, options: &SearchOptions) -> bool {
-    if !options.ext_filters.is_empty()
-        && !record
-            .ext_lower
-            .map(|ext| options.ext_filters.iter().any(|filter| filter == ext))
-            .unwrap_or(false)
-    {
-        return false;
+    pub(crate) fn needs_basename(&self) -> bool {
+        !self.options.path_only && !self.terms.is_empty() && self.needs_text
+    }
+    pub(crate) fn needs_extension(&self) -> bool {
+        !self.options.ext_filters.is_empty() || !self.options.excluded_ext_filters.is_empty()
     }
 
-    if record
-        .ext_lower
-        .map(|ext| {
+    pub(crate) fn matches_metadata(
+        &self,
+        kind: &crate::model::FileKind,
+        mtime: Option<i64>,
+        ext: Option<&str>,
+    ) -> bool {
+        let options = self.options;
+        if !options.kind_filters.is_empty() && !options.kind_filters.contains(kind)
+            || options.excluded_kind_filters.contains(kind)
+        {
+            return false;
+        }
+        if options
+            .modified_after
+            .is_some_and(|after| mtime.is_none_or(|time| time < after))
+            || options
+                .modified_before
+                .is_some_and(|before| mtime.is_some_and(|time| time >= before))
+        {
+            return false;
+        }
+        if !options.ext_filters.is_empty()
+            && !ext.is_some_and(|ext| options.ext_filters.iter().any(|filter| filter == ext))
+        {
+            return false;
+        }
+        !ext.is_some_and(|ext| {
             options
                 .excluded_ext_filters
                 .iter()
                 .any(|filter| filter == ext)
         })
-        .unwrap_or(false)
-    {
-        return false;
     }
 
-    if !options.kind_filters.is_empty() && !options.kind_filters.contains(record.kind) {
-        return false;
+    pub(crate) fn rank(&self, record: &RecordView<'_>) -> Option<i64> {
+        if !self.matches_metadata(record.kind, record.mtime, record.ext_lower) {
+            return None;
+        }
+        self.rank_lowered(
+            record.path_lower,
+            record.basename_lower,
+            record.path.len(),
+            record.mtime,
+        )
     }
 
-    if options.excluded_kind_filters.contains(record.kind) {
-        return false;
-    }
-
-    if let Some(modified_after) = options.modified_after {
-        if !record
-            .mtime
-            .map(|mtime| mtime >= modified_after)
-            .unwrap_or(false)
+    pub(crate) fn rank_lowered(
+        &self,
+        path: &str,
+        basename: &str,
+        path_len: usize,
+        mtime: Option<i64>,
+    ) -> Option<i64> {
+        if self.path_filters.iter().any(|filter| !filter.matches(path))
+            || self
+                .excluded_path_filters
+                .iter()
+                .any(|filter| filter.matches(path))
         {
-            return false;
+            return None;
         }
-    }
-
-    if let Some(modified_before) = options.modified_before {
-        if record
-            .mtime
-            .map(|mtime| mtime >= modified_before)
-            .unwrap_or(false)
-        {
-            return false;
+        if self.terms.is_empty() {
+            return Some(10_000 - mtime.unwrap_or(0).min(9_000));
         }
-    }
-
-    for path_filter in &options.path_filters {
-        if !path_filter_matches(record.path_lower, path_filter) {
-            return false;
-        }
-    }
-
-    for path_filter in &options.excluded_path_filters {
-        if path_filter_matches(record.path_lower, path_filter) {
-            return false;
-        }
-    }
-
-    true
-}
-
-fn path_filter_matches(path: &str, filter: &PathFilter) -> bool {
-    match filter.mode {
-        PathFilterMode::Contains => {
-            if has_glob_syntax(&filter.value) {
-                glob_match(path.as_bytes(), filter.value.as_bytes())
+        let mut score = 0;
+        for term in &self.terms {
+            let token = term.finder.value.as_str();
+            let token_score = if let Some(glob) = &term.glob {
+                if self.options.path_only {
+                    glob.score(path).map(|value| value + 450)
+                } else {
+                    glob.score(basename)
+                        .map(|value| value + 180)
+                        .or_else(|| glob.score(path).map(|value| value + 520))
+                }
+            } else if self.options.path_only {
+                term.finder
+                    .find(path)
+                    .map(|index| 300 + index.min(500) as i64)
+            } else if basename == token {
+                Some(0)
+            } else if basename.starts_with(token) {
+                Some(100 + token.len() as i64)
+            } else if let Some(index) = term.finder.find(basename) {
+                Some(250 + index as i64)
+            } else if let Some(index) = term.finder.find(path) {
+                Some(550 + index.min(500) as i64)
+            } else if self.fuzzy {
+                fuzzy_score(basename, token)
+                    .map(|value| value + 1_000)
+                    .or_else(|| fuzzy_score(path, token).map(|value| value + 1_900))
             } else {
-                path.contains(&filter.value)
-            }
+                None
+            };
+            score += token_score?;
         }
-        PathFilterMode::Component => {
-            path.split('/')
-                .filter(|value| !value.is_empty())
-                .any(|component| {
-                    if has_glob_syntax(&filter.value) {
-                        glob_match(component.as_bytes(), filter.value.as_bytes())
-                    } else {
-                        component == filter.value
-                    }
-                })
-        }
+        Some(score + (path_len as i64).min(500))
     }
-}
-
-fn rank_text(haystack: &str, needle: &str, base: i64) -> Option<i64> {
-    fuzzy_score(haystack, needle).map(|value| base + value)
 }
 
 fn fuzzy_score(haystack: &str, needle: &str) -> Option<i64> {
@@ -392,20 +588,6 @@ fn fuzzy_score(haystack: &str, needle: &str) -> Option<i64> {
 
 fn has_glob_syntax(value: &str) -> bool {
     value.contains('*') || value.contains('?')
-}
-
-fn glob_score(haystack: &str, pattern: &str) -> Option<i64> {
-    let start_penalty = first_literal_offset(haystack, pattern).unwrap_or(0) as i64;
-    if glob_match(haystack.as_bytes(), pattern.as_bytes()) {
-        Some(start_penalty * 2 + pattern.len() as i64)
-    } else {
-        None
-    }
-}
-
-fn first_literal_offset(haystack: &str, pattern: &str) -> Option<usize> {
-    let literal = pattern.split(['*', '?']).find(|value| !value.is_empty())?;
-    haystack.find(literal)
 }
 
 fn glob_match(haystack: &[u8], pattern: &[u8]) -> bool {
@@ -712,6 +894,130 @@ mod tests {
         }
     }
 
+    #[test]
+    fn cached_finders_match_str_find_including_repetitive_unicode_inputs() {
+        let mut state = 0x6789_0123_4567_abcd_u64;
+        let alphabet = [
+            "a", "b", "c", "A", "Σ", "ς", "İ", "\u{307}", "报", "📷", "/", "\0",
+        ];
+        let mut generate = |len: usize| {
+            let mut text = String::new();
+            for _ in 0..len {
+                state = state.wrapping_mul(6364136223846793005).wrapping_add(1);
+                text.push_str(alphabet[(state >> 32) as usize % alphabet.len()]);
+            }
+            text
+        };
+        for round in 0..1500 {
+            let haystack = generate(round % 137);
+            let independent = generate(round % 25);
+            let boundary = haystack
+                .char_indices()
+                .map(|(i, _)| i)
+                .chain(std::iter::once(haystack.len()))
+                .collect::<Vec<_>>();
+            let from = boundary[round % boundary.len()];
+            let to = boundary[(round * 7) % boundary.len()];
+            for needle in [
+                independent.as_str(),
+                &haystack[from.min(to)..from.max(to)],
+                "",
+                "aaaaaaaaaaaaaab",
+            ] {
+                let finder = Finder::new(needle.into());
+                assert_eq!(
+                    finder.find(&haystack),
+                    haystack.find(needle),
+                    "{haystack:?} / {needle:?}"
+                );
+                if finder.skip.is_some() {
+                    assert_eq!(
+                        finder.linear_find(haystack.as_bytes()),
+                        haystack.find(needle)
+                    );
+                }
+            }
+        }
+        // Horspool otherwise degenerates on this input: exercise the linear guard.
+        let haystack = "a".repeat(100_000);
+        let needle = format!("{}b{}", "a".repeat(64), "a".repeat(64));
+        assert_eq!(
+            Finder::new(needle.clone()).find(&haystack),
+            haystack.find(&needle)
+        );
+        assert_eq!(
+            Finder::new(format!("{}b", "a".repeat(64))).find(&(haystack + "b")),
+            Some(99_936)
+        );
+    }
+
+    #[test]
+    fn prepared_globs_match_frozen_byte_glob_scores_exhaustively() {
+        fn words(alphabet: &[&str], max_len: usize) -> Vec<String> {
+            let mut words = vec![String::new()];
+            let mut level = vec![String::new()];
+            for _ in 0..max_len {
+                level = level
+                    .iter()
+                    .flat_map(|prefix| alphabet.iter().map(move |ch| format!("{prefix}{ch}")))
+                    .collect();
+                words.extend(level.iter().cloned());
+            }
+            words
+        }
+        let haystacks = words(&["a", "b", "Σ", "📷"], 3);
+        let patterns = words(&["a", "b", "*", "?", "Σ"], 4);
+        for pattern in patterns.into_iter().filter(|value| has_glob_syntax(value)) {
+            let prepared = PreparedGlob::new(pattern.clone());
+            for haystack in &haystacks {
+                assert_eq!(
+                    prepared.score(haystack),
+                    test_reference::glob_score(haystack, &pattern),
+                    "{haystack:?} / {pattern:?}"
+                );
+            }
+        }
+        for pattern in [
+            "*longmissingliteral*",
+            "**report**",
+            "report***",
+            "***report",
+            "*报告📷报告*",
+        ] {
+            let prepared = PreparedGlob::new(pattern.into());
+            for haystack in [
+                "",
+                "report",
+                "report-report",
+                "prefixreport",
+                "reportlast",
+                "报告📷报告/报告📷报告",
+            ] {
+                assert_eq!(
+                    prepared.score(haystack),
+                    test_reference::glob_score(haystack, pattern)
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn lazy_hit_path_is_only_read_for_candidates_with_a_competitive_prefix() {
+        let mut hits = TopHits::new(1);
+        hits.consider(0, 1, Some(100), 4, || "same");
+        hits.consider(1, 2, Some(100), 4, || {
+            panic!("worse score should not read path")
+        });
+        hits.consider(1, 1, Some(99), 4, || {
+            panic!("older time should not read path")
+        });
+        hits.consider(1, 1, Some(100), 5, || {
+            panic!("longer path should not read path")
+        });
+        hits.consider(2, 1, Some(100), 4, || "same");
+        assert_eq!(hits.finish()[0].index, 0);
+    }
+
     fn unique_temp_dir(prefix: &str) -> PathBuf {
         let nanos = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -728,6 +1034,175 @@ pub(crate) mod test_reference {
     use super::*;
     use crate::model::FileKind;
     use std::borrow::Cow;
+
+    fn record_matches_filters(record: &RecordView<'_>, options: &SearchOptions) -> bool {
+        if !options.ext_filters.is_empty()
+            && !record
+                .ext_lower
+                .map(|ext| options.ext_filters.iter().any(|filter| filter == ext))
+                .unwrap_or(false)
+        {
+            return false;
+        }
+
+        if record
+            .ext_lower
+            .map(|ext| {
+                options
+                    .excluded_ext_filters
+                    .iter()
+                    .any(|filter| filter == ext)
+            })
+            .unwrap_or(false)
+        {
+            return false;
+        }
+
+        if !options.kind_filters.is_empty() && !options.kind_filters.contains(record.kind) {
+            return false;
+        }
+
+        if options.excluded_kind_filters.contains(record.kind) {
+            return false;
+        }
+
+        if let Some(modified_after) = options.modified_after {
+            if !record
+                .mtime
+                .map(|mtime| mtime >= modified_after)
+                .unwrap_or(false)
+            {
+                return false;
+            }
+        }
+
+        if let Some(modified_before) = options.modified_before {
+            if record
+                .mtime
+                .map(|mtime| mtime >= modified_before)
+                .unwrap_or(false)
+            {
+                return false;
+            }
+        }
+
+        for path_filter in &options.path_filters {
+            if !path_filter_matches(record.path_lower, path_filter) {
+                return false;
+            }
+        }
+
+        for path_filter in &options.excluded_path_filters {
+            if path_filter_matches(record.path_lower, path_filter) {
+                return false;
+            }
+        }
+
+        true
+    }
+
+    fn path_filter_matches(path: &str, filter: &PathFilter) -> bool {
+        match filter.mode {
+            PathFilterMode::Contains => {
+                if has_glob_syntax(&filter.value) {
+                    glob_match(path.as_bytes(), filter.value.as_bytes())
+                } else {
+                    path.contains(&filter.value)
+                }
+            }
+            PathFilterMode::Component => {
+                path.split('/')
+                    .filter(|value| !value.is_empty())
+                    .any(|component| {
+                        if has_glob_syntax(&filter.value) {
+                            glob_match(component.as_bytes(), filter.value.as_bytes())
+                        } else {
+                            component == filter.value
+                        }
+                    })
+            }
+        }
+    }
+
+    fn rank_text(haystack: &str, needle: &str, base: i64) -> Option<i64> {
+        fuzzy_score(haystack, needle).map(|value| base + value)
+    }
+
+    fn fuzzy_score(haystack: &str, needle: &str) -> Option<i64> {
+        if needle.is_empty() {
+            return Some(0);
+        }
+
+        let mut last_index: Option<i64> = None;
+        let mut gaps = 0i64;
+        let mut start = 0i64;
+        let mut needle_chars = needle.chars();
+        let mut current = needle_chars.next()?;
+
+        for (index, ch) in haystack.chars().enumerate() {
+            if ch == current {
+                if let Some(last) = last_index {
+                    gaps += (index as i64 - last - 1).max(0);
+                } else {
+                    start = index as i64;
+                }
+                last_index = Some(index as i64);
+                if let Some(next) = needle_chars.next() {
+                    current = next;
+                } else {
+                    return Some(start * 3 + gaps * 5 + needle.len() as i64);
+                }
+            }
+        }
+        None
+    }
+
+    fn has_glob_syntax(value: &str) -> bool {
+        value.contains('*') || value.contains('?')
+    }
+
+    pub(super) fn glob_score(haystack: &str, pattern: &str) -> Option<i64> {
+        let start_penalty = first_literal_offset(haystack, pattern).unwrap_or(0) as i64;
+        if glob_match(haystack.as_bytes(), pattern.as_bytes()) {
+            Some(start_penalty * 2 + pattern.len() as i64)
+        } else {
+            None
+        }
+    }
+
+    fn first_literal_offset(haystack: &str, pattern: &str) -> Option<usize> {
+        let literal = pattern.split(['*', '?']).find(|value| !value.is_empty())?;
+        haystack.find(literal)
+    }
+
+    fn glob_match(haystack: &[u8], pattern: &[u8]) -> bool {
+        let (mut h, mut p) = (0usize, 0usize);
+        let mut star = None;
+        let mut match_after_star = 0usize;
+
+        while h < haystack.len() {
+            if p < pattern.len() && (pattern[p] == b'?' || pattern[p] == haystack[h]) {
+                h += 1;
+                p += 1;
+            } else if p < pattern.len() && pattern[p] == b'*' {
+                star = Some(p);
+                match_after_star = h;
+                p += 1;
+            } else if let Some(star_index) = star {
+                p = star_index + 1;
+                match_after_star += 1;
+                h = match_after_star;
+            } else {
+                return false;
+            }
+        }
+
+        while p < pattern.len() && pattern[p] == b'*' {
+            p += 1;
+        }
+
+        p == pattern.len()
+    }
 
     pub(crate) fn search_records(
         records: &[FileRecord],

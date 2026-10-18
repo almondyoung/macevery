@@ -1,0 +1,29 @@
+{
+  "created_at_utc": "2026-10-18T13:38:33.802119+00:00",
+  "baseline_commit": "ec58990b217d10d0c9b3e5b77e8ebe1c36d4a3e9",
+  "source_state": "final candidate with kind parsing guard; exact hashes frozen after full checks",
+  "source_sha256": {
+    "src/search.rs": "51690755ad9945147ed49519089b22edd78a483e76a532b7a4b7265e2dc59eba",
+    "src/compact_index.rs": "bcc2e543e01b725013d35d53af4898b5fe3d419bef85470b9d57ef720a3a8e22",
+    "src/server.rs": "95354f8a7f7f13f72ba9085037d15a672466d87c7f9e4873fe41a9cef333a459",
+    "src/db.rs": "91e983a1f520ff08dfee6c2636bc5107064d612b35ff2ba19a8df3a7a04f68e4",
+    "src/sqlite.rs": "0ef4b9e0ae8e481b3cda90d06c576d72e52db4e1087c4bb32c50caa87b26b201",
+    "tests/incremental_index.rs": "fc761551cc8e9659f5472bef711e3d58b1bf3f327aba7ad106a1e802e44f2b08",
+    "tools/compare_round1.py": "8c89f2044a5c5452471f833fe8720f1fcbb4f1e384ef03950eaf8d867193d604",
+    "tools/check_service_round3.py": "3f5120eee3e0af75794b7599edb633f4e314da6c935a01749c7b83696ee08b17",
+    "tools/measure_app_resources.py": "8086e89adc02ac8d1c847fe1f690a59dfe5e2e065ca2b316d60b84f6c4f352a9"
+  },
+  "artifacts": {
+    "macevery": "ebb04b77e54752b1b3ed49827face8434f08248a5d1583bb3337294b89e93a4b",
+    "libmacevery.rlib": "2519fb96accc4a7050bd69c25572ba7c2472bd896db1544592c77f190a66f109"
+  },
+  "validation": {
+    "rust_debug_library": 100,
+    "rust_release_library": 100,
+    "integration_fixed_seed_transactions": 420,
+    "integration_queries_per_transaction": 9,
+    "gui_regressions": "PASS",
+    "clippy_all_targets_deny_warnings": "PASS",
+    "format_diff_python_compile": "PASS"
+  }
+}

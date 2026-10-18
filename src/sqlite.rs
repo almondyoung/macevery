@@ -74,6 +74,7 @@ extern "C" {
     fn sqlite3_column_bytes(stmt: *mut sqlite3_stmt, index: c_int) -> c_int;
     fn sqlite3_column_int64(stmt: *mut sqlite3_stmt, index: c_int) -> i64;
     fn sqlite3_changes64(db: *mut sqlite3) -> i64;
+    fn sqlite3_get_autocommit(db: *mut sqlite3) -> c_int;
 }
 
 pub struct Connection {
@@ -179,6 +180,10 @@ impl Connection {
         })
     }
 
+    pub fn is_autocommit(&self) -> bool {
+        unsafe { sqlite3_get_autocommit(self.raw) != 0 }
+    }
+
     pub fn changes(&self) -> u64 {
         unsafe { sqlite3_changes64(self.raw).max(0) as u64 }
     }
@@ -254,6 +259,10 @@ impl Statement<'_> {
         unsafe { sqlite3_column_count(self.raw) as usize }
     }
 
+    pub fn column_byte_len(&self, index: i32) -> usize {
+        unsafe { sqlite3_column_bytes(self.raw, index).max(0) as usize }
+    }
+
     pub fn column_text(&self, index: i32) -> Option<String> {
         self.column_str(index).map(ToOwned::to_owned)
     }
@@ -278,7 +287,7 @@ impl Statement<'_> {
         match unsafe { sqlite3_column_type(self.raw, index) } {
             SQLITE_NULL => None,
             SQLITE_INTEGER => Some(unsafe { sqlite3_column_int64(self.raw, index) }),
-            SQLITE_TEXT => self.column_text(index).and_then(|value| value.parse().ok()),
+            SQLITE_TEXT => self.column_str(index).and_then(|value| value.parse().ok()),
             _ => None,
         }
     }

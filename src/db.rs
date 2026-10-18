@@ -1,6 +1,7 @@
 use crate::error::{MacEveryError, Result};
 use crate::model::{FileKind, FileRecord, IndexStats, PathFilter, PathFilterMode, SearchOptions};
 use crate::sqlite::{Connection, Step};
+use std::collections::BTreeSet;
 use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
@@ -34,6 +35,28 @@ pub struct ContentStamp {
     pub database_id: String,
     pub revision: i64,
     pub file_identity: DatabaseFileIdentity,
+}
+
+pub const FILE_CHANGE_RETENTION: i64 = 16_384;
+pub const FILE_CHANGE_PRUNE_INTERVAL: i64 = 1_024;
+const MAX_FILE_CHANGE_BATCH: usize = 4_096;
+pub const FILE_CHANGE_MAX_PAYLOAD_BYTES: usize = 32 * 1024 * 1024;
+
+#[derive(Clone, Debug)]
+pub struct FileChange {
+    pub id: i64,
+    pub record: Option<FileRecord>,
+}
+
+#[derive(Clone, Debug)]
+pub enum FileChangeRead {
+    Available {
+        target: ContentStamp,
+        changes: Vec<FileChange>,
+    },
+    Fallback {
+        reason: &'static str,
+    },
 }
 
 pub struct Database {
@@ -242,6 +265,7 @@ impl Database {
             "CREATE INDEX IF NOT EXISTS idx_files_path_lower ON files(path_lower);",
         )?;
         self.init_content_revision()?;
+        self.init_file_changes()?;
         Ok(())
     }
 
@@ -291,6 +315,252 @@ impl Database {
             let _ = self.rollback();
         }
         migration
+    }
+
+    pub fn has_change_journal(&self) -> Result<bool> {
+        if self.get_meta("schema_file_changes_v1")?.as_deref() != Some("1") {
+            return Ok(false);
+        }
+        let mut stmt = self.conn.prepare(
+            "SELECT COUNT(*) FROM sqlite_master WHERE
+                (type = 'table' AND name = 'macevery_file_changes') OR
+                (type = 'trigger' AND name IN (
+                    'macevery_files_before_insert_changes_v1',
+                    'macevery_files_before_update_changes_v1',
+                    'macevery_files_insert_changes_v1',
+                    'macevery_files_update_changes_v1',
+                    'macevery_files_delete_changes_v1',
+                    'macevery_file_changes_prune_v1'));",
+        )?;
+        Ok(matches!(stmt.step()?, Step::Row) && stmt.column_i64(0) == Some(7))
+    }
+
+    fn init_file_changes(&self) -> Result<()> {
+        if self.has_change_journal()? {
+            return Ok(());
+        }
+        self.begin()?;
+        let migration = (|| {
+            if !self.has_change_journal()? {
+                if !self.has_column("macevery_content_state", "journal_floor")? {
+                    self.conn.execute_batch("ALTER TABLE macevery_content_state ADD COLUMN journal_floor INTEGER NOT NULL DEFAULT 0;")?;
+                }
+                if !self.has_column("macevery_content_state", "journal_conflict_id")? {
+                    self.conn.execute_batch("ALTER TABLE macevery_content_state ADD COLUMN journal_conflict_id INTEGER;")?;
+                }
+                // Reinstall only when absent/incomplete, including a dropped journal
+                // whose metadata marker survived. Reset coverage, not content identity.
+                // SQLite serializes writers. BEFORE triggers overwrite one fixed
+                // scratch ID for each row, capturing OR REPLACE path victims even
+                // with recursive_triggers=OFF. Extra custom files triggers issuing
+                // nested writes/schema changes are outside this owned-schema contract.
+                self.conn.execute_batch(&format!(
+                    "DROP TRIGGER IF EXISTS macevery_files_insert_revision_v1;
+                     DROP TRIGGER IF EXISTS macevery_files_update_revision_v1;
+                     DROP TRIGGER IF EXISTS macevery_files_delete_revision_v1;
+                     DROP TRIGGER IF EXISTS macevery_files_before_insert_changes_v1;
+                     DROP TRIGGER IF EXISTS macevery_files_before_update_changes_v1;
+                     DROP TRIGGER IF EXISTS macevery_files_insert_changes_v1;
+                     DROP TRIGGER IF EXISTS macevery_files_update_changes_v1;
+                     DROP TRIGGER IF EXISTS macevery_files_delete_changes_v1;
+                     DROP TRIGGER IF EXISTS macevery_file_changes_prune_v1;
+                     CREATE TABLE IF NOT EXISTS macevery_file_changes (
+                        revision INTEGER PRIMARY KEY,
+                        old_id INTEGER,
+                        new_id INTEGER,
+                        conflict_id INTEGER
+                     );
+                     DELETE FROM macevery_file_changes;
+                     UPDATE macevery_content_state SET journal_floor = revision, journal_conflict_id = NULL WHERE singleton = 1;
+                     CREATE TRIGGER macevery_files_before_insert_changes_v1
+                     BEFORE INSERT ON files BEGIN
+                        UPDATE macevery_content_state SET journal_conflict_id =
+                            (SELECT id FROM files WHERE path = NEW.path COLLATE BINARY)
+                        WHERE singleton = 1;
+                     END;
+                     CREATE TRIGGER macevery_files_before_update_changes_v1
+                     BEFORE UPDATE ON files BEGIN
+                        UPDATE macevery_content_state SET journal_conflict_id =
+                            CASE WHEN NEW.path IS OLD.path THEN NULL ELSE
+                                (SELECT id FROM files WHERE path = NEW.path COLLATE BINARY AND id != OLD.id)
+                            END
+                        WHERE singleton = 1;
+                     END;
+                     CREATE TRIGGER macevery_files_insert_changes_v1
+                     AFTER INSERT ON files BEGIN
+                        UPDATE macevery_content_state SET revision = revision + 1 WHERE singleton = 1;
+                        INSERT INTO macevery_file_changes(revision,old_id,new_id,conflict_id)
+                            SELECT revision,NULL,NEW.id,journal_conflict_id FROM macevery_content_state WHERE singleton = 1;
+                     END;
+                     CREATE TRIGGER macevery_files_update_changes_v1
+                     AFTER UPDATE ON files
+                     WHEN OLD.id IS NOT NEW.id OR OLD.path IS NOT NEW.path
+                       OR OLD.path_lower IS NOT NEW.path_lower
+                       OR OLD.basename IS NOT NEW.basename OR OLD.basename_lower IS NOT NEW.basename_lower
+                       OR OLD.ext_lower IS NOT NEW.ext_lower OR OLD.kind IS NOT NEW.kind
+                       OR OLD.size IS NOT NEW.size OR OLD.mtime IS NOT NEW.mtime OR OLD.ctime IS NOT NEW.ctime
+                       OR OLD.dev IS NOT NEW.dev OR OLD.inode IS NOT NEW.inode
+                       OR OLD.indexed_at IS NOT NEW.indexed_at
+                     BEGIN
+                        UPDATE macevery_content_state SET revision = revision + 1 WHERE singleton = 1;
+                        INSERT INTO macevery_file_changes(revision,old_id,new_id,conflict_id)
+                            SELECT revision,OLD.id,NEW.id,journal_conflict_id FROM macevery_content_state WHERE singleton = 1;
+                     END;
+                     CREATE TRIGGER macevery_files_delete_changes_v1
+                     AFTER DELETE ON files BEGIN
+                        UPDATE macevery_content_state SET revision = revision + 1 WHERE singleton = 1;
+                        INSERT INTO macevery_file_changes(revision,old_id,new_id,conflict_id)
+                            SELECT revision,OLD.id,NULL,NULL FROM macevery_content_state WHERE singleton = 1;
+                     END;
+                     CREATE TRIGGER macevery_file_changes_prune_v1
+                     AFTER INSERT ON macevery_file_changes WHEN NEW.revision % {interval} = 0 BEGIN
+                        UPDATE macevery_content_state SET journal_floor = MAX(journal_floor,
+                            COALESCE((SELECT MAX(revision) FROM macevery_file_changes WHERE revision <= NEW.revision - {retention}),journal_floor))
+                        WHERE singleton = 1;
+                        DELETE FROM macevery_file_changes WHERE revision <= NEW.revision - {retention};
+                     END;",
+                    interval = FILE_CHANGE_PRUNE_INTERVAL,
+                    retention = FILE_CHANGE_RETENTION
+                ))?;
+                self.set_meta("schema_file_changes_v1", "1")?;
+            }
+            self.commit()
+        })();
+        if migration.is_err() {
+            let _ = self.rollback();
+        }
+        migration
+    }
+
+    /// Read a bounded final-state delta inside the caller's already-open read
+    /// transaction. The caller owns commit/rollback. All IDs and rows come from
+    /// the same snapshot as target; a later writer is detected on the next check.
+    pub fn file_changes_since(
+        &self,
+        base: &ContentStamp,
+        max_events: usize,
+        max_ids: usize,
+    ) -> Result<FileChangeRead> {
+        self.file_changes_since_with_byte_limit(
+            base,
+            max_events,
+            max_ids,
+            FILE_CHANGE_MAX_PAYLOAD_BYTES,
+        )
+    }
+
+    fn file_changes_since_with_byte_limit(
+        &self,
+        base: &ContentStamp,
+        max_events: usize,
+        max_ids: usize,
+        max_payload_bytes: usize,
+    ) -> Result<FileChangeRead> {
+        if self.conn.is_autocommit() {
+            return Err(MacEveryError::Sqlite(
+                "file_changes_since requires an active read transaction".into(),
+            ));
+        }
+        let target = self.content_stamp()?;
+        let fallback = |reason| Ok(FileChangeRead::Fallback { reason });
+        if base.database_id != target.database_id || base.file_identity != target.file_identity {
+            return fallback("database_replaced");
+        }
+        if target.revision < base.revision {
+            return fallback("revision_regressed");
+        }
+        if !self.has_change_journal()? {
+            return fallback("journal_unavailable");
+        }
+        if target.revision == base.revision {
+            return Ok(FileChangeRead::Available {
+                target,
+                changes: Vec::new(),
+            });
+        }
+        let mut floor = self
+            .conn
+            .prepare("SELECT journal_floor FROM macevery_content_state WHERE singleton = 1;")?;
+        if !matches!(floor.step()?, Step::Row)
+            || floor
+                .column_i64(0)
+                .is_none_or(|floor| base.revision < floor)
+        {
+            return fallback("history_gap");
+        }
+        drop(floor);
+        let span = target
+            .revision
+            .checked_sub(base.revision)
+            .ok_or_else(|| MacEveryError::Sqlite("invalid revision span".into()))?;
+        if span as u64 > max_events.min(MAX_FILE_CHANGE_BATCH) as u64 {
+            return fallback("event_limit");
+        }
+        let mut events = self.conn.prepare("SELECT revision,old_id,new_id,conflict_id FROM macevery_file_changes WHERE revision > ?1 AND revision <= ?2 ORDER BY revision;")?;
+        events.bind_i64(1, Some(base.revision))?;
+        events.bind_i64(2, Some(target.revision))?;
+        let mut previous = base.revision;
+        let mut ids = BTreeSet::new();
+        while let Step::Row = events.step()? {
+            let Some(revision) = events.column_i64(0) else {
+                return fallback("history_gap");
+            };
+            if revision.checked_sub(previous) != Some(1) {
+                return fallback("history_gap");
+            }
+            previous = revision;
+            let mut has_id = false;
+            for column in 1..=3 {
+                if let Some(id) = events.column_i64(column) {
+                    has_id = true;
+                    ids.insert(id);
+                    if ids.len() > max_ids.min(MAX_FILE_CHANGE_BATCH) {
+                        return fallback("id_limit");
+                    }
+                }
+            }
+            if !has_id {
+                return fallback("history_gap");
+            }
+        }
+        if previous != target.revision {
+            return fallback("history_gap");
+        }
+        drop(events);
+        let mut rows = self.conn.prepare(
+            "SELECT id,path,path_lower,basename,basename_lower,ext_lower,kind,size,mtime,ctime,dev,inode,indexed_at FROM files WHERE id = ?1;"
+        )?;
+        let mut changes = Vec::with_capacity(ids.len());
+        let mut payload_bytes = 0usize;
+        for id in ids {
+            rows.reset()?;
+            rows.bind_i64(1, Some(id))?;
+            let record = match rows.step()? {
+                Step::Row => {
+                    // Borrow SQLite's current row before allocating any owned
+                    // FileRecord strings. NULL/empty path_lower uses the same
+                    // Unicode-lowercase fallback as row_to_record below.
+                    let raw_bytes = (1..=6).fold(0usize, |sum, column| {
+                        sum.saturating_add(rows.column_byte_len(column))
+                    });
+                    if payload_bytes.saturating_add(raw_bytes) > max_payload_bytes {
+                        return fallback("byte_limit");
+                    }
+                    let bytes = row_text_payload_bytes(&rows);
+                    let Some(total) = payload_bytes.checked_add(bytes) else {
+                        return fallback("byte_limit");
+                    };
+                    if total > max_payload_bytes {
+                        return fallback("byte_limit");
+                    }
+                    payload_bytes = total;
+                    Some(row_to_record(&rows)?)
+                }
+                Step::Done => None,
+            };
+            changes.push(FileChange { id, record });
+        }
+        Ok(FileChangeRead::Available { target, changes })
     }
 
     pub fn begin(&self) -> Result<()> {
@@ -588,7 +858,7 @@ impl Database {
     {
         let mut stmt = self.conn.prepare(
             "SELECT id, path, path_lower, basename, basename_lower, ext_lower, kind, size, mtime, ctime, dev, inode, indexed_at
-             FROM files;",
+             FROM files ORDER BY id;",
         )?;
         while let Step::Row = stmt.step()? {
             visit(row_to_record(&stmt)?)?;
@@ -602,7 +872,7 @@ impl Database {
     {
         let mut stmt = self.conn.prepare(
             "SELECT id, path, path_lower, basename, basename_lower, ext_lower, kind, size, mtime, ctime, dev, inode, indexed_at
-             FROM files;",
+             FROM files ORDER BY id;",
         )?;
         while let Step::Row = stmt.step()? {
             visit(row_to_record_ref(&stmt)?)?;
@@ -733,6 +1003,41 @@ enum Binding {
     Int(i64),
 }
 
+fn row_text_payload_bytes(stmt: &crate::sqlite::Statement<'_>) -> usize {
+    let text_bytes = |column| match stmt.column_str(column) {
+        Some(value) => value.len(),
+        // Charge malformed UTF-8 conservatively, including a future lossy
+        // decoder. NULL has zero raw bytes. Never interpret None as zero
+        // without checking the underlying SQLite byte count.
+        None => stmt.column_byte_len(column).saturating_mul(3),
+    };
+    let fallback_lower = || match stmt.column_str(1) {
+        Some(path) => path
+            .chars()
+            .flat_map(char::to_lowercase)
+            .fold(0usize, |sum, value| sum.saturating_add(value.len_utf8())),
+        None => stmt.column_byte_len(1).saturating_mul(3),
+    };
+    let lower_bytes = match stmt.column_str(2).filter(|value| !value.is_empty()) {
+        Some(lower) => lower.len(),
+        // Context-sensitive final sigma has the same UTF-8 width as sigma;
+        // expansions are counted without constructing a lowercase String.
+        None => fallback_lower().max(stmt.column_byte_len(2).saturating_mul(3)),
+    };
+    [
+        text_bytes(1),
+        lower_bytes,
+        text_bytes(3),
+        text_bytes(4),
+        text_bytes(5),
+        // FileKind::parse lowercases the complete SQLite value, including
+        // unknown kinds. Reserve its worst-case Unicode expansion before parse.
+        stmt.column_byte_len(6).saturating_mul(3),
+    ]
+    .into_iter()
+    .fold(0usize, usize::saturating_add)
+}
+
 fn row_to_record_ref<'a>(stmt: &'a crate::sqlite::Statement<'_>) -> Result<DbRecordRef<'a>> {
     Ok(DbRecordRef {
         id: stmt.column_i64(0).unwrap_or(0),
@@ -765,8 +1070,8 @@ fn expect_done(step: Step) -> Result<()> {
 
 fn row_to_record(stmt: &crate::sqlite::Statement<'_>) -> Result<FileRecord> {
     let kind = stmt
-        .column_text(6)
-        .and_then(|value| FileKind::parse(&value))
+        .column_str(6)
+        .and_then(FileKind::parse)
         .unwrap_or(FileKind::Other);
     let path = stmt.column_text(1).unwrap_or_default();
     let path_lower = stmt
@@ -1204,7 +1509,7 @@ mod content_revision_tests {
         let reopened = Database::open(fixture.database()).unwrap();
         assert_eq!(reopened.content_stamp().unwrap(), stamp);
         assert_eq!(scalar(&reopened, "PRAGMA schema_version;"), schema_version);
-        assert_eq!(scalar(&reopened, "SELECT count(*) FROM sqlite_master WHERE type='trigger' AND name LIKE 'macevery_files_%_revision_v1';"), 3);
+        assert_eq!(scalar(&reopened, "SELECT count(*) FROM sqlite_master WHERE type='trigger' AND name LIKE 'macevery_files_%_changes_v1';"), 5);
         reopened
             .conn
             .execute_batch("UPDATE files SET size=99;")
@@ -1234,5 +1539,450 @@ mod content_revision_tests {
         let missing = fixture.0.join("absent/index.sqlite");
         assert!(Database::open_read_only(missing.clone()).is_err());
         assert!(!missing.parent().unwrap().exists());
+    }
+}
+
+#[cfg(test)]
+mod file_change_tests {
+    use super::*;
+    use std::sync::atomic::{AtomicU64, Ordering};
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    struct Fixture(PathBuf);
+    impl Fixture {
+        fn new() -> Self {
+            static NEXT: AtomicU64 = AtomicU64::new(0);
+            let nanos = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos();
+            let dir = std::env::temp_dir().join(format!(
+                "macevery-journal-{}-{nanos}-{}",
+                std::process::id(),
+                NEXT.fetch_add(1, Ordering::Relaxed)
+            ));
+            std::fs::create_dir_all(&dir).unwrap();
+            Self(dir)
+        }
+        fn path(&self) -> PathBuf {
+            self.0.join("index.sqlite")
+        }
+    }
+    impl Drop for Fixture {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+    fn insert(db: &Database, id: i64, path: &str) {
+        let mut stmt = db.conn.prepare("INSERT INTO files(id,path,path_lower,basename,basename_lower,kind,size,indexed_at) VALUES(?1,?2,?2,?2,?2,'file',1,10);").unwrap();
+        stmt.bind_i64(1, Some(id)).unwrap();
+        stmt.bind_text(2, Some(path)).unwrap();
+        expect_done(stmt.step().unwrap()).unwrap();
+    }
+    fn read(db: &Database, base: &ContentStamp, events: usize, ids: usize) -> FileChangeRead {
+        db.begin_read().unwrap();
+        let delta = db.file_changes_since(base, events, ids).unwrap();
+        db.commit().unwrap();
+        delta
+    }
+    fn available(delta: FileChangeRead) -> (ContentStamp, Vec<FileChange>) {
+        match delta {
+            FileChangeRead::Available { target, changes } => (target, changes),
+            other => panic!("expected available delta: {other:?}"),
+        }
+    }
+    fn fallback(delta: FileChangeRead, expected: &str) {
+        match delta {
+            FileChangeRead::Fallback { reason } => assert_eq!(reason, expected),
+            other => panic!("expected {expected}: {other:?}"),
+        }
+    }
+    fn scalar(db: &Database, sql: &str) -> i64 {
+        let mut stmt = db.conn.prepare(sql).unwrap();
+        assert!(matches!(stmt.step().unwrap(), Step::Row));
+        stmt.column_i64(0).unwrap()
+    }
+
+    #[test]
+    fn delta_requires_transaction_and_metadata_is_empty() {
+        let fixture = Fixture::new();
+        let db = Database::open(fixture.path()).unwrap();
+        let base = db.content_stamp().unwrap();
+        assert!(db.file_changes_since(&base, 4096, 4096).is_err());
+        db.set_meta("watch_last_event_id", "123").unwrap();
+        db.set_roots(&["/new-root".to_string()]).unwrap();
+        db.set_excludes(&[".git".to_string()]).unwrap();
+        let (target, changes) = available(read(&db, &base, 4096, 4096));
+        assert_eq!(target, base);
+        assert!(changes.is_empty());
+    }
+
+    #[test]
+    fn final_rows_cover_external_id_changes_delete_reinsert_and_all_fields() {
+        let fixture = Fixture::new();
+        let db = Database::open(fixture.path()).unwrap();
+        for (id, path) in [(1, "/a"), (2, "/b"), (3, "/c")] {
+            insert(&db, id, path);
+        }
+        let base = db.content_stamp().unwrap();
+        let external = Connection::open_existing(&fixture.path()).unwrap();
+        external.execute_batch("BEGIN; UPDATE files SET id=10,path='/renamed',path_lower=NULL,basename='Name',basename_lower='',ext_lower='',kind='app',size=NULL,mtime=-12,ctime=9223372036854775807,dev=-9,inode=88,indexed_at=111 WHERE id=1; DELETE FROM files WHERE id=2; INSERT INTO files(id,path,basename,basename_lower,kind,size,indexed_at) VALUES(2,'/reused','reuse','reuse','dir',222,112); DELETE FROM files WHERE id=3; INSERT INTO files(id,path,basename,basename_lower,kind,indexed_at) VALUES(3,'/temporary','tmp','tmp','file',113); DELETE FROM files WHERE id=3; COMMIT;").unwrap();
+        let (target, changes) = available(read(&db, &base, 4096, 4096));
+        assert_eq!(target, db.content_stamp().unwrap());
+        assert_eq!(
+            changes.iter().map(|change| change.id).collect::<Vec<_>>(),
+            [1, 2, 3, 10]
+        );
+        assert!(changes[0].record.is_none() && changes[2].record.is_none());
+        let expected = db.all_records().unwrap();
+        assert_eq!(
+            changes
+                .into_iter()
+                .filter_map(|change| change.record)
+                .collect::<Vec<_>>(),
+            expected
+        );
+    }
+
+    #[test]
+    fn replace_captures_hidden_path_and_id_victims_without_recursive_triggers() {
+        let fixture = Fixture::new();
+        let db = Database::open(fixture.path()).unwrap();
+        for (id, path) in [(1, "/a"), (2, "/b"), (3, "/c"), (4, "/d")] {
+            insert(&db, id, path);
+        }
+        let base = db.content_stamp().unwrap();
+        let external = Connection::open_existing(&fixture.path()).unwrap();
+        external.execute_batch("PRAGMA recursive_triggers=OFF; BEGIN; INSERT OR REPLACE INTO files(id,path,basename,basename_lower,kind,indexed_at) VALUES(10,'/a','new','new','file',11); DELETE FROM files WHERE id=10; UPDATE OR REPLACE files SET id=4,path='/b' WHERE id=3; COMMIT;").unwrap();
+        let (_, changes) = available(read(&db, &base, 4096, 4096));
+        assert_eq!(
+            changes.iter().map(|change| change.id).collect::<Vec<_>>(),
+            [1, 2, 3, 4, 10]
+        );
+        assert_eq!(
+            changes
+                .iter()
+                .filter_map(|change| change.record.clone())
+                .collect::<Vec<_>>(),
+            db.all_records().unwrap()
+        );
+        assert!(changes
+            .iter()
+            .find(|change| change.id == 4)
+            .unwrap()
+            .record
+            .is_some());
+        for id in [1, 2, 3, 10] {
+            assert!(changes
+                .iter()
+                .find(|change| change.id == id)
+                .unwrap()
+                .record
+                .is_none());
+        }
+        let base = db.content_stamp().unwrap();
+        external.execute_batch("INSERT OR REPLACE INTO files(path,basename,basename_lower,kind,indexed_at) VALUES('/b','auto','auto','file',12);").unwrap();
+        let (_, changes) = available(read(&db, &base, 4096, 4096));
+        assert_eq!(changes.len(), 2);
+        assert!(changes
+            .iter()
+            .find(|change| change.id == 4)
+            .unwrap()
+            .record
+            .is_none());
+        assert_eq!(
+            changes
+                .into_iter()
+                .filter_map(|change| change.record)
+                .collect::<Vec<_>>(),
+            db.all_records().unwrap()
+        );
+    }
+
+    #[test]
+    fn ignored_and_noop_inserts_cannot_leak_scratch_ids() {
+        let fixture = Fixture::new();
+        let db = Database::open(fixture.path()).unwrap();
+        insert(&db, 1, "/a");
+        insert(&db, 2, "/b");
+        let base = db.content_stamp().unwrap();
+        db.conn.execute_batch("INSERT OR IGNORE INTO files(id,path,basename,basename_lower,kind,indexed_at) VALUES(100,'/a','ignored','ignored','file',10); INSERT INTO files(id,path,basename,basename_lower,kind,size,indexed_at) VALUES(2,'/b','/b','/b','file',1,10) ON CONFLICT(id) DO UPDATE SET path=excluded.path; UPDATE files SET size=size WHERE id=1;").unwrap();
+        assert_eq!(db.content_stamp().unwrap(), base);
+        insert(&db, 200, "/fresh");
+        let (_, changes) = available(read(&db, &base, 4096, 4096));
+        assert_eq!(
+            changes.iter().map(|change| change.id).collect::<Vec<_>>(),
+            [200]
+        );
+        let after = db.content_stamp().unwrap();
+        db.conn.execute_batch("BEGIN; INSERT OR REPLACE INTO files(path,basename,basename_lower,kind,indexed_at) VALUES('/a','rolled','rolled','file',99); ROLLBACK;").unwrap();
+        assert_eq!(db.content_stamp().unwrap(), after);
+        assert_eq!(available(read(&db, &after, 4096, 4096)).1.len(), 0);
+        assert_eq!(
+            scalar(&db, "SELECT COUNT(*) FROM macevery_content_state"),
+            1
+        );
+        db.conn
+            .execute_batch(
+                "UPDATE OR IGNORE files SET path='/b' WHERE id=1; DELETE FROM files WHERE id=200;",
+            )
+            .unwrap();
+        let (_, changes) = available(read(&db, &after, 4096, 4096));
+        assert_eq!(
+            changes.iter().map(|change| change.id).collect::<Vec<_>>(),
+            [200]
+        );
+        assert!(changes[0].record.is_none());
+    }
+
+    #[test]
+    fn delta_and_rows_are_from_one_pinned_wal_snapshot() {
+        let fixture = Fixture::new();
+        let db = Database::open(fixture.path()).unwrap();
+        let base = db.content_stamp().unwrap();
+        insert(&db, 1, "/a");
+        let reader = Database::open_read_only(fixture.path()).unwrap();
+        reader.begin_read().unwrap();
+        let pinned = reader.content_stamp().unwrap();
+        db.conn
+            .execute_batch("UPDATE files SET size=222 WHERE id=1;")
+            .unwrap();
+        let (target, changes) = available(reader.file_changes_since(&base, 4096, 4096).unwrap());
+        assert_eq!(target, pinned);
+        assert_eq!(changes[0].record.as_ref().unwrap().size, Some(1));
+        reader.commit().unwrap();
+        let (_, changes) = available(read(&reader, &target, 4096, 4096));
+        assert_eq!(changes[0].record.as_ref().unwrap().size, Some(222));
+    }
+
+    #[test]
+    fn bounds_and_missing_events_force_safe_fallback() {
+        let fixture = Fixture::new();
+        let db = Database::open(fixture.path()).unwrap();
+        insert(&db, 1, "/a");
+        let base = db.content_stamp().unwrap();
+        db.conn
+            .execute_batch("UPDATE files SET id=2 WHERE id=1; UPDATE files SET size=7 WHERE id=2;")
+            .unwrap();
+        fallback(read(&db, &base, 1, 4096), "event_limit");
+        fallback(read(&db, &base, 4096, 1), "id_limit");
+        db.conn
+            .execute_batch(&format!(
+                "DELETE FROM macevery_file_changes WHERE revision={};",
+                base.revision + 1
+            ))
+            .unwrap();
+        fallback(read(&db, &base, 4096, 4096), "history_gap");
+        let mut foreign = base.clone();
+        foreign.file_identity.inode = foreign.file_identity.inode.wrapping_add(1);
+        fallback(read(&db, &foreign, 4096, 4096), "database_replaced");
+        let mut future = base.clone();
+        future.revision += 100;
+        fallback(read(&db, &future, 4096, 4096), "revision_regressed");
+    }
+
+    #[test]
+    fn retention_is_bounded_and_pruned_floor_prevents_partial_delta() {
+        let fixture = Fixture::new();
+        let db = Database::open(fixture.path()).unwrap();
+        insert(&db, 1, "/a");
+        let old = db.content_stamp().unwrap();
+        db.begin().unwrap();
+        let mut update = db
+            .conn
+            .prepare("UPDATE files SET size=?1 WHERE id=1;")
+            .unwrap();
+        for value in 2..(FILE_CHANGE_RETENTION + FILE_CHANGE_PRUNE_INTERVAL * 2) {
+            update.reset().unwrap();
+            update.bind_i64(1, Some(value)).unwrap();
+            expect_done(update.step().unwrap()).unwrap();
+        }
+        drop(update);
+        db.commit().unwrap();
+        let count = scalar(&db, "SELECT COUNT(*) FROM macevery_file_changes");
+        assert!(count < FILE_CHANGE_RETENTION + FILE_CHANGE_PRUNE_INTERVAL);
+        assert!(
+            scalar(
+                &db,
+                "SELECT journal_floor FROM macevery_content_state WHERE singleton=1"
+            ) > old.revision
+        );
+        fallback(read(&db, &old, 4096, 4096), "history_gap");
+        let mut recent = db.content_stamp().unwrap();
+        recent.revision -= 1000;
+        let (_, changes) = available(read(&db, &recent, 4096, 4096));
+        assert_eq!(changes.len(), 1);
+        assert_eq!(changes[0].id, 1);
+        println!(
+            "bounded journal retained {count} events after {} file changes",
+            db.content_stamp().unwrap().revision
+        );
+    }
+
+    #[test]
+    fn missing_journal_with_surviving_marker_is_repaired_once_with_new_floor() {
+        let fixture = Fixture::new();
+        let db = Database::open(fixture.path()).unwrap();
+        insert(&db, 1, "/a");
+        let old = db.content_stamp().unwrap();
+        db.conn
+            .execute_batch("UPDATE files SET size=2 WHERE id=1; DROP TABLE macevery_file_changes;")
+            .unwrap();
+        assert!(!db.has_change_journal().unwrap());
+        fallback(read(&db, &old, 4096, 4096), "journal_unavailable");
+        let current = db.content_stamp().unwrap();
+        drop(db);
+        let repaired = Database::open_existing(fixture.path()).unwrap();
+        assert!(repaired.has_change_journal().unwrap());
+        assert_eq!(repaired.content_stamp().unwrap(), current);
+        fallback(read(&repaired, &old, 4096, 4096), "history_gap");
+        repaired
+            .conn
+            .execute_batch("UPDATE files SET size=3 WHERE id=1;")
+            .unwrap();
+        let (_, changes) = available(read(&repaired, &current, 4096, 4096));
+        assert_eq!(changes[0].record.as_ref().unwrap().size, Some(3));
+        let schema = scalar(&repaired, "PRAGMA schema_version");
+        drop(repaired);
+        let reopened = Database::open_existing(fixture.path()).unwrap();
+        assert_eq!(scalar(&reopened, "PRAGMA schema_version"), schema);
+    }
+
+    #[test]
+    fn delta_payload_cap_counts_effective_strings_before_copying_rows() {
+        let fixture = Fixture::new();
+        let db = Database::open(fixture.path()).unwrap();
+        let base = db.content_stamp().unwrap();
+        insert(&db, 1, "/İ/ΟΣ");
+        insert(&db, 2, "/longer/path");
+        db.conn.execute_batch("UPDATE files SET path_lower=NULL,ext_lower='' WHERE id=1; UPDATE files SET path_lower='',ext_lower='a-repeated-extension' WHERE id=2;").unwrap();
+        let (_, full) = available(read(&db, &base, 4096, 4096));
+        let bytes = full
+            .iter()
+            .filter_map(|change| change.record.as_ref())
+            .map(|row| {
+                row.path.len()
+                    + row.path_lower.len()
+                    + row.basename.len()
+                    + row.basename_lower.len()
+                    + row.ext_lower.as_ref().map_or(0, String::len)
+                    + row.kind.as_str().len() * 3
+            })
+            .sum::<usize>();
+        assert_eq!(FILE_CHANGE_MAX_PAYLOAD_BYTES, 32 * 1024 * 1024);
+        db.begin_read().unwrap();
+        fallback(
+            db.file_changes_since_with_byte_limit(&base, 4096, 4096, bytes - 1)
+                .unwrap(),
+            "byte_limit",
+        );
+        db.rollback().unwrap();
+        db.begin_read().unwrap();
+        let (_, at_limit) = available(
+            db.file_changes_since_with_byte_limit(&base, 4096, 4096, bytes)
+                .unwrap(),
+        );
+        db.commit().unwrap();
+        assert_eq!(
+            at_limit
+                .iter()
+                .filter_map(|change| change.record.clone())
+                .collect::<Vec<_>>(),
+            full.iter()
+                .filter_map(|change| change.record.clone())
+                .collect::<Vec<_>>()
+        );
+        db.begin_read().unwrap();
+        // Even the first oversized row is rejected before row_to_record copies it.
+        fallback(
+            db.file_changes_since_with_byte_limit(&base, 4096, 4096, 1)
+                .unwrap(),
+            "byte_limit",
+        );
+        db.commit().unwrap();
+    }
+
+    #[test]
+    fn malformed_utf8_cannot_bypass_delta_byte_limit() {
+        let fixture = Fixture::new();
+        let db = Database::open(fixture.path()).unwrap();
+        let base = db.content_stamp().unwrap();
+        insert(&db, 1, "/a");
+        db.conn.execute_batch("UPDATE files SET basename_lower=CAST(x'80ff' AS TEXT),ext_lower=CAST(x'8080' AS TEXT) WHERE id=1;").unwrap();
+        let (_, full) = available(read(&db, &base, 4096, 4096));
+        let row = full[0].record.as_ref().unwrap();
+        let owned_bytes = row.path.len()
+            + row.path_lower.len()
+            + row.basename.len()
+            + row.basename_lower.len()
+            + row.ext_lower.as_ref().map_or(0, String::len)
+            + row.kind.as_str().len() * 3;
+        db.begin_read().unwrap();
+        // Current decoding discards invalid fields. The guard still charges
+        // their raw bytes, rather than allowing column_str(None) to count zero.
+        fallback(
+            db.file_changes_since_with_byte_limit(&base, 4096, 4096, owned_bytes + 1)
+                .unwrap(),
+            "byte_limit",
+        );
+        db.commit().unwrap();
+    }
+
+    #[test]
+    fn oversized_unknown_kind_is_budgeted_before_parse() {
+        let fixture = Fixture::new();
+        let db = Database::open(fixture.path()).unwrap();
+        let base = db.content_stamp().unwrap();
+        insert(&db, 1, "/a");
+        let kind = "İ".repeat(4096);
+        let mut update = db
+            .conn
+            .prepare("UPDATE files SET kind=?1 WHERE id=1;")
+            .unwrap();
+        update.bind_text(1, Some(&kind)).unwrap();
+        expect_done(update.step().unwrap()).unwrap();
+        drop(update);
+        // Four two-byte strings plus the parser's conservative lowercase budget.
+        let budget = 8 + kind.len() * 3;
+        db.begin_read().unwrap();
+        // The first limit exercises the raw guard; the second reaches the
+        // Unicode expansion guard. Neither may call the allocating parser.
+        for limit in [kind.len() - 1, budget - 1] {
+            fallback(
+                db.file_changes_since_with_byte_limit(&base, 4096, 4096, limit)
+                    .unwrap(),
+                "byte_limit",
+            );
+        }
+        let (_, changes) = available(
+            db.file_changes_since_with_byte_limit(&base, 4096, 4096, budget)
+                .unwrap(),
+        );
+        assert_eq!(changes[0].record.as_ref().unwrap().kind, FileKind::Other);
+        db.commit().unwrap();
+    }
+
+    #[test]
+    fn full_record_iteration_has_explicit_signed_id_order() {
+        let fixture = Fixture::new();
+        let db = Database::open(fixture.path()).unwrap();
+        for (id, path) in [(10, "/z"), (-5, "/a"), (0, "/m")] {
+            insert(&db, id, path);
+        }
+        assert_eq!(
+            db.all_records()
+                .unwrap()
+                .iter()
+                .map(|r| r.id)
+                .collect::<Vec<_>>(),
+            [-5, 0, 10]
+        );
+        let mut ids = Vec::new();
+        db.for_each_record_ref(|r| {
+            ids.push(r.id);
+            Ok(())
+        })
+        .unwrap();
+        assert_eq!(ids, [-5, 0, 10]);
     }
 }
