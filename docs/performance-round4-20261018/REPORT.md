@@ -1,6 +1,6 @@
 # MacEvery 第四轮短词查询与元数据压缩
 
-日期：2026-10-18；版本：r1，受控验证进行中，尚未替换 App。
+日期：2026-10-18；版本：r2，受控验证完成，候选 App 已构建；等待解锁完成安装和原生验收。
 
 基线为第三轮主干 `4c17a03f805a40b0d11c025d8f66b82650cc92df`，安装源码为 `d93f3f6`。用户授权验证通过后替换本机 App、提交和推送；保留 0.1.3，以 Git SHA 标识开发包，不分配正式版本或 tag。
 
@@ -76,11 +76,13 @@
 
 含全部回退/故障阶段的服务生命周期峰值 RSS 约 2.639→2.503 GiB（-5.1%），与固定查询场景分开报告。40 并发两版均 2 个正确 200、38 个 busy503；每个 200 的完整 JSON 一致，health/status 都 200、与请求窗口重叠；自有进程组与端口清理通过。不同控制请求数和含故障的总 CPU 不作等负载收益结论。HTTP 只对 SQLite 核对输出字段，未输出字段由 Rust 全记录差分覆盖。
 
-30 万条受控索引的真实 FSEvents A/B/A 通过：九类文件/目录生命周期、排除写入及后续恢复检查，最终状态一致。watch CPU 旧版 0.0198/0.0187 秒、新版 0.0205 秒，峰值约 11 MiB，不声称 watcher 获得本轮稳定 CPU 收益。受控验证已完成，待本机解锁后进行原生 App 验收。旧 App 已冻结为 `.build/MacEvery.rollback-20261018-before-round4.app`；安装前还需保存最新 live DB 一致备份。不重建真实索引，不更改 roots/excludes/模式/快捷键或系统权限。
+30 万条受控索引的真实 FSEvents A/B/A 通过：九类文件/目录生命周期、排除写入及后续恢复检查，最终状态一致。watch CPU 旧版 0.0198/0.0187 秒、新版 0.0205 秒，峰值约 11 MiB，不声称 watcher 获得本轮稳定 CPU 收益。受控验证已完成，待本机解锁后进行原生 App 验收。源码 `d62aa1dc9d3f754da6c6ad2aaa0203e365611f81` 已提交推送 origin/main 并精确回读，干净构建候选 `.build/MacEvery.round4-candidate.app`，版本 `0.1.3-gd62aa1d`。深度/严格签名通过，去除签名后的 Rust 载荷与最终实测制品 SHA 一致。Mac 锁屏阻止原生窗口验收，已请求用户解锁；尚未替换当前 `0.1.3-gd93f3f6`，不能标记本机安装完成。
+
+旧 App 已冻结为 `.build/MacEvery.rollback-20261018-before-round4.app`。安装前最新真实索引只读 online backup 已完成：7,297,642 条、quick_check=ok、SHA256 `c2f97353d23ee90aab1117df5b00700416fe52019c1c6bbea74903aa8bc6c968`，保存 `.build/performance-round4-20261018/live-index-before.sqlite`。未重建 live DB，未更改 roots/excludes/模式/快捷键或系统权限。解锁后先重新核对运行版本与精确进程，再替换、原生增删改验收和 20 秒资源观察；如果间隔较长，先刷新备份。
 
 ## 证据与边界
 
-结构化证据：[九类查询](evidence/search-summary.json)、[短词组](evidence/short-summary.json)、[服务更新](evidence/service-summary.json)、[容量组成](evidence/index-memory.json)、[watcher](evidence/watch-results.json)、[制品指纹](evidence/candidate-artifacts.json)。
+结构化证据：[九类查询](evidence/search-summary.json)、[短词组](evidence/short-summary.json)、[服务更新](evidence/service-summary.json)、[容量组成](evidence/index-memory.json)、[watcher](evidence/watch-results.json)、[制品指纹](evidence/candidate-artifacts.json)、[待安装 App](evidence/app-candidate.json)。
 
 原始源码、制品、完整结果、样本及失败保存在忽略目录 `.build/performance-round4-20261018/`，索引与完整真实搜索结果不推送。入口为 `tools/compare_round1.py`、`tools/compare_round4_short.py`、`tools/perf_round4_short.rs`、候选专用 `tools/index_memory_round4.rs`、`tools/check_service_round3.py`、`tools/watch_round1.py` 和 `tools/measure_app_resources.py`。
 

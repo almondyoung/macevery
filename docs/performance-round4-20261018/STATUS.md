@@ -1,6 +1,6 @@
 # MacEvery Round 4 Status
 
-Updated: 2026-10-18 (Asia/Shanghai). Discovery and implementation.
+Updated: 2026-10-18 (Asia/Shanghai). Controlled verification complete; built candidate waits for manual unlock/native acceptance.
 
 ## Task capsule
 
@@ -36,7 +36,7 @@ Updated: 2026-10-18 (Asia/Shanghai). Discovery and implementation.
 
 ## Next
 
-Search-only candidate frozen; same-layout code A/B/A in progress. Adaptive numeric metadata layout implementing separately. No live DB migration or App replacement.
+等待手动解锁后完成原位替换与原生验收。先核对旧 App 路径/PID，停止精确 GUI 并等待其 serve/watch 退出（不要在 GUI quit 后调用AX重新唤起旧包）；原包归档，再将已验证候选重命名原路径并 open。运行已准备的 .build/performance-round4-20261018/live_window_fixture.py create/modify/rename/delete 并用CUA核对18/35/beta-only/0，清理查询，再20秒资源采样。若跨会话间隔较久，重新核对源码/候选SHA并刷新live备份；不重复整个已通过CPU基准。
 
 ## Design checkpoint
 
@@ -71,3 +71,10 @@ Search-only candidate frozen; same-layout code A/B/A in progress. Adaptive numer
 - Pure metadata first query CPU20.61/21.72ms ->25.93/25.41ms (+4..5ms); do not claim further delta CPU acceleration. Lifecycle HWM2.639->2.503GiB (-5.1%).
 - 300k FSEvents A/B/A nine checks/finalstate PASS; CPU baseline.0198/.0187s candidate.0205s. No watcher CPU gain claimed.
 - Raw evidence archived and sanitized summaries/links checked; frozen source hashes still match. Latest live DB backup and fetch in progress; source commit/push then clean App candidate build. Native acceptance requires pending manual unlock; do not mark it PASS before visible test.
+
+## Candidate ready / native blocked
+
+- Source d62aa1dc9d3f754da6c6ad2aaa0203e365611f81 committed/pushed, exact origin/main match,0ahead/behind before build, clean candidate0.1.3-gd62aa1d. Deep/strict signature and normalized Rustpayload equality PASS; app-candidate.json records all hashes.
+- Live read-only online backup completed7,297,642rows / quick_check ok, SHAc2f97353d23ee90aab1117df5b00700416fe52019c1c6bbea74903aa8bc6c968. Original approllback retained.
+- Mac locked; async request for manual unlock sent. No App replacement/native create-modify-rename-delete/final idle observation yet. Do not infer PASS from backend tests. Old app source d93f3f6 remains active; candidate path .build/MacEvery.round4-candidate.app.
+- Independent report/math/link/privacy and payload-accounting review PASS. All tested source hashes preserved. Final native acceptance and documentation-only commit/push remain after unlock.

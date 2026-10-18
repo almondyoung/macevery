@@ -1,0 +1,25 @@
+{
+  "source_commit": "d62aa1dc9d3f754da6c6ad2aaa0203e365611f81",
+  "build_label": "0.1.3-gd62aa1d",
+  "build_time": "2026-10-18T14:30:49Z",
+  "bundle_id": "com.almondyoung.macevery",
+  "app_candidate": "/Users/yangtao/pine/code/macevery/.build/MacEvery.round4-candidate.app",
+  "signature": "codesign deep/strict PASS",
+  "gui_sha256": "c9d0d64d24c7401fa98d40f9bc813de393907ecdccc6d941391398f8aad9bc7e",
+  "signed_cli_sha256": "bed3ed40c69069c50c7d83f82da4f619282e71fb52e40302235aa933b3971b1e",
+  "payload_comparison": {
+    "tested": {
+      "remove_signature_exit": 0,
+      "normalized_sha256": "c5af95fa1c75e47ef9f852d297ceea5f3350c2a863f1ac52300736ee055345d7"
+    },
+    "app": {
+      "remove_signature_exit": 0,
+      "normalized_sha256": "c5af95fa1c75e47ef9f852d297ceea5f3350c2a863f1ac52300736ee055345d7"
+    }
+  },
+  "source_clean": true,
+  "source_on_origin_main": true,
+  "live_backup_sha256": "c2f97353d23ee90aab1117df5b00700416fe52019c1c6bbea74903aa8bc6c968",
+  "live_backup_rows": 7297642,
+  "installation": "pending manual unlock and native acceptance"
+}
