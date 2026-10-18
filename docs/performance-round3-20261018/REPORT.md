@@ -1,6 +1,6 @@
 # MacEvery 第三轮查询 CPU 与增量刷新优化
 
-日期：2026-10-18；版本：r1，验证进行中，尚未替换 App。
+日期：2026-10-18；版本：r2，本轮本地优化、安装及限定验收完成。
 
 基线为第二轮已安装源码及文档主干 `ec58990b217d10d0c9b3e5b77e8ebe1c36d4a3e9`。用户授权验证通过后替换本机 App、提交和推送。保留 0.1.3，以 Git SHA 标识开发构建；不创建正式 release/tag。
 
@@ -15,7 +15,7 @@
 
 ## 正确性
 
-- Debug/Release 各 100 项 library tests，以及固定种子的 420 次混合事务集成测试通过；12 类操作各 35 次，396 次增量应用、24 次安全回退。每个事务将完整 FileRecord 和九类查询与同一数据库快照的新建 packed/完整记录搜索比较。
+- Debug/Release 各 100 项 library tests，以及固定种子的 420 次混合事务集成测试通过；12 类操作各 35 次，396 次增量应用（326 次含实际变更）、24 次安全回退。每个事务将完整 FileRecord 和九类查询与同一数据库快照的新建 packed/完整记录搜索比较。
 - 独立保留旧 scorer/glob/filter 作为 oracle，覆盖 Unicode、字节通配符、长词病态输入、空值、稳定同键排序、分块边界和碎片预检。交叉源码复核未发现阻断问题。
 - 覆盖快照期间后续提交、并发仅一次应用、日志裁剪/缺失/事件与 ID 超限、失败恢复、OR REPLACE、事务回滚及无效 UTF-8/超长 kind 的载荷限制。
 - 严格 Clippy all-targets、格式/diff、Python 语法及 Swift GUI 回归通过。GUI 取消、CLI 子进程回收、重试和背压行为沿用第二轮。
@@ -75,9 +75,19 @@ wave 1/2 的变更及首次查询相同，可比较完整刷新与增量刷新�
 
 ## 安装与本机验收
 
-待受控验证完成后执行；不重建真实索引，不改 roots/excludes/性能模式/快捷键。旧 App 已备份为 `.build/MacEvery.rollback-20261018-before-round3.app`；安装前还需保存最新真实数据库的只读 online backup。
+已从干净且已推送至 origin/main 的 `d93f3f67f3ca03d978f6f7d84edde3db3eea1acd` 构建，原路径 `.build/MacEvery.app` 运行，设置显示 `0.1.3-gd93f3f6`。深度/严格 ad-hoc 签名校验通过，去除签名后的 Rust 载荷 SHA 与最终实测制品相同。
+
+旧 App 保留于 `.build/MacEvery.rollback-20261018-before-round3.app` 和本轮证据目录的 `original-app-before-install.app`。最新真实索引使用只读 online backup 保存为 `.build/performance-round3-20261018/live-index-before.sqlite`，7,297,578 条、quick_check=ok、SHA256 `5a4f6ba128e381d3e31f0c894b922cfded0533c86f4cb71b4445f9fd33738997`。备份成功后，首次只读验证因 WAL-header 副本无 sidecar 未能打开，改为仅对已冻结副本使用 immutable=1 验证；从未对 live DB 使用 immutable。原失败记录保留。
+
+先正常退出旧 GUI；界面读取重新唤起旧 App 一次，替换前检查发现新 PID 并拦住覆盖。重新核对精确 bundle 路径后仅结束这些 MacEvery 进程，确认全部退出，再原位换入候选包。最终 GUI/service/watch PID 为 76429/76436/76437，父子归属正确。
+
+原生窗口和真实 watcher 联合验收通过：新建 18 bytes → 修改 35 bytes → 重命名后仅新路径一条 → 删除后 0/No Results；各步另用精确路径只读 SQL 核对，文件/目录和查询已清理。设置 Fastest、Command-Shift-Space 与 roots/excludes 保持原值；数据库 ID 与备份相同，新日志迁移已启用且行数在保留上限内。没有重建真实索引，没有授予或更改系统权限；新包权限探测显示 Unknown（旧包为 Limited），本轮验收范围为原有索引及上述可访问目录，未扩大受保护目录覆盖。
+
+App 空闲短观察使用同一工具、相同 20 秒采样方法。旧版平均 CPU 合计 0.122%/RSS 合计 2.660 GiB，新版 0.166%/2.618 GiB；100%=一个核。其他用户后台任务保留，观察前活动不同，不能据此宣称 idle CPU 改善或退化、也不能把 RSS 小幅下降当作本轮稳定收益。受控固定查询的内存结论是基本持平。
 
 ## 证据与边界
+
+结构化证据：[查询](evidence/search-summary.json)、[服务](evidence/service-summary.json)、[watcher](evidence/watch-results.json)、[源码/制品](evidence/candidate-artifacts.json)、[最终 App](evidence/app-final.json)、[原生窗口](evidence/live-window-smoke.json)、[空闲短观察](evidence/live-resources-summary.json)。
 
 原始源码、制品、日志、完整响应和采样保存在忽略目录 `.build/performance-round3-20261018/`；完整索引/真实搜索结果不推送。运行入口为 `tools/compare_round1.py`、`tools/check_service_round3.py`、`tools/watch_round1.py` 和 `tools/measure_app_resources.py`。
 

@@ -1,0 +1,73 @@
+{
+  "baseline": {
+    "note": "Round3 baseline App; no synthetic workload or query during observation; normal user background work and workspace editing retained.",
+    "wall_seconds": 20.1316265,
+    "processes": [
+      {
+        "pid": 39843,
+        "parent": 1,
+        "executable": "/Users/yangtao/pine/code/macevery/.build/MacEvery.app/Contents/MacOS/MacEveryApp",
+        "cpu_seconds": 0.015491375,
+        "average_cpu_percent_one_core": 0.07695043915105419,
+        "end_rss_bytes": 131399680,
+        "end_physical_footprint_bytes": 43811872
+      },
+      {
+        "pid": 39857,
+        "parent": 39843,
+        "executable": "/Users/yangtao/pine/code/macevery/.build/MacEvery.app/Contents/MacOS/macevery",
+        "cpu_seconds": 0.000169417,
+        "average_cpu_percent_one_core": 0.0008415465089221678,
+        "end_rss_bytes": 2704228352,
+        "end_physical_footprint_bytes": 2698496472
+      },
+      {
+        "pid": 39858,
+        "parent": 39843,
+        "executable": "/Users/yangtao/pine/code/macevery/.build/MacEvery.app/Contents/MacOS/macevery",
+        "cpu_seconds": 0.008809251,
+        "average_cpu_percent_one_core": 0.04375826761936002,
+        "end_rss_bytes": 20725760,
+        "end_physical_footprint_bytes": 6717992
+      }
+    ],
+    "total_average_cpu_percent_one_core": 0.12155025327933638,
+    "total_end_rss_bytes": 2856353792
+  },
+  "candidate": {
+    "note": "20s post-install observation after native lifecycle checks and clearing the query; other user apps remain running. Short point observation, not controlled idle A/B or a long-term leak test.",
+    "wall_seconds": 20.079074583000004,
+    "processes": [
+      {
+        "pid": 76429,
+        "parent": 1,
+        "executable": "/Users/yangtao/pine/code/macevery/.build/MacEvery.app/Contents/MacOS/MacEveryApp",
+        "cpu_seconds": 0.026755417,
+        "average_cpu_percent_one_core": 0.13325024960389625,
+        "end_rss_bytes": 142442496,
+        "end_physical_footprint_bytes": 58377248
+      },
+      {
+        "pid": 76436,
+        "parent": 76429,
+        "executable": "/Users/yangtao/pine/code/macevery/.build/MacEvery.app/Contents/MacOS/macevery",
+        "cpu_seconds": 0.000148041,
+        "average_cpu_percent_one_core": 0.0007372899552120756,
+        "end_rss_bytes": 2648522752,
+        "end_physical_footprint_bytes": 2643642960
+      },
+      {
+        "pid": 76437,
+        "parent": 76429,
+        "executable": "/Users/yangtao/pine/code/macevery/.build/MacEvery.app/Contents/MacOS/macevery",
+        "cpu_seconds": 0.006389833,
+        "average_cpu_percent_one_core": 0.03182334411671526,
+        "end_rss_bytes": 20332544,
+        "end_physical_footprint_bytes": 6226448
+      }
+    ],
+    "total_average_cpu_percent_one_core": 0.16581088367582358,
+    "total_end_rss_bytes": 2811297792
+  },
+  "scope": "Two separate short point observations of unchanged ordinary user environment, not strict controlled idle A/B or long-term leak proof"
+}

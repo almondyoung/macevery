@@ -1,0 +1,54 @@
+{
+  "source_commit": "d93f3f67f3ca03d978f6f7d84edde3db3eea1acd",
+  "build_label": "0.1.3-gd93f3f6",
+  "build_time": "2026-10-18T13:47:47Z",
+  "bundle_id": "com.almondyoung.macevery",
+  "signature": "codesign --verify --deep --strict PASS",
+  "gui_sha256": "dd54629ddec6795e1035dad4b4403d7384e3c687db5fe82f5bf2f55ff39d27fb",
+  "signed_cli_sha256": "b68fd0f3daeb3c8df3a281350461010cda96d1f45f5211649cb51dea975fed32",
+  "payload_comparison": {
+    "tested": {
+      "remove_signature_exit": 0,
+      "normalized_sha256": "ed805cb2f137b5dcdc375c736c32722d5b5cfa4c49f955e662026e964aadd329"
+    },
+    "app": {
+      "remove_signature_exit": 0,
+      "normalized_sha256": "ed805cb2f137b5dcdc375c736c32722d5b5cfa4c49f955e662026e964aadd329"
+    }
+  },
+  "live_backup": "5a4f6ba128e381d3e31f0c894b922cfded0533c86f4cb71b4445f9fd33738997",
+  "source_clean": true,
+  "source_on_origin_main": true,
+  "installed_path": "/Users/yangtao/pine/code/macevery/.build/MacEvery.app",
+  "native_lifecycle": "PASS",
+  "fixture_cleaned": true,
+  "processes": [
+    {
+      "pid": 76429,
+      "parent": 1,
+      "executable": "/Users/yangtao/pine/code/macevery/.build/MacEvery.app/Contents/MacOS/MacEveryApp",
+      "cpu_seconds": 0.026755417,
+      "average_cpu_percent_one_core": 0.13325024960389625,
+      "end_rss_bytes": 142442496,
+      "end_physical_footprint_bytes": 58377248
+    },
+    {
+      "pid": 76436,
+      "parent": 76429,
+      "executable": "/Users/yangtao/pine/code/macevery/.build/MacEvery.app/Contents/MacOS/macevery",
+      "cpu_seconds": 0.000148041,
+      "average_cpu_percent_one_core": 0.0007372899552120756,
+      "end_rss_bytes": 2648522752,
+      "end_physical_footprint_bytes": 2643642960
+    },
+    {
+      "pid": 76437,
+      "parent": 76429,
+      "executable": "/Users/yangtao/pine/code/macevery/.build/MacEvery.app/Contents/MacOS/macevery",
+      "cpu_seconds": 0.006389833,
+      "average_cpu_percent_one_core": 0.03182334411671526,
+      "end_rss_bytes": 20332544,
+      "end_physical_footprint_bytes": 6226448
+    }
+  ]
+}

@@ -1,6 +1,6 @@
 # MacEvery Round 3 Status
 
-Updated: 2026-10-18 (Asia/Shanghai). Implementation frozen; final checks and sequential benchmarks in progress.
+Updated: 2026-10-18 (Asia/Shanghai). Local implementation, controlled verification and native App acceptance complete.
 
 ## Task capsule
 
@@ -35,7 +35,7 @@ Updated: 2026-10-18 (Asia/Shanghai). Implementation frozen; final checks and seq
 
 ## Next action
 
-Finalize the kind-field payload guard identified in independent review, rerun final checks, then sequential same-input query/HTTP/watcher measurements. No live App replacement yet.
+本轮本地目标已完成，最终验收文档随独立文档提交保存；推送后精确 SHA 回读记录在忽略目录 final-git-receipt.json。已安装源码固定 d93f3f6，不因文档更新重编译。后续如继续优化，优先短词查询回退、fuzzy 扫描及 watcher 队列。
 
 ## First implementation checkpoint
 
@@ -66,3 +66,12 @@ Finalize the kind-field payload guard identified in independent review, rerun fi
 - Lifecycle HWM old2.611/new2.639 GiB (+1.1%); no claimed extra memory reduction. Fixed query HWM approximately unchanged.
 - 300k FSEvents A/B/A nine lifecycle/ignore/recovery checks and final state PASS, watcher CPU .0204/.0227s vs .0221s. No material watcher CPU change claimed.
 - Latest live read-only online backup in progress. Controlled validation complete; next source commit/push, clean candidate App build, signature/payload checks, replacement/native window acceptance and idle observation.
+
+## Installed acceptance (final)
+
+- Source d93f3f67f3ca03d978f6f7d84edde3db3eea1acd committed/pushed, exact ls-remote match, behind=0, clean source build. App0.1.3-gd93f3f6 verified deep/strict and same normalized Rust payload as tested.
+- Latest read-only online DB backup 7,297,578 rows / quick_check ok, SHA5a4f6ba128e381d3e31f0c894b922cfded0533c86f4cb71b4445f9fd33738997. Backup mode=ro verification environment failure resolved using immutable only on completed frozen copy; preserved receipt.
+- Old GUI normal quit followed by observation-induced relaunch; pre-replace check caught it. Ended only newly identified exact old-bundle processes and installed after all exited. Old bundle plus prior rollback remain available.
+- New GUI76429/service76436/watch76437 at original path. Native create18 -> modify35 -> rename-only-new -> delete0 PASS, independently verified DB rows, fixture/query cleaned. Settings, roots/excludes, DBidentity preserved, journal migration bounded, no index rebuild or permission grant. Permission probe Unknown; protected-folder coverage not newly verified.
+- Post-install20.08s CPU .166% onecore / RSSsum2.618GiB. Pre-install20.13s .122% /2.660GiB. Point observations only; no idle CPU gain or long-term leak claim.
+- Report r2 and sanitized evidence complete; final documentation commit/push identity is tracked by Git and the ignored final-git-receipt.json after readback. Remote CI/formal QA/long-term observation NOT_RUN.

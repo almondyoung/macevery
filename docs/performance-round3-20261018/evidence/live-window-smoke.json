@@ -1,0 +1,73 @@
+{
+  "checks": {
+    "create": {
+      "database_pass": true,
+      "wait_seconds": 0.416134041,
+      "at_unix": 1792331418.10604
+    },
+    "modify": {
+      "database_pass": true,
+      "wait_seconds": 0.519798833,
+      "at_unix": 1792331444.211228
+    },
+    "rename": {
+      "database_pass": true,
+      "wait_seconds": 0.318800667,
+      "at_unix": 1792331459.5314748
+    },
+    "delete": {
+      "database_pass": true,
+      "wait_seconds": 0.527310959,
+      "at_unix": 1792331484.5977101
+    }
+  },
+  "cleaned": true,
+  "build_label": "0.1.3-gd93f3f6",
+  "source_commit": "d93f3f67f3ca03d978f6f7d84edde3db3eea1acd",
+  "native_window_checks": {
+    "create": {
+      "results": 1,
+      "basename": "alpha-r3cpu2d6f0c81.txt",
+      "size_bytes": 18
+    },
+    "modify": {
+      "results": 1,
+      "basename": "alpha-r3cpu2d6f0c81.txt",
+      "size_bytes": 35
+    },
+    "rename": {
+      "results": 1,
+      "basename": "beta-r3cpu2d6f0c81.txt",
+      "size_bytes": 35,
+      "old_name_absent": true
+    },
+    "delete": {
+      "results": 0,
+      "display": "No Results"
+    },
+    "after_cleanup": {
+      "query": "",
+      "display": "No Query"
+    }
+  },
+  "settings": {
+    "mode": "Fastest",
+    "shortcut": "Command-Shift-Space",
+    "roots_equal_backup": true,
+    "excludes_equal_backup": true,
+    "no_system_permissions_changed": true,
+    "permission_probe_display": "Unknown"
+  },
+  "schema": {
+    "file_changes_v1": "1",
+    "database_identity_preserved": true,
+    "revision": 1322452,
+    "journal_floor": 1305600,
+    "journal_rows": 16852,
+    "journal_min_max": [
+      1305601,
+      1322452
+    ]
+  },
+  "evidence_tier": "Native AX visible results plus independent exact-path read-only SQL; controlled service incremental mechanism verified separately"
+}
