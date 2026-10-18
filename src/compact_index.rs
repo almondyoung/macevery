@@ -13,6 +13,9 @@ const NO_EXTENSION: u32 = u32::MAX;
 const TOMBSTONE: u8 = 1 << 7;
 const MAX_DEAD_STRING_BYTES: usize = 32 * 1024 * 1024;
 const MAX_EXTENSION_GROWTH_BYTES: usize = 4 * 1024 * 1024;
+const METADATA_FIELDS: usize = 6;
+const ESCAPED_VALUE: u32 = 1 << 31;
+const INLINE_SPAN: i128 = (ESCAPED_VALUE - 1) as i128;
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum ApplyOutcome {
@@ -27,10 +30,24 @@ pub struct FragmentationStats {
     pub extension_growth_bytes: usize,
 }
 
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct IndexMemoryBreakdown {
+    pub record_capacity_bytes: usize,
+    pub metadata_capacity_bytes: usize,
+    pub string_capacity_bytes: usize,
+    pub string_used_bytes: usize,
+    pub extension_capacity_bytes: usize,
+    pub container_bytes: usize,
+    pub narrow_metadata_blocks: usize,
+    pub wide_metadata_blocks: usize,
+    pub live_metadata_escapes: usize,
+}
+
 /// Searchable fields remain borrowed from bounded arenas; only final hits are decoded.
 pub struct CompactIndex {
     arenas: Vec<String>,
     records: Vec<Vec<CompactRecord>>,
+    metadata: Vec<MetadataBlock>,
     extensions: Vec<Box<str>>,
     len: usize,
     physical_len: usize,
@@ -45,6 +62,7 @@ impl Default for CompactIndex {
         Self {
             arenas: Vec::new(),
             records: Vec::new(),
+            metadata: Vec::new(),
             extensions: Vec::new(),
             len: 0,
             physical_len: 0,
@@ -62,8 +80,6 @@ impl Default for CompactIndex {
 
 struct CompactRecord {
     id: i64,
-    indexed_at: i64,
-    values: [i64; 5],
     path: Slice,
     path_lower: Slice,
     basename: Slice,
@@ -75,9 +91,6 @@ struct CompactRecord {
 }
 
 impl CompactRecord {
-    fn optional(&self, field: usize) -> Option<i64> {
-        (self.present & (1 << field) != 0).then_some(self.values[field])
-    }
     fn is_live(&self) -> bool {
         self.present & TOMBSTONE == 0
     }
@@ -96,7 +109,6 @@ impl CompactRecord {
     }
     fn update_metadata(&mut self, record: &DbRecordRef<'_>, ext: u32) {
         self.id = record.id;
-        self.indexed_at = record.indexed_at;
         self.kind = record.kind.clone();
         self.ext = ext;
         self.present = 0;
@@ -110,12 +122,258 @@ impl CompactRecord {
         .into_iter()
         .enumerate()
         {
-            self.values[i] = value.unwrap_or(0);
             if value.is_some() {
                 self.present |= 1 << i;
             }
         }
     }
+}
+
+type MetadataValues = [i64; METADATA_FIELDS];
+type MetadataInput = [Option<i64>; METADATA_FIELDS];
+
+enum MetadataBlock {
+    Narrow(NarrowMetadata),
+    Wide(Vec<MetadataValues>),
+}
+
+struct NarrowMetadata {
+    bases: MetadataValues,
+    initialized: u8,
+    rows: Vec<[u32; METADATA_FIELDS]>,
+    escapes: Vec<i64>,
+    // Vacant escape entries hold the next free index, or -1. Each live
+    // slot/field owns its entry, so repeated updates reuse storage in place.
+    free_head: Option<u32>,
+    free_count: usize,
+}
+
+impl MetadataBlock {
+    fn new(capacity: usize) -> Result<Self> {
+        let mut rows = Vec::new();
+        rows.try_reserve_exact(capacity)
+            .map_err(metadata_allocation)?;
+        let narrow = NarrowMetadata {
+            bases: [0; METADATA_FIELDS],
+            initialized: 0,
+            rows,
+            escapes: Vec::new(),
+            free_head: None,
+            free_count: 0,
+        };
+        let mut block = Self::Narrow(narrow);
+        if !block.narrow_fits(0) {
+            block.make_wide()?;
+        }
+        Ok(block)
+    }
+
+    fn value(&self, row: usize, field: usize) -> i64 {
+        match self {
+            Self::Narrow(values) => values.decode(values.rows[row][field], field),
+            Self::Wide(values) => values[row][field],
+        }
+    }
+
+    fn push(&mut self, input: MetadataInput) -> Result<()> {
+        self.write(None, input)
+    }
+
+    fn update(&mut self, row: usize, input: MetadataInput) -> Result<()> {
+        self.write(Some(row), input)
+    }
+
+    fn write(&mut self, row: Option<usize>, input: MetadataInput) -> Result<()> {
+        if let Self::Narrow(values) = self {
+            let codes = values.prepare(input);
+            let old = row
+                .map(|row| values.rows[row])
+                .unwrap_or([0; METADATA_FIELDS]);
+            let new_escapes = codes.iter().filter(|code| code.is_none()).count();
+            let old_escapes = old
+                .iter()
+                .filter(|code| **code & ESCAPED_VALUE != 0)
+                .count();
+            let additional = new_escapes.saturating_sub(old_escapes + values.free_count);
+            if self.narrow_fits(additional) {
+                let Self::Narrow(values) = self else {
+                    unreachable!()
+                };
+                let needed = values.escapes.len().saturating_add(additional);
+                if needed > values.escapes.capacity() {
+                    let max_escapes = (values
+                        .rows
+                        .capacity()
+                        .saturating_mul(
+                            size_of::<MetadataValues>() - size_of::<[u32; METADATA_FIELDS]>(),
+                        )
+                        .saturating_sub(size_of::<MetadataValues>())
+                        / size_of::<i64>())
+                    .min((ESCAPED_VALUE - 1) as usize);
+                    let capacity = needed
+                        .max(values.escapes.capacity().saturating_mul(2))
+                        .max(16)
+                        .min(max_escapes);
+                    values
+                        .escapes
+                        .try_reserve_exact(capacity - values.escapes.len())
+                        .map_err(metadata_allocation)?;
+                }
+                // Account for actual allocator capacity, not only logical length.
+                if self.narrow_fits(0) {
+                    let Self::Narrow(values) = self else {
+                        unreachable!()
+                    };
+                    values.write(row, input, codes, old);
+                    return Ok(());
+                }
+            }
+            // A block becomes wide once; pathological i64 distributions cannot
+            // retain both the codes/escape table and the full-width payload.
+            self.make_wide()?;
+        }
+        let Self::Wide(values) = self else {
+            unreachable!()
+        };
+        let values_in = input.map(|value| value.unwrap_or(0));
+        if let Some(row) = row {
+            values[row] = values_in;
+        } else {
+            values.push(values_in);
+        }
+        Ok(())
+    }
+
+    fn narrow_fits(&self, additional: usize) -> bool {
+        let Self::Narrow(values) = self else {
+            return false;
+        };
+        let capacity = values.rows.capacity();
+        let escapes = values
+            .escapes
+            .capacity()
+            .max(values.escapes.len().saturating_add(additional));
+        escapes < ESCAPED_VALUE as usize
+            && capacity
+                .saturating_mul(size_of::<[u32; METADATA_FIELDS]>())
+                .saturating_add(escapes.saturating_mul(size_of::<i64>()))
+                .saturating_add(size_of::<MetadataValues>())
+                <= capacity.saturating_mul(size_of::<MetadataValues>())
+    }
+
+    fn make_wide(&mut self) -> Result<()> {
+        let Self::Narrow(narrow) = self else {
+            return Ok(());
+        };
+        let mut values = Vec::new();
+        values
+            .try_reserve_exact(narrow.rows.capacity())
+            .map_err(metadata_allocation)?;
+        for codes in &narrow.rows {
+            values.push(std::array::from_fn(|field| {
+                narrow.decode(codes[field], field)
+            }));
+        }
+        *self = Self::Wide(values);
+        Ok(())
+    }
+
+    fn capacity_bytes(&self) -> usize {
+        match self {
+            Self::Narrow(values) => {
+                values.rows.capacity() * size_of::<[u32; METADATA_FIELDS]>()
+                    + values.escapes.capacity() * size_of::<i64>()
+            }
+            Self::Wide(values) => values.capacity() * size_of::<MetadataValues>(),
+        }
+    }
+}
+
+impl NarrowMetadata {
+    fn decode(&self, code: u32, field: usize) -> i64 {
+        if code & ESCAPED_VALUE != 0 {
+            self.escapes[(code & !ESCAPED_VALUE) as usize]
+        } else {
+            // prepare only emits an inline code when the exact i128 difference
+            // is representable; wrapping avoids debug arithmetic on unused NULLs.
+            self.bases[field].wrapping_add(i64::from(code))
+        }
+    }
+
+    fn prepare(&mut self, input: MetadataInput) -> [Option<u32>; METADATA_FIELDS] {
+        std::array::from_fn(|field| {
+            let Some(value) = input[field] else {
+                return Some(0);
+            };
+            if self.initialized & (1 << field) == 0 {
+                self.bases[field] =
+                    (i128::from(value) - INLINE_SPAN / 2).max(i128::from(i64::MIN)) as i64;
+                self.initialized |= 1 << field;
+            }
+            let difference = i128::from(value) - i128::from(self.bases[field]);
+            (0..=INLINE_SPAN)
+                .contains(&difference)
+                .then_some(difference as u32)
+        })
+    }
+
+    fn write(
+        &mut self,
+        row: Option<usize>,
+        input: MetadataInput,
+        codes: [Option<u32>; METADATA_FIELDS],
+        old: [u32; METADATA_FIELDS],
+    ) {
+        // Release first so another field in this same row can reuse the vacancy.
+        for field in 0..METADATA_FIELDS {
+            if old[field] & ESCAPED_VALUE != 0 && codes[field].is_some() {
+                let slot = old[field] & !ESCAPED_VALUE;
+                self.escapes[slot as usize] = self.free_head.map_or(-1, i64::from);
+                self.free_head = Some(slot);
+                self.free_count += 1;
+            }
+        }
+        let encoded = std::array::from_fn(|field| {
+            if let Some(code) = codes[field] {
+                return code;
+            }
+            let slot = if old[field] & ESCAPED_VALUE != 0 {
+                old[field] & !ESCAPED_VALUE
+            } else if let Some(slot) = self.free_head {
+                let next = self.escapes[slot as usize];
+                self.free_head = (next >= 0).then_some(next as u32);
+                self.free_count -= 1;
+                slot
+            } else {
+                let slot = self.escapes.len() as u32;
+                debug_assert!(slot < ESCAPED_VALUE);
+                self.escapes.push(0);
+                slot
+            };
+            self.escapes[slot as usize] = input[field].unwrap();
+            slot | ESCAPED_VALUE
+        });
+        if let Some(row) = row {
+            self.rows[row] = encoded;
+        } else {
+            self.rows.push(encoded);
+        }
+    }
+}
+
+fn metadata_allocation(error: std::collections::TryReserveError) -> MacEveryError {
+    MacEveryError::Cli(format!("cannot allocate packed metadata: {error}"))
+}
+
+fn metadata_input(record: &DbRecordRef<'_>) -> MetadataInput {
+    [
+        record.size,
+        record.mtime,
+        record.ctime,
+        record.dev,
+        record.inode,
+        Some(record.indexed_at),
+    ]
 }
 
 #[derive(Clone, Copy, Default)]
@@ -208,7 +466,7 @@ impl IndexBuilder {
             .index
             .intern_extension(record.ext_lower, Some(&mut self.extension_ids))?;
         let packed = self.index.pack_record(&record, &text, ext)?;
-        self.index.append(packed)
+        self.index.append(packed, metadata_input(&record))
     }
 }
 
@@ -372,13 +630,15 @@ impl CompactIndex {
                 if let Some(text) = plan.text {
                     let packed = self.pack_record(&borrowed, &text, ext)?;
                     if let Some(slot) = plan.slot {
+                        self.update_metadata(slot, &borrowed)?;
                         *self.record_at_mut(slot) = packed;
                     } else {
-                        self.append(packed)?;
+                        self.append(packed, metadata_input(&borrowed))?;
                     }
                 } else {
-                    self.record_at_mut(plan.slot.unwrap())
-                        .update_metadata(&borrowed, ext);
+                    let slot = plan.slot.unwrap();
+                    self.update_metadata(slot, &borrowed)?;
+                    self.record_at_mut(slot).update_metadata(&borrowed, ext);
                 }
             } else if let Some(slot) = plan.slot {
                 self.record_at_mut(slot).present |= TOMBSTONE;
@@ -475,8 +735,6 @@ impl CompactIndex {
         }
         let mut packed = CompactRecord {
             id: record.id,
-            indexed_at: record.indexed_at,
-            values: [0; 5],
             path: slices[0],
             path_lower: slices[1],
             basename: slices[2],
@@ -490,7 +748,7 @@ impl CompactIndex {
         Ok(packed)
     }
 
-    fn append(&mut self, packed: CompactRecord) -> Result<()> {
+    fn append(&mut self, packed: CompactRecord, metadata: MetadataInput) -> Result<()> {
         if self.physical_len > 0 && self.record_at(self.physical_len - 1).id >= packed.id {
             self.ids_sorted = false;
         }
@@ -505,8 +763,10 @@ impl CompactIndex {
                 .map_err(|err| {
                     MacEveryError::Cli(format!("cannot allocate packed record block: {err}"))
                 })?;
+            self.metadata.push(MetadataBlock::new(block.capacity())?);
             self.records.push(block);
         }
+        self.metadata.last_mut().unwrap().push(metadata)?;
         self.records.last_mut().unwrap().push(packed);
         self.len = self.len.checked_add(1).ok_or_else(index_too_large)?;
         self.physical_len = self
@@ -514,6 +774,11 @@ impl CompactIndex {
             .checked_add(1)
             .ok_or_else(index_too_large)?;
         Ok(())
+    }
+
+    fn update_metadata(&mut self, index: usize, record: &DbRecordRef<'_>) -> Result<()> {
+        self.metadata[index / self.records_per_block]
+            .update(index % self.records_per_block, metadata_input(record))
     }
 
     fn reserve_row(&mut self, bytes: usize) -> Result<usize> {
@@ -545,35 +810,73 @@ impl CompactIndex {
 
     /// Allocated container/payload capacity; excludes allocator and SQLite overhead, not RSS.
     pub fn memory_usage_bytes(&self) -> u64 {
-        let mut bytes = size_of::<Self>() as u64;
-        for amount in [
-            self.arenas.capacity() * size_of::<String>(),
-            self.records.capacity() * size_of::<Vec<CompactRecord>>(),
-            self.extensions.capacity() * size_of::<Box<str>>(),
-        ] {
-            bytes = bytes.saturating_add(amount as u64);
+        let usage = self.memory_breakdown();
+        [
+            usage.record_capacity_bytes,
+            usage.metadata_capacity_bytes,
+            usage.string_capacity_bytes,
+            usage.extension_capacity_bytes,
+            usage.container_bytes,
+        ]
+        .into_iter()
+        .fold(0u64, |sum, bytes| sum.saturating_add(bytes as u64))
+    }
+
+    /// Read-only allocation accounting; resident/compressed pages are an OS metric.
+    pub fn memory_breakdown(&self) -> IndexMemoryBreakdown {
+        let mut usage = IndexMemoryBreakdown {
+            record_capacity_bytes: self
+                .records
+                .iter()
+                .map(|block| block.capacity() * size_of::<CompactRecord>())
+                .sum(),
+            metadata_capacity_bytes: self
+                .metadata
+                .iter()
+                .map(MetadataBlock::capacity_bytes)
+                .sum(),
+            string_capacity_bytes: self.arenas.iter().map(String::capacity).sum(),
+            string_used_bytes: self.arenas.iter().map(String::len).sum(),
+            extension_capacity_bytes: self.extensions.iter().map(|ext| ext.len()).sum(),
+            container_bytes: size_of::<Self>()
+                + self.arenas.capacity() * size_of::<String>()
+                + self.records.capacity() * size_of::<Vec<CompactRecord>>()
+                + self.metadata.capacity() * size_of::<MetadataBlock>()
+                + self.extensions.capacity() * size_of::<Box<str>>(),
+            ..IndexMemoryBreakdown::default()
+        };
+        for block in &self.metadata {
+            match block {
+                MetadataBlock::Narrow(values) => {
+                    usage.narrow_metadata_blocks += 1;
+                    usage.live_metadata_escapes += values.escapes.len() - values.free_count;
+                }
+                MetadataBlock::Wide(_) => usage.wide_metadata_blocks += 1,
+            }
         }
-        for arena in &self.arenas {
-            bytes = bytes.saturating_add(arena.capacity() as u64);
-        }
-        for block in &self.records {
-            bytes = bytes.saturating_add((block.capacity() * size_of::<CompactRecord>()) as u64);
-        }
-        for ext in &self.extensions {
-            bytes = bytes.saturating_add(ext.len() as u64);
-        }
-        bytes
+        usage
     }
 
     pub fn search(&self, options: &SearchOptions) -> Vec<SearchResult> {
         let options = options.normalized();
         let query = PreparedQuery::new(&options);
         let mut hits = TopHits::new(effective_limit(options.limit));
-        for (index, record) in self.iter_records().enumerate() {
+        for (index, (record, metadata, row)) in self
+            .records
+            .iter()
+            .zip(&self.metadata)
+            .flat_map(|(records, metadata)| {
+                records
+                    .iter()
+                    .enumerate()
+                    .map(move |(row, record)| (record, metadata, row))
+            })
+            .enumerate()
+        {
             if !record.is_live() {
                 continue;
             }
-            let mtime = record.optional(1);
+            let mtime = (record.present & (1 << 1) != 0).then(|| metadata.value(row, 1));
             let ext = if query.needs_extension() {
                 self.ext(record)
             } else {
@@ -608,11 +911,12 @@ impl CompactIndex {
         hits.finish()
             .into_iter()
             .map(|hit| SearchResult {
-                record: self.to_file_record(self.record_at(hit.index)),
+                record: self.to_file_record(hit.index),
                 score: hit.score,
             })
             .collect()
     }
+    #[cfg(test)]
     fn iter_records(&self) -> impl Iterator<Item = &CompactRecord> {
         self.records.iter().flat_map(|block| block.iter())
     }
@@ -629,7 +933,14 @@ impl CompactIndex {
     fn ext(&self, record: &CompactRecord) -> Option<&str> {
         (record.ext != NO_EXTENSION).then(|| self.extensions[record.ext as usize].as_ref())
     }
-    fn to_file_record(&self, record: &CompactRecord) -> FileRecord {
+    fn optional_metadata(&self, index: usize, record: &CompactRecord, field: usize) -> Option<i64> {
+        (record.present & (1 << field) != 0).then(|| {
+            self.metadata[index / self.records_per_block]
+                .value(index % self.records_per_block, field)
+        })
+    }
+    fn to_file_record(&self, index: usize) -> FileRecord {
+        let record = self.record_at(index);
         FileRecord {
             id: record.id,
             path: self.get(record, record.path).into(),
@@ -638,12 +949,13 @@ impl CompactIndex {
             basename_lower: self.get(record, record.basename_lower).into(),
             ext_lower: self.ext(record).map(str::to_string),
             kind: record.kind.clone(),
-            size: record.optional(0),
-            mtime: record.optional(1),
-            ctime: record.optional(2),
-            dev: record.optional(3),
-            inode: record.optional(4),
-            indexed_at: record.indexed_at,
+            size: self.optional_metadata(index, record, 0),
+            mtime: self.optional_metadata(index, record, 1),
+            ctime: self.optional_metadata(index, record, 2),
+            dev: self.optional_metadata(index, record, 3),
+            inode: self.optional_metadata(index, record, 4),
+            indexed_at: self.metadata[index / self.records_per_block]
+                .value(index % self.records_per_block, 5),
         }
     }
 }
@@ -883,7 +1195,8 @@ mod tests {
         assert_eq!(
             actual
                 .iter_records()
-                .map(|record| actual.to_file_record(record))
+                .enumerate()
+                .map(|(index, _)| actual.to_file_record(index))
                 .collect::<Vec<_>>(),
             expected
         );
@@ -977,7 +1290,8 @@ mod tests {
         assert_eq!(
             index
                 .iter_records()
-                .map(|record| index.to_file_record(record))
+                .enumerate()
+                .map(|(slot, _)| index.to_file_record(slot))
                 .collect::<Vec<_>>(),
             records
         );
@@ -1014,7 +1328,7 @@ mod tests {
             packed.path.start as usize + record.path.len() - record.basename.len()
         );
         record.path_lower = record.path.to_lowercase();
-        assert_eq!(index.to_file_record(packed), record);
+        assert_eq!(index.to_file_record(0), record);
     }
 
     #[test]
@@ -1030,8 +1344,9 @@ mod tests {
     fn live_records(index: &CompactIndex) -> Vec<FileRecord> {
         index
             .iter_records()
-            .filter(|record| record.is_live())
-            .map(|record| index.to_file_record(record))
+            .enumerate()
+            .filter(|(_, record)| record.is_live())
+            .map(|(slot, _)| index.to_file_record(slot))
             .collect()
     }
 
@@ -1066,7 +1381,7 @@ mod tests {
             push_record(&mut builder, record);
         }
         let mut index = builder.index;
-        let memory = index.memory_usage_bytes();
+        let memory_strings = index.memory_breakdown().string_capacity_bytes;
         let arena_lengths = index.arenas.iter().map(String::len).collect::<Vec<_>>();
         records[2].kind = FileKind::Other;
         records[2].size = Some(i64::MIN);
@@ -1084,7 +1399,10 @@ mod tests {
                 .unwrap(),
             ApplyOutcome::Applied
         );
-        assert_eq!(index.memory_usage_bytes(), memory);
+        assert_eq!(
+            index.memory_breakdown().string_capacity_bytes,
+            memory_strings
+        );
         assert_eq!(
             index.arenas.iter().map(String::len).collect::<Vec<_>>(),
             arena_lengths
@@ -1116,7 +1434,10 @@ mod tests {
         records.insert(1, removed);
         assert_eq!(index.fragmentation_stats().dead_records, 0);
         assert_eq!(index.fragmentation_stats().dead_string_bytes, 0);
-        assert_eq!(index.memory_usage_bytes(), memory);
+        assert_eq!(
+            index.memory_breakdown().string_capacity_bytes,
+            memory_strings
+        );
 
         let mut changed = FileRecord::new("/new/ΟΣ/📷 report.PDF".into(), FileKind::App, i64::MAX);
         changed.id = 40;
@@ -1150,7 +1471,7 @@ mod tests {
         records[2] = changed;
         records.push(appended);
         assert_eq!(index.physical_len, 8);
-        assert_eq!(size_of::<CompactRecord>(), 104);
+        assert_eq!(size_of::<CompactRecord>(), 56);
         assert_delta_matches(&index, &records);
         // Deleting an unknown ID is an idempotent no-op, including low IDs.
         assert_eq!(
@@ -1304,6 +1625,184 @@ mod tests {
             }
         }
         panic!("fragmented strings must eventually require a rebuild");
+    }
+
+    fn check_metadata(block: &MetadataBlock, row: usize, input: MetadataInput) {
+        for (field, value) in input.into_iter().enumerate() {
+            if let Some(value) = value {
+                assert_eq!(block.value(row, field), value, "row={row}, field={field}");
+            }
+        }
+    }
+
+    #[test]
+    fn metadata_codes_preserve_extremes_null_and_exact_inline_boundaries() {
+        let mut block = MetadataBlock::new(64).unwrap();
+        let mut input = [
+            Some(i64::MIN),
+            Some(i64::MAX),
+            None,
+            Some(0),
+            Some(-1),
+            Some(99),
+        ];
+        block.push(input).unwrap();
+        check_metadata(&block, 0, input);
+        for field in 0..METADATA_FIELDS {
+            let MetadataBlock::Narrow(values) = &block else {
+                panic!("must stay narrow")
+            };
+            let base = values.bases[field];
+            for candidate in [
+                Some(i64::MIN),
+                Some(i64::MAX),
+                None,
+                Some(0),
+                Some(-1),
+                Some(base),
+                base.checked_sub(1),
+                base.checked_add(INLINE_SPAN as i64),
+                base.checked_add(INLINE_SPAN as i64 + 1),
+            ] {
+                input[field] = candidate;
+                block.update(0, input).unwrap();
+                check_metadata(&block, 0, input);
+            }
+        }
+        assert!(matches!(block, MetadataBlock::Narrow(_)));
+    }
+
+    #[test]
+    fn metadata_escape_storage_is_reused_across_fields_and_null_updates() {
+        let normal = [
+            Some(1),
+            Some(1_700_000_000),
+            Some(1_700_000_000),
+            Some(17),
+            Some(900),
+            Some(1_790_000_000_000_000_000),
+        ];
+        let extremes = [
+            Some(i64::MIN),
+            Some(i64::MAX),
+            Some(i64::MIN),
+            Some(i64::MAX),
+            Some(i64::MIN),
+            Some(i64::MAX),
+        ];
+        let mut block = MetadataBlock::new(64).unwrap();
+        for _ in 0..64 {
+            block.push(normal).unwrap();
+        }
+        block.update(0, extremes).unwrap();
+        let capacity = block.capacity_bytes();
+        for round in 0..500 {
+            for (row, input) in [
+                (0, normal),
+                (1, extremes),
+                (1, [None; METADATA_FIELDS]),
+                (0, extremes),
+                (1, normal),
+            ] {
+                block.update(row, input).unwrap();
+                check_metadata(&block, row, input);
+                assert_eq!(block.capacity_bytes(), capacity, "round={round}");
+            }
+        }
+        let MetadataBlock::Narrow(values) = block else {
+            panic!("must stay narrow")
+        };
+        assert_eq!(values.escapes.len(), METADATA_FIELDS);
+        assert_eq!(values.free_count, 0);
+    }
+
+    #[test]
+    fn metadata_overflow_turns_wide_once_and_bounds_payload_capacity() {
+        let mut block = MetadataBlock::new(64).unwrap();
+        let normal = [Some(0); METADATA_FIELDS];
+        let mut expected = vec![normal; 64];
+        for input in &expected {
+            block.push(*input).unwrap();
+        }
+        assert!(matches!(block, MetadataBlock::Narrow(_)));
+        let budget = 64 * size_of::<MetadataValues>();
+        let mut became_wide = false;
+        for (row, input) in expected.iter_mut().enumerate() {
+            *input = std::array::from_fn(|field| {
+                Some(if (row + field) % 2 == 0 {
+                    i64::MIN
+                } else {
+                    i64::MAX
+                })
+            });
+            block.update(row, *input).unwrap();
+            assert!(block.capacity_bytes() <= budget);
+            if let MetadataBlock::Narrow(_) = block {
+                assert!(block.narrow_fits(0));
+            } else {
+                became_wide = true;
+            }
+        }
+        assert!(became_wide);
+        for (row, input) in expected.iter().enumerate() {
+            check_metadata(&block, row, *input);
+        }
+        for row in 0..64 {
+            block.update(row, normal).unwrap();
+        }
+        assert!(matches!(block, MetadataBlock::Wide(_)));
+        assert_eq!(block.capacity_bytes(), budget);
+    }
+
+    #[test]
+    fn common_metadata_updates_leave_all_payload_capacities_unchanged() {
+        let mut records = (1..=16)
+            .map(|id| {
+                let mut row = FileRecord::new(format!("/tmp/report-{id}.txt"), FileKind::File, 100);
+                row.id = id;
+                row.size = Some(id);
+                row.mtime = Some(1_700_000_000 + id);
+                row.ctime = row.mtime;
+                row.dev = Some(17);
+                row.inode = Some(100 + id);
+                row
+            })
+            .collect::<Vec<_>>();
+        let mut index = from_records(&records);
+        let before = index.memory_breakdown();
+        assert_eq!(before.narrow_metadata_blocks, 1);
+        assert_eq!(before.live_metadata_escapes, 0);
+        assert_eq!(size_of::<CompactRecord>(), 56);
+        for round in 1..100 {
+            let row = &mut records[5];
+            row.size = Some(round);
+            row.mtime = Some(1_700_000_000 + round);
+            row.ctime = Some(1_700_000_000 - round);
+            row.dev = Some(17 + round);
+            row.inode = Some(round);
+            row.indexed_at = round;
+            assert_eq!(
+                index
+                    .apply_changes(&[FileChange {
+                        id: row.id,
+                        record: Some(row.clone())
+                    }])
+                    .unwrap(),
+                ApplyOutcome::Applied
+            );
+            assert_eq!(index.memory_breakdown(), before);
+        }
+        assert_delta_matches(&index, &records);
+        let accounted = before.record_capacity_bytes
+            + before.metadata_capacity_bytes
+            + before.string_capacity_bytes
+            + before.extension_capacity_bytes
+            + before.container_bytes;
+        assert_eq!(index.memory_usage_bytes(), accounted as u64);
+        assert_eq!(
+            before.record_capacity_bytes + before.metadata_capacity_bytes,
+            RECORDS_PER_BLOCK * 80
+        );
     }
 
     fn unique_temp_dir(prefix: &str) -> std::path::PathBuf {

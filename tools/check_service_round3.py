@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Sequential A/B HTTP validation of bounded incremental index refresh.
 
-Both binaries must already use the packed memory backend (round-2 baseline vs
-round-3 candidate); this script does not compare the old Vec memory backend with
-packed storage. Only frozen /tmp snapshots and fresh /tmp output are accepted.
+Both binaries must already use the packed memory backend. The baseline may
+use round-2 full refresh or round-3 incremental refresh; diagnostics select the
+expected checks. This never compares the old Vec backend with packed storage. Only frozen /tmp snapshots and fresh /tmp output are accepted.
 The round-2 tool's reviewed copy/process/metrics helpers are reused without edits.
 
 Each version receives its own copy of the same migrated prepared snapshot. Three
@@ -162,6 +162,7 @@ def run_version(label, binary, database, ordinary, output, args, metrics):
     command = [str(binary), 'serve', '--addr', f'127.0.0.1:{port}', '--backend', 'memory']
     report = {'label': label, 'binary': identity(binary, True), 'command': command,
               'database': identity(database), 'port': port, 'responses': {}, 'phases': {}}
+    supports_incremental = label == 'candidate'
     service = OwnedService(command, environment, output)
     sampler = Sampler(service.process.pid, args.sample_interval, metrics)
 
@@ -182,7 +183,7 @@ def run_version(label, binary, database, ordinary, output, args, metrics):
 
     def check_increment(before, after, normal=True, reason=None):
         old, new = counters(before), counters(after)
-        if label == 'candidate':
+        if supports_incremental:
             require(set(new) == {'reload_count', 'reload_attempts', 'incremental_applies', 'incremental_attempts'},
                     'Candidate lacks incremental diagnostics')
             if normal:
@@ -208,11 +209,13 @@ def run_version(label, binary, database, ordinary, output, args, metrics):
         _ready, phase = sampler.measure('load', ready)
         report['phases']['load'] = phase
         initial_status = status('initial_status')
+        supports_incremental = supports_incremental or 'incremental_applies' in response_json(initial_status)
+        report['incremental_checks_expected'] = supports_incremental
         search('initial_search')
         previous = initial_status
         for wave in range(1, NORMAL_WAVES + 1):
             apply_wave(database, wave, ordinary)
-            if label == 'candidate':
+            if supports_incremental:
                 observed = status(f'wave_{wave}_status_only')
                 require(counters(observed) == counters(previous), 'Status triggered refresh')
                 require(response_json(observed)['stale'] is True, 'Status did not report the changed snapshot')
@@ -261,7 +264,7 @@ def run_version(label, binary, database, ordinary, output, args, metrics):
         search('explicit_after_search')
         after = status('explicit_after_status')
         check_increment(previous, after, normal=False)
-        if label == 'candidate':
+        if supports_incremental:
             require(response_json(after)['last_refresh_method'] == 'explicit_full', 'Explicit reload stopped being full')
         previous = after
 
@@ -293,8 +296,8 @@ def run_version(label, binary, database, ordinary, output, args, metrics):
         search('missing_journal_search')
         after = status('missing_journal_after_status')
         check_increment(previous, after, normal=False, reason='journal_unavailable')
-        # Legacy baseline cannot repair the journal itself; repair its isolated
-        # copy outside measured phases so later fault recovery has valid triggers.
+        # Repair a legacy baseline's isolated journal outside measured phases;
+        # for an incremental baseline/candidate this is a no-op status command.
         subprocess.run([str(args.candidate.resolve()), 'status', '--json'], env=environment,
                        capture_output=True, text=True, timeout=args.timeout, check=True)
         previous = after
@@ -307,14 +310,14 @@ def run_version(label, binary, database, ordinary, output, args, metrics):
         require(failure.get('status') == 503, 'Failed refresh did not return retryable 503')
         failed_status = status('refresh_failure_status')
         require(response_json(failed_status)['ok'] is False, 'Failed refresh claimed to be fresh')
-        if label == 'candidate':
+        if supports_incremental:
             require(counters(failed_status)['incremental_applies'] == counters(previous)['incremental_applies'], 'Failed refresh published an incremental stamp')
         with closing(sqlite3.connect(database)) as connection:
             connection.execute('ALTER TABLE round3_temporarily_unavailable RENAME TO files')
             connection.commit()
         search('refresh_recovery')
         after = status('refresh_recovery_status')
-        if label == 'candidate':
+        if supports_incremental:
             require(response_json(after)['stale'] is False, 'Refresh retry did not recover')
             require(counters(after)['incremental_applies'] == counters(previous)['incremental_applies'] + 1, 'Read-error recovery did not apply the pending delta')
         report['status'] = 'PASS'

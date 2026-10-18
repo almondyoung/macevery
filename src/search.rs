@@ -239,13 +239,89 @@ pub fn rank_view(record: &RecordView<'_>, options: &SearchOptions) -> Option<i64
     PreparedQuery::new(options).rank(record)
 }
 
-// Rust's short-string search remains useful for the common few-character query.
-// Longer patterns reuse one Horspool table per request, with a linear fallback
-// on highly repetitive inputs instead of a per-record pattern construction.
+// Cache both short and long patterns once per request. Short UTF-8 needles
+// still match bytes: every successful match has the same first byte offset as
+// str::find, without rebuilding its string searcher for each indexed record.
+#[derive(Default)]
+struct ShortFinder {
+    bytes: [u8; 8],
+    first: u64,
+    last: u64,
+    len: usize,
+}
+
+impl ShortFinder {
+    fn new(needle: &[u8]) -> Self {
+        let mut finder = Self::default();
+        if !needle.is_empty() && needle.len() <= 7 {
+            finder.bytes[..needle.len()].copy_from_slice(needle);
+            finder.first = u64::from_le_bytes([needle[0]; 8]);
+            finder.last = u64::from_le_bytes([needle[needle.len() - 1]; 8]);
+            finder.len = needle.len();
+        }
+        finder
+    }
+
+    #[inline]
+    fn find(&self, haystack: &str) -> Option<usize> {
+        match self.len {
+            0 => Some(0),
+            // A valid one-byte UTF-8 needle is ASCII; the standard char search
+            // uses its optimized single-byte scan without a substring searcher.
+            1 => haystack.find(char::from(self.bytes[0])),
+            2 => self.find_bytes::<2>(haystack.as_bytes()),
+            3 => self.find_bytes::<3>(haystack.as_bytes()),
+            4 => self.find_bytes::<4>(haystack.as_bytes()),
+            5 => self.find_bytes::<5>(haystack.as_bytes()),
+            6 => self.find_bytes::<6>(haystack.as_bytes()),
+            7 => self.find_bytes::<7>(haystack.as_bytes()),
+            _ => unreachable!(),
+        }
+    }
+
+    fn find_bytes<const N: usize>(&self, haystack: &[u8]) -> Option<usize> {
+        let starts = haystack.len().checked_sub(N)? + 1;
+        let needle = &self.bytes[..N];
+        let mut offset = 0;
+        while starts - offset >= 8 {
+            // Both reads are within the haystack, including the last legal
+            // candidate start. No padding or unaligned pointer reads are used.
+            let first = u64::from_le_bytes(haystack[offset..offset + 8].try_into().unwrap());
+            let last =
+                u64::from_le_bytes(haystack[offset + N - 1..offset + N + 7].try_into().unwrap());
+            let mut candidates =
+                zero_byte_mask(first ^ self.first) & zero_byte_mask(last ^ self.last);
+            while candidates != 0 {
+                let candidate = offset + candidates.trailing_zeros() as usize / 8;
+                // The word filter may have extra candidate bits due to byte
+                // borrows. A complete fixed-length comparison rejects them.
+                if haystack[candidate..candidate + N] == *needle {
+                    return Some(candidate);
+                }
+                candidates &= candidates - 1;
+            }
+            offset += 8;
+        }
+        while offset < starts {
+            if haystack[offset..offset + N] == *needle {
+                return Some(offset);
+            }
+            offset += 1;
+        }
+        None
+    }
+}
+
+#[inline]
+fn zero_byte_mask(word: u64) -> u64 {
+    word.wrapping_sub(0x0101_0101_0101_0101) & !word & 0x8080_8080_8080_8080
+}
+
 struct Finder {
     value: String,
     skip: Option<Box<[usize; 256]>>,
     prefix: Vec<usize>,
+    short: ShortFinder,
 }
 
 impl Finder {
@@ -271,17 +347,24 @@ impl Finder {
         } else {
             (None, Vec::new())
         };
+        let short = ShortFinder::new(bytes);
         Self {
             value,
             skip,
             prefix,
+            short,
         }
     }
 
+    #[inline]
     fn find(&self, haystack: &str) -> Option<usize> {
-        let Some(skip) = &self.skip else {
-            return haystack.find(&self.value);
-        };
+        match &self.skip {
+            None => self.short.find(haystack),
+            Some(skip) => self.find_long(haystack, skip),
+        }
+    }
+
+    fn find_long(&self, haystack: &str, skip: &[usize; 256]) -> Option<usize> {
         let needle = self.value.as_bytes();
         let haystack = haystack.as_bytes();
         if needle.len() > haystack.len() {
@@ -949,6 +1032,145 @@ mod tests {
             Finder::new(format!("{}b", "a".repeat(64))).find(&(haystack + "b")),
             Some(99_936)
         );
+    }
+
+    #[test]
+    fn short_finders_preserve_first_offsets_at_every_word_and_utf8_boundary() {
+        let needles = [
+            "a", "/", "\0", "ab", "aa", "\0\0", "Σ", "abc", "aba", "aa\0", "报", "i\u{307}",
+            "code", "aaaa", "a\0ba", "📷", "ΣΣ", "coder", "ababa", "Σabc", "报ab", "\0報a",
+            "report", "aaaaaa", "报告", "ΣΣΣ", "reportx", "aaaaaaa", "📷abc", "報Σab",
+        ];
+        let mut seen_lengths = [false; 8];
+        for needle in needles {
+            assert!((1..=7).contains(&needle.len()));
+            seen_lengths[needle.len()] = true;
+            let finder = Finder::new(needle.into());
+            for offset in 0..34 {
+                for separator in ["", "x", "\0", "Σ", "📷"] {
+                    let haystack =
+                        format!("{}{needle}{separator}{needle}tail", "\u{1}".repeat(offset));
+                    for end in haystack
+                        .char_indices()
+                        .map(|(index, _)| index)
+                        .chain(std::iter::once(haystack.len()))
+                    {
+                        let text = &haystack[..end];
+                        assert_eq!(
+                            finder.find(text),
+                            text.find(needle),
+                            "needle={needle:?} offset={offset} end={end}"
+                        );
+                    }
+                }
+            }
+        }
+        assert!(seen_lengths[1..].iter().all(|seen| *seen));
+        for (haystack, needle) in [
+            ("aaaaaaaabaaaa", "aaab"),
+            ("ababababababa", "ababa"),
+            ("\0\u{1}\u{1}\0\u{1}\u{1}abcdef", "\0\u{1}\u{1}"),
+            ("📷📷📷报告📷", "📷报"),
+        ] {
+            assert_eq!(
+                Finder::new(needle.into()).find(haystack),
+                haystack.find(needle)
+            );
+        }
+    }
+
+    #[test]
+    fn short_anchor_filters_cannot_drop_matches_with_zero_borrows_or_high_bytes() {
+        let mut state = 0xbac8_0402_0100_ff81_u64;
+        for turn in 0..10_000 {
+            let mut next_byte = || {
+                state ^= state << 13;
+                state ^= state >> 7;
+                state ^= state << 17;
+                // Extra zero/one bytes exercise borrow-generated candidates.
+                [0, 1, 0x7f, 0x80, 0xff, state as u8][state as usize % 6]
+            };
+            let mut haystack = (0..turn % 83).map(|_| next_byte()).collect::<Vec<_>>();
+            let len = 2 + turn % 6;
+            let needle = (0..len).map(|_| next_byte()).collect::<Vec<_>>();
+            if haystack.len() >= len && turn % 2 == 0 {
+                let offset = turn % (haystack.len() - len + 1);
+                haystack[offset..offset + len].copy_from_slice(&needle);
+            }
+            let finder = ShortFinder::new(&needle);
+            let actual = match len {
+                2 => finder.find_bytes::<2>(&haystack),
+                3 => finder.find_bytes::<3>(&haystack),
+                4 => finder.find_bytes::<4>(&haystack),
+                5 => finder.find_bytes::<5>(&haystack),
+                6 => finder.find_bytes::<6>(&haystack),
+                7 => finder.find_bytes::<7>(&haystack),
+                _ => unreachable!(),
+            };
+            assert_eq!(
+                actual,
+                haystack.windows(len).position(|part| part == needle),
+                "turn={turn} haystack={haystack:?} needle={needle:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn short_query_full_results_match_the_independent_legacy_scorer() {
+        let mut records = test_reference::records();
+        for (i, path) in [
+            "/code",
+            "/tmp/code",
+            "/tmp/codecode/codecode",
+            "/tmp/codex",
+            "/tmp/xcode",
+            "/tmp/xxcodecode",
+            "/tmp/报告/code📷",
+            "/tmp/📷/Σ/code",
+            "/tmp/ΣΣ",
+            "/tmp/报告",
+            "/tmp/aaaaaaa",
+            "/tmp/abababa",
+            "/tmp/a\0code\0📷abc",
+        ]
+        .iter()
+        .enumerate()
+        {
+            let mut record = record(path);
+            record.id = 5000 + i as i64;
+            record.mtime = Some((i % 3) as i64);
+            records.push(record);
+        }
+        for needle in [
+            "a", "ab", "abc", "code", "coder", "report", "reportx", "Σ", "报告", "📷", "📷abc",
+            "\0",
+        ] {
+            for query in [
+                needle.to_string(),
+                format!("*{needle}*"),
+                format!("{needle}*"),
+                format!("*{needle}"),
+            ] {
+                for path_only in [false, true] {
+                    for fuzzy in [false, true] {
+                        for limit in [0, 1, 3, 17, usize::MAX] {
+                            let options = SearchOptions {
+                                query: query.clone(),
+                                path_only,
+                                fuzzy,
+                                limit,
+                                ..Default::default()
+                            };
+                            assert_eq!(
+                                search_records(&records, &options),
+                                test_reference::search_records(&records, &options),
+                                "{options:?}"
+                            );
+                        }
+                    }
+                }
+            }
+        }
     }
 
     #[test]

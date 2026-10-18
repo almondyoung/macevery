@@ -171,7 +171,9 @@ def run_one(args, driver, variant, block, ordinal, out):
         write_json(out / f"{run_id}.combined.json", metadata)
         if metadata["exit_code"]:
             raise RuntimeError(f"{run_id} failed: see {out / (run_id + '.stderr.txt')}")
-        required = {"start", "load_end", "query_end", "results", "process_end"}
+        required = {"start", "load_end", "results", "process_end"}
+        if args.queries:
+            required.add("query_end")
         if not required.issubset({e["event"] for e in events}):
             raise RuntimeError(f"{run_id}: incomplete event stream")
         print(f"{run_id}: complete, {len(samples)} RSS samples", file=sys.stderr, flush=True)
@@ -250,7 +252,7 @@ def summarize_metrics(runs):
             if "baseline" in v and "candidate" in v}
 
 
-def main():
+def main(*, driver_source=None, entrypoint_source=None):
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--baseline-lib", type=Path, required=True)
     p.add_argument("--candidate-lib", type=Path, required=True)
@@ -286,11 +288,14 @@ def main():
     if (out / "manifest.json").exists():
         p.error("output already contains a manifest; choose a new output to preserve evidence")
     tools = Path(__file__).resolve().parent
+    driver_source = Path(driver_source or tools / "perf_round1.rs").resolve(strict=True)
+    entrypoint_source = Path(entrypoint_source or __file__).resolve(strict=True)
     manifest = {"created_at_utc": dt.datetime.now(dt.timezone.utc).isoformat(), "arguments": vars(args).copy(),
                 "platform": platform.platform(), "machine": platform.machine(), "logical_cpus": os.cpu_count(),
                 "python": sys.version, "rustc": subprocess.check_output(["rustc", "--version"], text=True).strip(),
                 "driver_compile_flags": ["--edition=2021", "-O", "-C", "lto=fat"],
-                "driver_sha256": sha256(tools / "perf_round1.rs"), "wrapper_sha256": sha256(Path(__file__)),
+                "driver_sha256": sha256(driver_source), "wrapper_sha256": sha256(entrypoint_source),
+                "driver_source": str(driver_source), "helper_wrapper_sha256": sha256(Path(__file__)),
                 "snapshot_identity": stat_identity(args.snapshot) if args.snapshot else None,
                 "libraries": {variant: {"identity": stat_identity(path.resolve(strict=True)), "sha256": sha256(path)}
                               for variant, path in [("baseline", args.baseline_lib), ("candidate", args.candidate_lib)]}}
@@ -299,7 +304,7 @@ def main():
     drivers = {}
     for variant, lib in [("baseline", args.baseline_lib), ("candidate", args.candidate_lib)]:
         binary = out / f"perf-{variant}"
-        command = ["rustc", "--edition=2021", "-O", "-C", "lto=fat", str(tools / "perf_round1.rs"), "--extern", f"macevery={lib.resolve()}", "-o", str(binary)]
+        command = ["rustc", "--edition=2021", "-O", "-C", "lto=fat", str(driver_source), "--extern", f"macevery={lib.resolve()}", "-o", str(binary)]
         subprocess.run(command, check=True)
         drivers[variant] = binary
     runs = []

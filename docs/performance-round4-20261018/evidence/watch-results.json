@@ -1,0 +1,92 @@
+[
+  {
+    "label": "baseline",
+    "rows_seeded": 300000,
+    "elapsed_s": 8.70651475,
+    "cpu_s": 0.019802,
+    "peak_rss_bytes": 11812864,
+    "checks": [
+      "create",
+      "modify",
+      "rename",
+      "directory create",
+      "directory rename",
+      "directory delete",
+      "file delete",
+      "excluded directory write storm",
+      "update after excluded events"
+    ],
+    "final_rows": [
+      [
+        ".",
+        "dir",
+        null
+      ],
+      [
+        "after-noise.txt",
+        "file",
+        2
+      ]
+    ]
+  },
+  {
+    "label": "candidate",
+    "rows_seeded": 300000,
+    "elapsed_s": 8.762961292000002,
+    "cpu_s": 0.020513999999999998,
+    "peak_rss_bytes": 11763712,
+    "checks": [
+      "create",
+      "modify",
+      "rename",
+      "directory create",
+      "directory rename",
+      "directory delete",
+      "file delete",
+      "excluded directory write storm",
+      "update after excluded events"
+    ],
+    "final_rows": [
+      [
+        ".",
+        "dir",
+        null
+      ],
+      [
+        "after-noise.txt",
+        "file",
+        2
+      ]
+    ]
+  },
+  {
+    "label": "baseline-repeat",
+    "rows_seeded": 300000,
+    "elapsed_s": 8.762079416999995,
+    "cpu_s": 0.018723999999999998,
+    "peak_rss_bytes": 11796480,
+    "checks": [
+      "create",
+      "modify",
+      "rename",
+      "directory create",
+      "directory rename",
+      "directory delete",
+      "file delete",
+      "excluded directory write storm",
+      "update after excluded events"
+    ],
+    "final_rows": [
+      [
+        ".",
+        "dir",
+        null
+      ],
+      [
+        "after-noise.txt",
+        "file",
+        2
+      ]
+    ]
+  }
+]

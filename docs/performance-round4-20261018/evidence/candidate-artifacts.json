@@ -1,0 +1,30 @@
+{
+  "baseline_commit": "4c17a03f805a40b0d11c025d8f66b82650cc92df",
+  "at_utc": "2026-10-18T14:17:46.516174+00:00",
+  "source_state": "uncommitted combined candidate frozen after full checks",
+  "source_sha256": {
+    "src/search.rs": "cd46a2352198204be84b0c88755562eebec5c81f0887bee25efa7479a3fbcbe4",
+    "src/compact_index.rs": "be1bc3bd8abe09ec6e02d317768e7633048d9a3b8023986aaeaeeb5c869780ed",
+    "src/db.rs": "91e983a1f520ff08dfee6c2636bc5107064d612b35ff2ba19a8df3a7a04f68e4",
+    "src/server.rs": "95354f8a7f7f13f72ba9085037d15a672466d87c7f9e4873fe41a9cef333a459",
+    "src/sqlite.rs": "0ef4b9e0ae8e481b3cda90d06c576d72e52db4e1087c4bb32c50caa87b26b201",
+    "tests/incremental_index.rs": "fc761551cc8e9659f5472bef711e3d58b1bf3f327aba7ad106a1e802e44f2b08",
+    "tools/compare_round1.py": "93ac97c56989567809c99d21fea9f73b5a699ee425be55f4c94d1b0d0775ae06",
+    "tools/compare_round4_short.py": "77c6a2ae1aa1bda18091b4342428dab5797a9e4455cfe4ff5950d70cd0e0f4a4",
+    "tools/perf_round4_short.rs": "4ff678e5ed4717a6caef9b4bfce6fe4a1434f73374f911effad7d51077b4222e",
+    "tools/index_memory_round4.rs": "4e3774420a47e93df4eb9e65939ac2fe018bab9fadd608c7ba37b29604706229",
+    "tools/check_service_round3.py": "15296717c64a1c7d8c8cb9fcf0c2f16dd3399baecd21058469f672e9f34278a1"
+  },
+  "artifacts": {
+    "macevery": "5ad2f9e7e515ff2e009852bb5f391019a9ec79ded2d86fb5e4614b53c22f1c4c",
+    "libmacevery.rlib": "82e6012a0cbbe0f71b6f8d8cbbbc2a2129576c1faa1d7c0c9a9474bb040ea56a"
+  },
+  "checks": {
+    "debug_library": 107,
+    "release_library": 107,
+    "integration_transactions": 420,
+    "clippy_all_targets": "PASS",
+    "gui_regressions": "PASS",
+    "format_diff_python": "PASS"
+  }
+}
