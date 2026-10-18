@@ -1,0 +1,62 @@
+{
+  "build_label": "0.1.3-ga5af62c",
+  "folder": "/Users/yangtao/pine/code/macevery/round2-window-smoke-8da9c610",
+  "checks": {
+    "create": {
+      "database_pass": true,
+      "wait_seconds": 0.524280291,
+      "row": [
+        "/Users/yangtao/pine/code/macevery/round2-window-smoke-8da9c610/alpha-r2window-8da9c610.txt",
+        "file",
+        18,
+        1792327499
+      ],
+      "at_unix": 1792327500.351615,
+      "native_window_pass": true,
+      "native_result": "alpha-r2window-8da9c610.txt file 18 bytes"
+    },
+    "modify": {
+      "database_pass": true,
+      "wait_seconds": 0.21120075,
+      "row": [
+        "/Users/yangtao/pine/code/macevery/round2-window-smoke-8da9c610/alpha-r2window-8da9c610.txt",
+        "file",
+        35,
+        1792327535
+      ],
+      "at_unix": 1792327536.025894,
+      "native_window_pass": true,
+      "native_result": "alpha-r2window-8da9c610.txt file 35 bytes"
+    },
+    "rename": {
+      "database_pass": true,
+      "wait_seconds": 0.317008125,
+      "row": [
+        "/Users/yangtao/pine/code/macevery/round2-window-smoke-8da9c610/beta-r2window-8da9c610.txt",
+        "file",
+        35,
+        1792327535
+      ],
+      "at_unix": 1792327571.3021739,
+      "native_window_pass": true,
+      "native_result": "one beta-r2window-8da9c610.txt file 35 bytes; no alpha result"
+    },
+    "delete": {
+      "database_pass": true,
+      "wait_seconds": 0.41840825,
+      "row": null,
+      "at_unix": 1792327597.349814,
+      "native_window_pass": true,
+      "native_result": "0 results; No Results"
+    }
+  },
+  "cleaned": true,
+  "settings_window": {
+    "build_label": "0.1.3-ga5af62c",
+    "mode": "Fastest",
+    "shortcut": "Command-Shift-Space",
+    "roots_unchanged": true
+  },
+  "query_cleared": true,
+  "status": "PASS"
+}

@@ -1,0 +1,14 @@
+{
+  "commit": "a5af62c80759e0655e1f49ff05a6c746c93e8a5c",
+  "version": "0.1.3",
+  "build_label": "0.1.3-ga5af62c",
+  "build_time": "2026-10-18T12:43:22Z",
+  "bundle_id": "com.almondyoung.macevery",
+  "sha256": {
+    "MacEveryApp": "54177f68445cb6b2640801dd2c6ad59ecb52ef93ef5db7317e765e345e17682c",
+    "macevery": "fe0f2391ee0e9de85761ce70474184015cd00ee229ed963bdb1c06a18e1374dd"
+  },
+  "rust_payload_matches_tested_app": true,
+  "codesign": "ad-hoc; deep strict verify PASS",
+  "source_clean": true
+}

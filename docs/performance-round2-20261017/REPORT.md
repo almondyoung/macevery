@@ -1,6 +1,6 @@
 # MacEvery 第二轮内存与重载优化
 
-日期：2026-10-17 创建，2026-10-18 更新；版本：r2，源码与隔离验证完成，最终 App 窗口验收进行中。
+日期：2026-10-17 创建，2026-10-18 更新；版本：r2，本地优化、安装与限定验收完成。
 
 本轮以第一轮提交 `ce375fe` 为基线，压缩常驻索引，减少无效全量重载及重载时的双份内存。用户已授权替换本机 App、提交和推送；保留 0.1.3，使用开发构建 SHA，不创建发布 tag。
 
@@ -54,9 +54,13 @@ CPU 使用 getrusage/wait4 和进程级 libproc；Apple Silicon 的 libproc CPU 
 
 ## 安装与证据
 
-原 App 和真实索引已分别备份在 `.build/MacEvery.rollback-20261017-before-round2.app` 与 `.build/performance-round2-20261017/live-index-before.sqlite`（7,292,429 条）。不重建用户索引，不更改 roots/excludes/性能偏好/快捷键。已安装 `0.1.3-g09fe2a9`，解锁后原生搜索正确返回源码文件，设置显示准确 BuildLabel 和原偏好；真实 watcher 创建、35 字节修改、重命名、删除与目录清理均通过。自动化曾因 Mac 锁屏等待用户解锁，未据此判产品失败。最终含 GUI 取消修复的安装与窗口增量验证仍进行中；远端 CI 和正式 QA 独立记录。
+原 App 和真实索引已分别备份在 `.build/MacEvery.rollback-20261017-before-round2.app` 与 `.build/performance-round2-20261017/live-index-before.sqlite`（7,292,429 条）。没有重建用户索引，没有更改 roots/excludes/性能偏好/快捷键。最终 App 来自干净且已推送的 `a5af62c80759e0655e1f49ff05a6c746c93e8a5c`，原路径运行，设置显示 `0.1.3-ga5af62c`。Rust 载荷 SHA 与已测候选相同，新增 GUI 取消修复已通过完整 GUI 回归，ad-hoc deep/strict 签名验证通过。
 
-结构化证据：[搜索](evidence/search-summary.json)、[服务重载](evidence/service-summary.json)、[watcher](evidence/watch-results.json)、[并发](evidence/burst-summary.json)、[源码与制品指纹](evidence/candidate-artifacts.json)。完整原始结果、响应、RSS 样本和受限环境失败保存在忽略目录 `.build/performance-round2-20261017/`，包含本机路径的索引与完整结果不推送。
+最终原生窗口与真实 watcher 联合验收通过：新增测试文件显示 18 bytes，修改后显示 35 bytes，重命名后同一标记仅返回 beta 新名称，删除并清理目录后搜索返回 0；数据库已独立逐路径核验。测试文件、目录及查询均清理。旧 GUI/service/watch 三个进程正常退出后才替换，最终三个进程保持运行。自动化曾因 Mac 锁屏等待用户解锁，未据此判产品失败。真实索引随用户文件活动增长，最终启动显示 7,296,280 条，与冻结性能数据的条数不同。
+
+最终 App 的 GUI、serve、watch 在一次 20.07 秒空闲采样中，总平均 CPU 约 0.11%（100%=一个 CPU 核），总 RSS 约 2.67 GiB，其中服务约 2.52 GiB。原 App 在安装前已退出，未取得同窗口的旧版 idle 样本；不能把这次短观察当作严格 idle 同比或长期泄漏测试。性能同比使用前述相同冻结数据的受控测量。远端 CI、正式 QA 和长期后台观察未验收，不创建正式 release/tag。
+
+结构化证据：[搜索](evidence/search-summary.json)、[服务重载](evidence/service-summary.json)、[watcher](evidence/watch-results.json)、[并发](evidence/burst-summary.json)、[源码与制品指纹](evidence/candidate-artifacts.json)、[最终 App](evidence/app-final.json)、[原生窗口更新](evidence/live-window-smoke.json)、[空闲资源](evidence/live-idle-summary.json)、[取消回归](evidence/gui-cancel-check.json)。完整原始结果、响应、RSS 样本和受限环境失败保存在忽略目录 `.build/performance-round2-20261017/`，索引与完整搜索结果不推送。
 
 复跑入口为 `tools/compare_round1.py`、`tools/check_service_round2.py`、`tools/watch_round1.py` 和 `tools/check_service_round1.py`，完整参数保存在原始 manifest/report。默认沙箱阻止本地监听，授权后隔离服务验证通过；一次自动审批超时后，纯查询基准在现有沙箱权限内完成。Python 系统 cache 写入受限后改用任务临时 cache，通过语法检查，均属环境证据。
 
