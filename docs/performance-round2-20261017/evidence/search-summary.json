@@ -247,5 +247,20 @@
       ]
     }
   },
-  "method": "Two sequential A/B/A blocks; baseline full FileRecord memory, candidate packed storage used internally by memory/compact service; complete ordered results hashed. Warm cache, fixed limit=300, same driver; process CPU getrusage. RSS not allocator capacity."
+  "method": "Two sequential A/B/A blocks; baseline full FileRecord memory, candidate packed storage used internally by memory/compact service; complete ordered results hashed. Warm cache, fixed limit=300, same driver; process CPU getrusage. RSS not allocator capacity.",
+  "paired_query_group_cpu": [
+    {
+      "block": 0,
+      "baseline_neighbor_mean_ms": 5946.798499999999,
+      "candidate_ms": 6291.634999999999,
+      "candidate_change_percent": 5.7986915144341955
+    },
+    {
+      "block": 1,
+      "baseline_neighbor_mean_ms": 6249.8565,
+      "candidate_ms": 6408.8859999999995,
+      "candidate_change_percent": 2.5445304224184895
+    }
+  ],
+  "paired_query_group_cpu_change_median_percent": 4.171610968426343
 }

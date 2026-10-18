@@ -1,0 +1,18 @@
+{
+  "before_fix": {
+    "exit": 2,
+    "query_unchanged": true,
+    "requests": 1,
+    "cli_fallback": false,
+    "is_searching": true
+  },
+  "after_fix": {
+    "exit": 0,
+    "query_unchanged": true,
+    "requests": 1,
+    "cli_fallback": false,
+    "is_searching": false
+  },
+  "full_gui_regression": "PASS",
+  "scope": "URLProtocol cancellation edge; not the cause of locked Mac UI automation delay"
+}

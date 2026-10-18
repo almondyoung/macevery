@@ -1109,7 +1109,10 @@ final class SearchViewModel: ObservableObject {
                 guard generation == self.searchGeneration else { return }
                 self.activeSearchTask = nil
                 // Cancellation is intentional and must never launch a CLI fallback.
-                if (error as? URLError)?.code == .cancelled { return }
+                if (error as? URLError)?.code == .cancelled {
+                    self.isSearching = false
+                    return
+                }
                 let statusCode = (response as? HTTPURLResponse)?.statusCode
                 if statusCode == 429 || statusCode == 503 {
                     // The service is applying backpressure. A second CLI search

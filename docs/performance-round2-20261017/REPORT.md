@@ -1,6 +1,6 @@
 # MacEvery 第二轮内存与重载优化
 
-日期：2026-10-17；版本：r1，源码与隔离验证完成，本机 App 安装验收待补。
+日期：2026-10-17 创建，2026-10-18 更新；版本：r2，源码与隔离验证完成，最终 App 窗口验收进行中。
 
 本轮以第一轮提交 `ce375fe` 为基线，压缩常驻索引，减少无效全量重载及重载时的双份内存。用户已授权替换本机 App、提交和推送；保留 0.1.3，使用开发构建 SHA，不创建发布 tag。
 
@@ -26,7 +26,7 @@
 | code 查询 CPU | 0.464 秒 | 0.392 秒 | 降低 15.5% |
 | 加载 CPU | 6.773 秒 | 6.342 秒 | 降低 6.4% |
 
-压缩解引用有代价：部分 glob、无命中、过滤查询更慢，整组查询 CPU 未下降。首组基线查询为 5.695 秒，后续基线约 6.19–6.31 秒；候选 6.292/6.409 秒，保留全部样本与配对结果，不能称所有查询都加速。加载后 RSS 也不是搜索后常驻值，候选首次搜索可升至约 2.64 GiB；不能用 1.82 GiB 代表全过程。
+压缩解引用有代价：部分 glob、无命中、过滤查询更慢，整组查询 CPU 未下降。首组基线查询为 5.695 秒，后续基线约 6.19–6.31 秒；候选 6.292/6.409 秒。按每组候选与前后基线均值比较，查询 CPU 分别增加 5.80%/2.54%，配对中位数增加 4.17%。加载 CPU 的配对变化为 +7.01%/-7.09%，不能称加载稳定加速。保留全部样本，不筛选有利值。加载后 RSS 也不是搜索后常驻值，候选首次搜索可升至约 2.64 GiB；不能用 1.82 GiB 代表全过程。
 
 ## 真实服务重载测试
 
@@ -48,12 +48,13 @@ CPU 使用 getrusage/wait4 和进程级 libproc；Apple Silicon 的 libproc CPU 
 - Rust Debug/Release 各 75 项通过，严格 Clippy all-targets 通过；包括完整字段独立 DB 解码对照、i64 极值/NULL/空串/Unicode、分块边界与稳定同键排序。
 - 覆盖 WAL 提交/回滚、元数据与 no-op 不刷新、并发仅一次加载、一致快照、数据库替换/旧库迁移、路径暂缺和失败恢复。
 - Swift GUI model/真实子进程检查通过，包括老新 status 解码、取消、过期结果、503/429 背压和 CLI 回收。此项本身不等于原生窗口验收。
+- 补充“query 未改变但系统返回 URLError.cancelled”的边界回归：修复前持续 busy，修复后结束 busy 且不启动 CLI，完整 GUI 回归再次通过。该 GUI 修复不改 Rust 索引与基准制品，不认定为锁屏时窗口观察延迟的原因。
 - 30 万条合成索引的真实 FSEvents A/B/A：9 类创建/修改/重命名/删除/排除与后续恢复检查通过，最终状态一致。watch CPU 为基线 0.0161/0.0165 秒、候选 0.0175 秒，属毫秒级差异，不宣称本轮进一步降低 watcher CPU。
 - 40 请求真实 HTTP 验证通过：2 个正确 200、38 个 503，认证、控制接口、后续搜索恢复和进程/端口回收通过。
 
 ## 安装与证据
 
-原 App 和真实索引已分别备份在 `.build/MacEvery.rollback-20261017-before-round2.app` 与 `.build/performance-round2-20261017/live-index-before.sqlite`（7,292,429 条）。不重建用户索引，不更改 roots/excludes/性能偏好/快捷键。原生窗口及真实索引增量更新验证将在安装后补录；远端 CI 和正式 QA 独立记录。
+原 App 和真实索引已分别备份在 `.build/MacEvery.rollback-20261017-before-round2.app` 与 `.build/performance-round2-20261017/live-index-before.sqlite`（7,292,429 条）。不重建用户索引，不更改 roots/excludes/性能偏好/快捷键。已安装 `0.1.3-g09fe2a9`，解锁后原生搜索正确返回源码文件，设置显示准确 BuildLabel 和原偏好；真实 watcher 创建、35 字节修改、重命名、删除与目录清理均通过。自动化曾因 Mac 锁屏等待用户解锁，未据此判产品失败。最终含 GUI 取消修复的安装与窗口增量验证仍进行中；远端 CI 和正式 QA 独立记录。
 
 结构化证据：[搜索](evidence/search-summary.json)、[服务重载](evidence/service-summary.json)、[watcher](evidence/watch-results.json)、[并发](evidence/burst-summary.json)、[源码与制品指纹](evidence/candidate-artifacts.json)。完整原始结果、响应、RSS 样本和受限环境失败保存在忽略目录 `.build/performance-round2-20261017/`，包含本机路径的索引与完整结果不推送。
 

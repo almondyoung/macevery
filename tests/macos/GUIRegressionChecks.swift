@@ -73,6 +73,11 @@ private final class SearchProtocol: URLProtocol, @unchecked Sendable {
             let stopped = self.stopped
             self.stateLock.unlock()
             guard !stopped else { return }
+            if query == "transport-cancelled" {
+                // The transport cancels without the model changing its query or generation.
+                self.client?.urlProtocol(self, didFailWithError: URLError(.cancelled))
+                return
+            }
             let response = HTTPURLResponse(url: self.request.url!, statusCode: status, httpVersion: nil, headerFields: nil)!
             self.client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
             self.client?.urlProtocol(self, didLoad: Data(body.utf8))
@@ -194,6 +199,17 @@ elif mode == 'search':
         let model = SearchViewModel(cli: cli, searchSession: session, managesChildProcesses: false, searchDebounceDelay: 0.005)
         func log() -> String { (try? String(contentsOf: events, encoding: .utf8)) ?? "" }
         try check(log().isEmpty, "Pre-cancelled fixture unexpectedly launched")
+
+        model.query = "transport-cancelled"
+        try pump(until: { SearchProtocol.count("transport-cancelled") == 1 })
+        pump(for: 0.15)
+        try check(model.query == "transport-cancelled", "Transport cancellation changed the user's query")
+        try check(SearchProtocol.count("transport-cancelled") == 1, "Transport cancellation unexpectedly retried")
+        try check(log().isEmpty, "Current-generation transport cancellation launched CLI fallback")
+        let cancellationState = "CHECK: unchanged query transport-cancelled, requests=1, CLI fallback=false, isSearching=\(model.isSearching)\n"
+        FileHandle.standardOutput.write(Data(cancellationState.utf8))
+        try check(!model.isSearching, "Current-generation transport cancellation left isSearching=true with no active task")
+        print("PASS: current-generation transport cancellation stops busy without CLI fallback")
 
         model.query = "delayed"
         try pump(until: { SearchProtocol.count("delayed") == 1 })
