@@ -1,10 +1,10 @@
 # MacEvery 第五轮：原路径前缀共享与内存验收
 
-2026-10-19，r1。受控正确性和性能验证完成；候选 App 构建、替换与原生验收待执行。
+2026-10-19，r2。受控正确性、CPU/RSS、App 原位替换、原生搜索和索引更新验收已完成。
 
 ## 改动与范围
 
-基线源码为 `eeac95e`，其生产代码与运行中的 `0.1.3-gd62aa1d` 一致。继续使用前四轮同一个 7,226,486 条冻结快照，SHA256 `68bd22081af1eb5ec9164037407cb6c9c13349a7f8e460fa9aa682b3286b5b29`；每个进程使用独立克隆，不写真实索引。
+基线源码为 `eeac95e`，其生产代码与替换前运行的 `0.1.3-gd62aa1d` 一致。继续使用前四轮同一个 7,226,486 条冻结快照，SHA256 `68bd22081af1eb5ec9164037407cb6c9c13349a7f8e460fa9aa682b3286b5b29`；每个进程使用独立克隆，不写真实索引。
 
 `src/compact_index.rs` 保持小写完整路径及小写 basename 连续，查询扫描和短词 matcher 不变。原路径改为共享目录前缀加连续后缀；后缀与已有小写字符串相同时直接复用。热记录仍为 56B，新增前缀 ID 使用已有对齐空间。
 
@@ -54,10 +54,34 @@
 
 ## App 与本机验收
 
-待执行：刷新只读一致备份、提交推送受测源码、干净候选构建/签名及载荷核对、精确停止旧 GUI/service/watch 并原位替换、原生增删改名与 code 搜索、最终资源采样。原 App、既有索引和回滚包保持，roots/excludes/模式/快捷键/系统权限不改，不重建真实索引。
+受测源码 `d70165868343806d959973a095bad18774ba5aa7` 已提交推送并精确回读；干净构建 `0.1.3-gd701658`。候选及原位安装后的深度/严格签名通过，已测 CLI 和安装 CLI 的副本去签名后 SHA256 均为 `4efcf03c479450a6e3fe350768be901f1926c394d1085acddced9de34e0bbfd8`，生产源码哈希未变。
+
+安装前刷新 mode=ro live 源的 online backup，7,303,844 条、quick_check=ok，SHA256 `3fb99b611f3a4217efb45b7ed3788c7b3c1bfa8bf17c1bf8e83a25e2a2014cb7`；immutable=1 仅用于完成后的独立备份。旧 App 在 `.build/MacEvery.rollback-20261019-before-round5.app` 与证据目录 `original-app-before-install.app` 保留。
+
+精确核实旧 GUI/service/watch 67307/67318/67319 后，仅停止 GUI并等待全部旧进程退出，再原位换入已验候选。当前 GUI/service/watch 为16389/16393/16394，父子归属正确，在两个安装后采样窗口前后均稳定。
+
+原生窗口四步通过，并逐步用精确路径只读 SQL 核对：新建 alpha 显示18字节→修改35字节→重命名后仅 beta 新路径一条、alpha消失→删除后0/No Results。SQL等待分别6.940/0.209/0.421/0.522秒，这是单次轮询完成时间，首次处于刚启动阶段，不作稳定更新延迟基准。自动输入一次漏掉过滤冒号，未计为验收，使用精确粘贴后通过；原始尝试保留。
+
+原生 `code` 正常返回300条；此项只证明窗口烟测，不替代有序全字段 oracle，也不把AX自动等待当CPU耗时。测试文件/目录及查询已清理，窗口回到No Query。
+
+设置核实为Fastest、Command-Shift-Space、Limited；roots/excludes与备份一致，数据库ID保持，最终日志17,377条在固定保留上限内。未授予新系统权限或重建真实索引。启动显示7,304,627条，真实文件活动持续发生，与冻结基准条数不同。
+
+安装前后保留三段独立短观察：
+
+| 观察窗口 | 时长（秒） | 平均CPU合计（100%=一个核） | 结束时RSS合计（GiB） |
+| --- | ---: | ---: | ---: |
+| 替换前，旧App | 20.081 | 0.098% | 2.522 |
+| 替换后，首段 | 20.063 | 5.777% | 1.743 |
+| 替换后，补充段 | 20.062 | 0.113% | 1.743 |
+
+首段安装后CPU5.777%由GUI1.950%和watcher3.827%为主，查询服务0.000675%；该高活动样本完整保留。因这一差异补测一次，CPU0.113%，其中观察期数据库内容修订增加1。没有以补充段替换首段，也不据此推断高活动的确切原因。两个窗口查询均清空、角色稳定。
+
+这是不同历史和后台活动下的点观察，RSS合计可能重复计算共享页，physical footprint单独保存在原样本。不能据此宣称idleCPU稳定改善/退化或长期无泄漏；正式资源结论以前述固定输入A/B/A为准。
+
+验收记录采用独立文档提交保存，精确Git/远端回执位于忽略目录 `final-git-receipt.json`；App保持由源码d701658构建，不因文档提交重新构建。
 
 ## 证据
 
-[检查](evidence/checks.json)、[九类查询](evidence/search-summary.json)、[短词组](evidence/short-summary.json)、[预设性能门禁](evidence/performance-gates.json)、[容量](evidence/index-memory.json)、[HTTP 更新](evidence/service-summary.json)、[FSEvents](evidence/watch-results.json)。
+[检查](evidence/checks.json)、[九类查询](evidence/search-summary.json)、[短词组](evidence/short-summary.json)、[预设性能门禁](evidence/performance-gates.json)、[容量](evidence/index-memory.json)、[HTTP 更新](evidence/service-summary.json)、[FSEvents](evidence/watch-results.json)、[制品指纹](evidence/candidate-artifacts.json)、[历史候选](evidence/app-candidate.json)、[最终App](evidence/app-final.json)、[原生窗口](evidence/live-window-smoke.json)、[三段资源观察](evidence/live-resources-summary.json)。
 
 原始源码、制品、完整结果、资源样本、回滚包和失败记录保存在忽略目录 `.build/performance-round5-20261019/`，真实索引和完整真实搜索结果不推送。入口为既有 compare_round1/compare_round4_short，新增 check_service_round5/index_memory_round5。远端 CI、正式 QA、长期后台及受保护目录扩展覆盖未执行。

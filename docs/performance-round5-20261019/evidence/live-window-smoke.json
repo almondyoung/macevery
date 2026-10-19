@@ -1,0 +1,75 @@
+{
+  "query_marker": "r5memoryc5f791d2",
+  "checks": {
+    "create": {
+      "database_pass": true,
+      "wait_seconds": 6.940465250000001,
+      "row": [
+        "alpha-r5memoryc5f791d2.txt",
+        "file",
+        18,
+        1792381774
+      ],
+      "at_unix": 1792381781.027334,
+      "native_pass": true,
+      "visible": "one alpha result,18 bytes"
+    },
+    "modify": {
+      "database_pass": true,
+      "wait_seconds": 0.209191666,
+      "row": [
+        "alpha-r5memoryc5f791d2.txt",
+        "file",
+        35,
+        1792381802
+      ],
+      "at_unix": 1792381802.508268,
+      "native_pass": true,
+      "visible": "one alpha result,35 bytes"
+    },
+    "rename": {
+      "database_pass": true,
+      "wait_seconds": 0.421438875,
+      "row": [
+        "beta-r5memoryc5f791d2.txt",
+        "file",
+        35,
+        1792381802
+      ],
+      "at_unix": 1792381822.420204,
+      "native_pass": true,
+      "visible": "one beta result,35 bytes; alpha absent"
+    },
+    "delete": {
+      "database_pass": true,
+      "wait_seconds": 0.522256292,
+      "row": null,
+      "at_unix": 1792381834.9403892,
+      "native_pass": true,
+      "visible": "zero results,No Results"
+    }
+  },
+  "cleaned": true,
+  "native_acceptance": "PASS",
+  "code_query": {
+    "query": "code",
+    "visible_results": 300,
+    "mode": "Fastest",
+    "pass": true,
+    "scope": "native smoke, not timing or complete-result oracle"
+  },
+  "query_cleared": true,
+  "configuration": {
+    "mode": "Fastest",
+    "shortcut": "Command-Shift-Space",
+    "permissions": "Limited",
+    "roots_excludes_equal_backup": true,
+    "database_identity_preserved": true,
+    "journal_rows": 17377
+  },
+  "input_attempt_note": {
+    "modify_typeText_observed": "marker exttxt (colon omitted), 0 results; invalid input, not accepted as validation",
+    "retry": "paste exact marker ext:txt; native35 bytes/one result PASS"
+  },
+  "at_utc": "2026-10-19T03:54:09.557244+00:00"
+}

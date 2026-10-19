@@ -1,0 +1,114 @@
+{
+  "scope": "three separate20s point observations; first post-install high-activity sample retained; not controlled idle AB or long-term leak proof",
+  "roles_stable_in_all_windows": true,
+  "baseline": {
+    "note": "Round5 baseline 20s point observation, query cleared; ordinary user background retained. Not controlled idle A/B or long-term leak proof.",
+    "wall_seconds": 20.080727916,
+    "processes": [
+      {
+        "pid": 67307,
+        "parent": 1,
+        "executable": ".build/MacEvery.app/Contents/MacOS/MacEveryApp",
+        "cpu_seconds": 0.013090499,
+        "average_cpu_percent_one_core": 0.06518936492122729,
+        "end_rss_bytes": 167264256,
+        "end_physical_footprint_bytes": 64390248
+      },
+      {
+        "pid": 67318,
+        "parent": 67307,
+        "executable": ".build/MacEvery.app/Contents/MacOS/macevery",
+        "cpu_seconds": 0.000184625,
+        "average_cpu_percent_one_core": 0.0009194138816695672,
+        "end_rss_bytes": 2518302720,
+        "end_physical_footprint_bytes": 2513226104
+      },
+      {
+        "pid": 67319,
+        "parent": 67307,
+        "executable": ".build/MacEvery.app/Contents/MacOS/macevery",
+        "cpu_seconds": 0.006389375,
+        "average_cpu_percent_one_core": 0.03181844316962757,
+        "end_rss_bytes": 21921792,
+        "end_physical_footprint_bytes": 6259264
+      }
+    ],
+    "total_average_cpu_percent_one_core": 0.09792722197252443,
+    "total_end_rss_bytes": 2707488768,
+    "sample_count": 21
+  },
+  "final": {
+    "note": "Round5 final 20s point observation, query cleared; ordinary user background retained. Not controlled idle A/B or long-term leak proof.",
+    "wall_seconds": 20.063064459000003,
+    "processes": [
+      {
+        "pid": 16389,
+        "parent": 1,
+        "executable": ".build/MacEvery.app/Contents/MacOS/MacEveryApp",
+        "cpu_seconds": 0.391156917,
+        "average_cpu_percent_one_core": 1.9496369450407294,
+        "end_rss_bytes": 150798336,
+        "end_physical_footprint_bytes": 63734840
+      },
+      {
+        "pid": 16393,
+        "parent": 16389,
+        "executable": ".build/MacEvery.app/Contents/MacOS/macevery",
+        "cpu_seconds": 0.000135458,
+        "average_cpu_percent_one_core": 0.0006751610666297565,
+        "end_rss_bytes": 1700052992,
+        "end_physical_footprint_bytes": 1449084584
+      },
+      {
+        "pid": 16394,
+        "parent": 16389,
+        "executable": ".build/MacEvery.app/Contents/MacOS/macevery",
+        "cpu_seconds": 0.767776124,
+        "average_cpu_percent_one_core": 3.8268138228284796,
+        "end_rss_bytes": 20725760,
+        "end_physical_footprint_bytes": 6685296
+      }
+    ],
+    "total_average_cpu_percent_one_core": 5.777125928935838,
+    "total_end_rss_bytes": 1871577088,
+    "sample_count": 21
+  },
+  "followup": {
+    "note": "Round5 followup 20s point observation, query cleared; ordinary user background retained. Not controlled idle A/B or long-term leak proof.",
+    "wall_seconds": 20.061538792,
+    "processes": [
+      {
+        "pid": 16389,
+        "parent": 1,
+        "executable": ".build/MacEvery.app/Contents/MacOS/MacEveryApp",
+        "cpu_seconds": 0.017130667,
+        "average_cpu_percent_one_core": 0.08539059330200158,
+        "end_rss_bytes": 150667264,
+        "end_physical_footprint_bytes": 63620152
+      },
+      {
+        "pid": 16393,
+        "parent": 16389,
+        "executable": ".build/MacEvery.app/Contents/MacOS/macevery",
+        "cpu_seconds": 0.000147167,
+        "average_cpu_percent_one_core": 0.0007335778253395309,
+        "end_rss_bytes": 1700052992,
+        "end_physical_footprint_bytes": 1449084584
+      },
+      {
+        "pid": 16394,
+        "parent": 16389,
+        "executable": ".build/MacEvery.app/Contents/MacOS/macevery",
+        "cpu_seconds": 0.005331709,
+        "average_cpu_percent_one_core": 0.0265767698843029,
+        "end_rss_bytes": 20742144,
+        "end_physical_footprint_bytes": 6701680
+      }
+    ],
+    "total_average_cpu_percent_one_core": 0.112700941011644,
+    "total_end_rss_bytes": 1871462400,
+    "sample_count": 21
+  },
+  "followup_index_revision_before": 1987547,
+  "followup_index_revision_after": 1987548
+}

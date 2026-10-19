@@ -1,6 +1,6 @@
 # MacEvery Round 5 Status
 
-Updated: 2026-10-19 (Asia/Shanghai). Implementation and verification in progress.
+Updated: 2026-10-19 (Asia/Shanghai). Local implementation, controlled verification, App installation, native acceptance and resource sampling complete.
 
 ## Task capsule
 
@@ -39,9 +39,11 @@ Updated: 2026-10-19 (Asia/Shanghai). Implementation and verification in progress
 - Full report and sanitized evidence saved. Raw archived in ignored round directory. No production-source edits after frozen candidate hashes.
 - Fresh read-only online backup7,303,844rows / quick_checkok / SHA3fb99b611f3a4217efb45b7ed3788c7b3c1bfa8bf17c1bf8e83a25e2a2014cb7. DBidentity c11e38f8128ce976ccb2acec808a7622; roots/excludes preserved for final comparison.
 - Native oldApp settings verified gd62aa1d/Fastest/Command-Shift-Space/Limited; query cleared. Baseline20.081s: CPU0.09793% onecore/RSSsum2,707,488,768B. All exact three roles stable, no heavy benchmark during sample. Point observation, not controlled idle comparison.
-- OldApp still running at original path; source commit/push, clean candidate build/install/native lifecycle/final observation pending.
+- Source d70165868343806d959973a095bad18774ba5aa7 pushed/read back exact origin/main; clean App0.1.3-gd701658 signed/payload-equal, installed at original path. New GUI/service/watch16389/16393/16394 stable; old exact processes gone and rollback kept.
+- Native18->35->beta-only->0 and code300 PASS; precise SQL independently confirms writes/deletes, fixture/query cleaned toNoQuery. Fastest/Command-Shift-Space/Limited, roots/excludes/DBidentity unchanged.
+- Installed first20s CPU5.777%/RSSsum1.743GiB retained; followup20s CPU0.113%/RSSsum1.743GiB with revision+1. Both windows are point observations, not idle ABA; baselineCPU0.098%/RSSsum2.522GiB. See REPORT r2 and raw samples.
 - Setup/format/automatic review timeouts and sampling-helper adaptations retained in raw logs; valid checks/samples distinguish them from product failures.
 
 ## Next
 
-Commit/push reviewed tested source and read back exact origin/main; build clean candidate, verify signature and normalized payload. Then replace only exact old processes, native18->35->beta-only->0 +code300, clear fixture/query, final20s roles-stable observation and docs commit/push/readback. No roots/excludes/mode/shortcut/permissions/index rebuild changes.
+本轮本机目标已完成；最终文档提交/推送的精确远端SHA、ahead/behind和干净状态在忽略目录final-git-receipt.json保存。已安装App源码固定d701658，不因文档提交重新构建。远端CI、正式QA、长时间后台和受保护目录扩大覆盖未执行。

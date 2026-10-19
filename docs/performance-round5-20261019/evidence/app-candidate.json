@@ -1,0 +1,19 @@
+{
+  "source_commit": "d70165868343806d959973a095bad18774ba5aa7",
+  "build_label": "0.1.3-gd701658",
+  "build_time": "2026-10-19T03:47:40Z",
+  "bundle_id": "com.almondyoung.macevery",
+  "build_source_clean": true,
+  "source_on_origin_main": true,
+  "origin_main_exact_sha_at_build": "d70165868343806d959973a095bad18774ba5aa7",
+  "signature": "codesign deep/strict PASS",
+  "gui_sha256": "1569263aa9524d79c79ba1b0680c2f1feea04d5b8960b89c7e69ac38737859e9",
+  "signed_cli_sha256": "f5c4889754e521757bf41ac6821611b3b56649e900437002a4310910ffaf950c",
+  "normalized_payloads": {
+    "tested": "4efcf03c479450a6e3fe350768be901f1926c394d1085acddced9de34e0bbfd8",
+    "candidate": "4efcf03c479450a6e3fe350768be901f1926c394d1085acddced9de34e0bbfd8"
+  },
+  "installation": "NOT_RUN",
+  "native_acceptance": "NOT_RUN",
+  "at_utc": "2026-10-19T03:48:15.613196+00:00"
+}
