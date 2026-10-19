@@ -2,10 +2,12 @@
 """Run the production Swift model against owned real CLI/HTTP processes.
 
 Compile only (safe while preparing a separately scheduled integration run):
-  python3 tools/check_gui_startup.py --compile-only --output /tmp/gui-startup-build
+  python3 tools/check_gui_startup.py --expected-source FULL_CANDIDATE_COMMIT_SHA \
+    --compile-only --output /tmp/gui-startup-build
 
 Root schedules the real functional run separately from performance measurements:
-  python3 tools/check_gui_startup.py --binary /tmp/frozen/macevery \
+  python3 tools/check_gui_startup.py --expected-source FULL_CANDIDATE_COMMIT_SHA \
+    --binary /tmp/frozen/macevery \
     --snapshot /tmp/frozen/index.sqlite --harness /tmp/gui-startup-build/checks \
     --output /tmp/gui-startup-integration
 
@@ -15,8 +17,8 @@ requests and forwards only to an authenticated owned random loopback port.
 Two timeout checks SIGSTOP only that owned service, exercising the real 15s
 URLSession timeout and real CLI fallback; the cancellation check additionally
 holds only its owned CLI child. Full HTTP/CLI results stay in local raw files.
-Separate ordered six-field CLI/HTTP oracles preserve their existing candidate
-semantics. The preflight memory-oracle service is fully closed before cold start.
+Independent CLI/HTTP oracles must have exactly the same ordered six-field
+results. The preflight memory-oracle service is fully closed before cold start.
 
 summary.json is sanitized: hashes/counts/metrics/cleanup, no results, paths or
 auth token. CPU receipts use unique wait4 owners; wrapper/controller overhead
@@ -29,6 +31,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import secrets
 import signal
 import subprocess
@@ -43,7 +46,6 @@ from check_service_round2 import (
 )
 
 
-SOURCE_COMMIT = '8096e0a9c61cacd3402cd3017e95fc60ddb2c0f3'
 TEST_SOURCE = 'tests/macos/StartupIntegrationChecks.swift'
 MODEL_SOURCE = 'macos/MacEveryApp.swift'
 RESULT_FIELDS = {'path', 'basename', 'kind', 'size', 'mtime', 'score'}
@@ -251,10 +253,16 @@ def cleanup_wrappers(directory):
     return receipts
 
 
-def compile_harness(repo, directory):
+def full_commit_sha(value):
+    if re.fullmatch(r'[0-9a-fA-F]{40}', value) is None:
+        raise argparse.ArgumentTypeError('--expected-source requires the full 40-digit candidate commit SHA')
+    return value.lower()
+
+
+def compile_harness(repo, directory, source_commit):
     model = repo / MODEL_SOURCE
-    pinned = subprocess.check_output(['git', 'show', SOURCE_COMMIT + ':' + MODEL_SOURCE], cwd=repo)
-    require(model.read_bytes() == pinned, 'Production Swift differs from the accepted source')
+    pinned = subprocess.check_output(['git', 'show', source_commit + ':' + MODEL_SOURCE], cwd=repo)
+    require(model.read_bytes() == pinned, 'Production Swift differs from the expected candidate source')
     destination = directory / 'checks'
     command = ['swiftc', '-O', '-parse-as-library', '-D', 'MACEVERY_TESTING',
                '-module-cache-path', str(directory / 'module-cache'), '-target',
@@ -264,7 +272,7 @@ def compile_harness(repo, directory):
         result = subprocess.run(command, stdout=output, stderr=subprocess.STDOUT)
     require(result.returncode == 0, 'Swift integration compilation failed; inspect local compile.log')
     write_json(directory / 'compile-receipt.json', {
-        'status': 'PASS', 'model_source_commit': SOURCE_COMMIT, 'model_source_sha256': sha256(model),
+        'status': 'PASS', 'model_source_commit': source_commit, 'model_source_sha256': sha256(model),
         'harness_source_sha256': sha256(repo / TEST_SOURCE), 'harness_sha256': sha256(destination),
     })
     return destination
@@ -353,7 +361,9 @@ def control_service(owner, directory, stop):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument('--binary', type=Path, help='Frozen /tmp accepted CLI binary')
+    parser.add_argument('--expected-source', required=True, type=full_commit_sha,
+                        help='Full candidate commit SHA; production Swift and the compile receipt must match')
+    parser.add_argument('--binary', type=Path, help='Frozen /tmp candidate CLI binary')
     parser.add_argument('--snapshot', type=Path, help='Frozen /tmp SQLite snapshot; never writable')
     parser.add_argument('--output', type=Path, required=True, help='New /tmp output directory')
     parser.add_argument('--harness', type=Path, help='Previously compiled checks binary')
@@ -365,17 +375,20 @@ def main():
     require(args.timeout >= 60, 'Timeout must accommodate two real 15s transport waits')
     require(not (args.compile_only and args.harness), '--compile-only cannot attest an existing harness')
     repo = Path(__file__).resolve().parent.parent
+    source_commit = args.expected_source
+    require(subprocess.check_output(['git', 'cat-file', '-t', source_commit], cwd=repo, stderr=subprocess.PIPE)
+            .decode().strip() == 'commit', '--expected-source must identify an existing commit object')
     output = require_tmp(args.output)
     require(not output.exists(), 'Refusing to overwrite integration evidence')
     output.mkdir(parents=True)
     os.chmod(output, 0o700)
-    harness = args.harness.resolve() if args.harness else compile_harness(repo, output)
+    harness = args.harness.resolve() if args.harness else compile_harness(repo, output, source_commit)
     require(harness.is_file() and os.access(harness, os.X_OK), 'Missing executable Swift harness')
     model_sha = sha256(repo / MODEL_SOURCE)
-    pinned = subprocess.check_output(['git', 'show', SOURCE_COMMIT + ':' + MODEL_SOURCE], cwd=repo)
-    require(hashlib.sha256(pinned).hexdigest() == model_sha, 'Production Swift differs from accepted source')
+    pinned = subprocess.check_output(['git', 'show', source_commit + ':' + MODEL_SOURCE], cwd=repo)
+    require(hashlib.sha256(pinned).hexdigest() == model_sha, 'Production Swift differs from expected candidate source')
     receipt = json.loads((harness.parent / 'compile-receipt.json').read_text())
-    require(receipt['model_source_commit'] == SOURCE_COMMIT and receipt['model_source_sha256'] == model_sha
+    require(receipt['model_source_commit'] == source_commit and receipt['model_source_sha256'] == model_sha
             and receipt['harness_source_sha256'] == sha256(repo / TEST_SOURCE)
             and receipt['harness_sha256'] == sha256(harness), 'Harness compile receipt does not match current frozen inputs')
     if args.compile_only:
@@ -387,7 +400,7 @@ def main():
     frozen = db_identity(snapshot)
     binary_sha = sha256(binary)
     summary = {'status': 'FAIL', 'scope': 'production Swift model + isolated real CLI/HTTP; no native App/window/TCC/watch acceptance',
-               'model_source_commit': SOURCE_COMMIT, 'model_source_sha256': model_sha,
+               'model_source_commit': source_commit, 'model_source_sha256': model_sha,
                'harness_source_sha256': sha256(repo / TEST_SOURCE), 'runner_sha256': sha256(Path(__file__)),
                'binary_sha256': binary_sha, 'harness_sha256': sha256(harness), 'cases': [], 'cleanup': {}}
     service = child = monitor = None
@@ -420,8 +433,11 @@ def main():
             'intersection': {'common_paths': len(common), 'common_records_equal': all(cli_by_path[p] == http_by_path[p] for p in common),
                              'ordered_results_equal': rows == http_rows},
             'nohit_count': 0, 'nohit_cleanup': nohit_cleanup,
-            'boundary': 'Frozen CLI ranks a capped 24000 SQLite candidates at limit300; Fastest HTTP ranks the complete packed index. Cross-backend top300 equality is not asserted. Both independent ordered six-field oracles use the same frozen binary/DB. Oracle service is closed before cold service starts.',
+            'cross_backend_exact_required': True,
+            'boundary': 'CLI and Fastest memory HTTP must return identical complete six-field results in identical order for the same frozen binary/DB/query/limit. Candidate truncation is not an allowed exception. Oracle service is closed before cold service starts; preflight may warm OS caches, so this is functional integration rather than cold-disk performance.',
         }
+        summary['exact_topk_gate_passed'] = rows == http_rows
+        require(summary['exact_topk_gate_passed'], 'Exact TopK gate failed: CLI and Fastest HTTP differ in six-field results or order')
         wrapper = output / 'owned-cli-wrapper.py'
         wrapper.write_text(WRAPPER.replace('#!/usr/bin/env python3', '#!' + sys.executable, 1))
         wrapper.chmod(0o700)
@@ -465,7 +481,7 @@ def main():
         comparisons = []
         loaded_at = None
         for entry in transport:
-            if entry['kind'] != 'underlying_complete' or entry.get('status') != 200:
+            if entry['kind'] != 'underlying_complete' or entry.get('status') != 200 or 'url_error_code' in entry:
                 continue
             response = json.loads((output / f"http-{entry['id']:04d}.raw.json").read_text())
             start = starts[entry['id']]
@@ -546,8 +562,13 @@ def main():
             except BaseException as error:
                 summary['cleanup']['service_error_type'] = type(error).__name__
         clean = summary['cleanup']
-        cleanup_ok = ('harness' in clean and clean['harness']['process_group_gone']
-                      and 'service' in clean and clean['service']['process_group_gone'] and clean['service']['port_closed']
+        oracle = summary.get('oracle', {})
+        if oracle:
+            clean['oracles'] = {'cli': oracle['cli_sqlite']['cleanup'], 'http': oracle['http_memory']['cleanup'],
+                                'nohit': oracle['nohit_cleanup']}
+        cleanup_ok = ((child is None or ('harness' in clean and clean['harness']['process_group_gone']))
+                      and (service is None or ('service' in clean and clean['service']['process_group_gone'] and clean['service']['port_closed']))
+                      and 'oracles' in clean and all(v['process_group_gone'] and v['port_closed'] for v in clean['oracles'].values())
                       and 'wrappers' in clean and all(v['group_gone'] for v in clean['wrappers'])
                       and not any(key.endswith('_error_type') for key in clean))
         summary['cleanup_complete'] = cleanup_ok

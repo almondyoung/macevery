@@ -1,4 +1,5 @@
 use crate::error::{MacEveryError, Result};
+use std::cell::Cell;
 use std::ffi::{CStr, CString};
 use std::os::raw::{c_char, c_int, c_void};
 use std::path::Path;
@@ -13,6 +14,16 @@ struct sqlite3 {
 
 #[repr(C)]
 struct sqlite3_stmt {
+    _private: [u8; 0],
+}
+
+#[repr(C)]
+struct sqlite3_context {
+    _private: [u8; 0],
+}
+
+#[repr(C)]
+struct sqlite3_value {
     _private: [u8; 0],
 }
 
@@ -75,10 +86,29 @@ extern "C" {
     fn sqlite3_column_int64(stmt: *mut sqlite3_stmt, index: c_int) -> i64;
     fn sqlite3_changes64(db: *mut sqlite3) -> i64;
     fn sqlite3_get_autocommit(db: *mut sqlite3) -> c_int;
+    fn sqlite3_next_stmt(db: *mut sqlite3, current: *mut sqlite3_stmt) -> *mut sqlite3_stmt;
+    fn sqlite3_stmt_busy(statement: *mut sqlite3_stmt) -> c_int;
+    fn sqlite3_create_function_v2(
+        db: *mut sqlite3,
+        name: *const c_char,
+        arguments: c_int,
+        encoding: c_int,
+        data: *mut c_void,
+        function: Option<
+            unsafe extern "C" fn(*mut sqlite3_context, c_int, *mut *mut sqlite3_value),
+        >,
+        step: Option<unsafe extern "C" fn(*mut sqlite3_context, c_int, *mut *mut sqlite3_value)>,
+        finalizer: Option<unsafe extern "C" fn(*mut sqlite3_context)>,
+        destroy: Option<unsafe extern "C" fn(*mut c_void)>,
+    ) -> c_int;
+    fn sqlite3_value_text(value: *mut sqlite3_value) -> *const u8;
+    fn sqlite3_value_bytes(value: *mut sqlite3_value) -> c_int;
+    fn sqlite3_result_int(context: *mut sqlite3_context, value: c_int);
 }
 
 pub struct Connection {
     raw: *mut sqlite3,
+    path_literal_filter_registered: Cell<bool>,
 }
 
 // Every connection is opened FULLMUTEX. Moving exclusive ownership to another
@@ -130,7 +160,10 @@ impl Connection {
             return Err(MacEveryError::Sqlite(message));
         }
 
-        let conn = Self { raw };
+        let conn = Self {
+            raw,
+            path_literal_filter_registered: Cell::new(false),
+        };
         let code = unsafe { sqlite3_busy_timeout(conn.raw, 5000) };
         if code != SQLITE_OK {
             return Err(MacEveryError::Sqlite(unsafe { errmsg(conn.raw) }));
@@ -184,9 +217,77 @@ impl Connection {
         unsafe { sqlite3_get_autocommit(self.raw) != 0 }
     }
 
+    pub(crate) fn has_active_statements(&self) -> bool {
+        let mut current = unsafe { sqlite3_next_stmt(self.raw, ptr::null_mut()) };
+        while !current.is_null() {
+            if unsafe { sqlite3_stmt_busy(current) } != 0 {
+                return true;
+            }
+            current = unsafe { sqlite3_next_stmt(self.raw, current) };
+        }
+        false
+    }
+
+    /// Keep the covering-index scan inside SQLite, returning only candidate
+    /// IDs across the statement boundary. Registration is local to this
+    /// connection and deliberately absent from packed-index startup.
+    pub(crate) fn register_path_literal_filter(&self) -> Result<()> {
+        if self.path_literal_filter_registered.get() {
+            return Ok(());
+        }
+        let code = unsafe {
+            sqlite3_create_function_v2(
+                self.raw,
+                c"macevery_path_may_contain".as_ptr(),
+                2,
+                1, // SQLITE_UTF8; no connection-owned callback state.
+                ptr::null_mut(),
+                Some(path_may_contain),
+                None,
+                None,
+                None,
+            )
+        };
+        if code != SQLITE_OK {
+            return Err(MacEveryError::Sqlite(unsafe { errmsg(self.raw) }));
+        }
+        self.path_literal_filter_registered.set(true);
+        Ok(())
+    }
+
     pub fn changes(&self) -> u64 {
         unsafe { sqlite3_changes64(self.raw).max(0) as u64 }
     }
+}
+
+/// The callback performs no allocation or fallible indexing. NULL, empty and
+/// malformed UTF-8 conservatively select the row for the original-path
+/// lowercase fallback. Value pointers remain borrowed only during this call.
+unsafe extern "C" fn path_may_contain(
+    context: *mut sqlite3_context,
+    count: c_int,
+    values: *mut *mut sqlite3_value,
+) {
+    unsafe fn text<'a>(value: *mut sqlite3_value) -> Option<&'a str> {
+        let bytes = sqlite3_value_text(value);
+        if bytes.is_null() {
+            return None;
+        }
+        let length = sqlite3_value_bytes(value);
+        if length < 0 {
+            return None;
+        }
+        str::from_utf8(slice::from_raw_parts(bytes, length as usize)).ok()
+    }
+    let selected = if count != 2 || values.is_null() {
+        true
+    } else {
+        match (text(*values), text(*values.add(1))) {
+            (Some(path), Some(literal)) if !path.is_empty() => path.contains(literal),
+            _ => true,
+        }
+    };
+    sqlite3_result_int(context, i32::from(selected));
 }
 
 impl Drop for Connection {
@@ -456,5 +557,46 @@ mod column_tests {
         statement.bind_text(1, Some("")).unwrap();
         assert!(matches!(statement.step().unwrap(), Step::Row));
         assert_eq!(statement.column_str(0), Some(""));
+    }
+
+    #[test]
+    fn path_literal_callback_matches_column_decode_and_conservative_fallback() {
+        let fixture = Fixture::new();
+        let connection = Connection::open(&fixture.database()).unwrap();
+        connection.register_path_literal_filter().unwrap();
+        for expression in [
+            "NULL",
+            "''",
+            "'code'",
+            "'a'||char(0)||'code'",
+            "'特殊/code'",
+            "x'636f6465'",
+            "CAST(x'ff636f6465' AS TEXT)",
+            "x'ff636f6465'",
+            "12345",
+            "3.14",
+            "'unrelated'",
+        ] {
+            for literal in ["code", "特殊", "123", "none", ""] {
+                let mut statement = connection
+                    .prepare(&format!(
+                        "SELECT {expression},macevery_path_may_contain({expression},?1);"
+                    ))
+                    .unwrap();
+                statement.bind_text(1, Some(literal)).unwrap();
+                assert!(matches!(statement.step().unwrap(), Step::Row));
+                // Reusing the filter must not redefine an active function.
+                connection.register_path_literal_filter().unwrap();
+                let expected = statement
+                    .column_str(0)
+                    .filter(|path| !path.is_empty())
+                    .is_none_or(|path| path.contains(literal));
+                assert_eq!(
+                    statement.column_i64(1),
+                    Some(i64::from(expected)),
+                    "{expression} / {literal}"
+                );
+            }
+        }
     }
 }

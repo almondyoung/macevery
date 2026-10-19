@@ -4,7 +4,7 @@
 use macevery::compact_index::{ApplyOutcome, CompactIndex};
 use macevery::db::{ContentStamp, Database, FileChangeRead};
 use macevery::model::{FileKind, FileRecord, PathFilter, PathFilterMode, SearchOptions};
-use macevery::search::search_records;
+use macevery::search::{search, search_records};
 use macevery::sqlite::{Connection, Step};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -471,6 +471,11 @@ fn fixed_seed_incremental_mixed_transactions_match_same_snapshot_fresh_index() {
         );
         for (category, options) in query_cases(turn).iter().enumerate() {
             let reference = search_records(&expected, options);
+            assert_eq!(
+                search(&database, options).unwrap(),
+                reference,
+                "SQLite/full-record oracle seed={SEED:x} turn={turn} op={op} category={category}"
+            );
             assert_eq!(
                 fresh.search(options),
                 reference,

@@ -1,0 +1,129 @@
+{
+  "binary_sha": "86e076f4a1e545a290bcf94472f76fb676fe313eeab1f4ef3a648fac0ad699da",
+  "queries": [
+    {
+      "status": "PASS",
+      "timed_out": false,
+      "child_started": true,
+      "cleanup_verified": true,
+      "metrics": {
+        "wall_seconds": 2.245761208,
+        "cpu_seconds": 0.112701,
+        "process_peak_rss_bytes": 16433152,
+        "sampled_peak_rss_bytes": 16318464,
+        "end_rss_bytes": 7684096,
+        "end_footprint_bytes": 0,
+        "sampled_peak_footprint_bytes": 11600256
+      },
+      "cleanup": {
+        "pid": 80465,
+        "returncode": 0,
+        "method": "already_exited",
+        "process_group_gone": true
+      },
+      "exceeded_gui_15s": false,
+      "name": "code",
+      "count": 300
+    },
+    {
+      "status": "PASS",
+      "timed_out": false,
+      "child_started": true,
+      "cleanup_verified": true,
+      "metrics": {
+        "wall_seconds": 6.820502458,
+        "cpu_seconds": 1.110509,
+        "process_peak_rss_bytes": 16433152,
+        "sampled_peak_rss_bytes": 16302080,
+        "end_rss_bytes": 16302080,
+        "end_footprint_bytes": 11583872,
+        "sampled_peak_footprint_bytes": 11583872
+      },
+      "cleanup": {
+        "pid": 80470,
+        "returncode": 0,
+        "method": "already_exited",
+        "process_group_gone": true
+      },
+      "exceeded_gui_15s": false,
+      "name": "filtered",
+      "count": 300
+    },
+    {
+      "status": "PASS",
+      "timed_out": false,
+      "child_started": true,
+      "cleanup_verified": true,
+      "metrics": {
+        "wall_seconds": 0.6019922500000003,
+        "cpu_seconds": 0.375451,
+        "process_peak_rss_bytes": 16400384,
+        "sampled_peak_rss_bytes": 16334848,
+        "end_rss_bytes": 7651328,
+        "end_footprint_bytes": 0,
+        "sampled_peak_footprint_bytes": 11616640
+      },
+      "cleanup": {
+        "pid": 80507,
+        "returncode": 0,
+        "method": "already_exited",
+        "process_group_gone": true
+      },
+      "exceeded_gui_15s": false,
+      "name": "glob",
+      "count": 300
+    },
+    {
+      "status": "FAIL",
+      "timed_out": true,
+      "child_started": true,
+      "cleanup_verified": true,
+      "metrics": {
+        "wall_seconds": 15.001786125,
+        "cpu_seconds": 4.271781,
+        "process_peak_rss_bytes": 15941632,
+        "sampled_peak_rss_bytes": 15941632,
+        "end_rss_bytes": 15941632,
+        "end_footprint_bytes": 11223424,
+        "sampled_peak_footprint_bytes": 11223424
+      },
+      "cleanup": {
+        "pid": 80513,
+        "returncode": -15,
+        "method": "SIGTERM",
+        "process_group_gone": true
+      },
+      "error_type": "AssertionError",
+      "exceeded_gui_15s": true,
+      "name": "nohit",
+      "count": 0
+    },
+    {
+      "status": "FAIL",
+      "timed_out": true,
+      "child_started": true,
+      "cleanup_verified": true,
+      "metrics": {
+        "wall_seconds": 15.002344250000004,
+        "cpu_seconds": 3.642683,
+        "process_peak_rss_bytes": 15974400,
+        "sampled_peak_rss_bytes": 15974400,
+        "end_rss_bytes": 15974400,
+        "end_footprint_bytes": 11256192,
+        "sampled_peak_footprint_bytes": 11256192
+      },
+      "cleanup": {
+        "pid": 80883,
+        "returncode": -15,
+        "method": "SIGTERM",
+        "process_group_gone": true
+      },
+      "error_type": "AssertionError",
+      "exceeded_gui_15s": true,
+      "name": "fuzzy",
+      "count": 0
+    }
+  ],
+  "status": "REJECTED_EXPLORATORY",
+  "note": "Second prototype before UTF8/ext/covering-path changes. Fixed existing frozen snapshot clone; strict 15s. No App install. Timeout work killed and group-gone verified. Cache uncontrolled; single-run mechanism evidence."
+}

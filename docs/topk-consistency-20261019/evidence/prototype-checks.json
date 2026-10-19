@@ -1,0 +1,7 @@
+{
+  "prototype": "first streaming implementation",
+  "debug_unit_tests": 137,
+  "debug_check_log": ".build/topk-consistency-20261019/checks-debug.log",
+  "incremental_transactions": 420,
+  "scope": "prototype correctness passed, query budget failed; not installation eligible"
+}

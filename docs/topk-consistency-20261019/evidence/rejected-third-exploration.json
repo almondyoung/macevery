@@ -1,0 +1,249 @@
+{
+  "binary_sha": "8d54c4d60bbdd66043f490c8716665d641638f734eca29aaa6f8875919c6df76",
+  "queries": [
+    {
+      "status": "PASS",
+      "timed_out": false,
+      "child_started": true,
+      "cleanup_verified": true,
+      "metrics": {
+        "wall_seconds": 0.97184075,
+        "cpu_seconds": 0.098086,
+        "process_peak_rss_bytes": 16547840,
+        "sampled_peak_rss_bytes": 16416768,
+        "end_rss_bytes": 16416768,
+        "end_footprint_bytes": 11714944,
+        "sampled_peak_footprint_bytes": 11714944
+      },
+      "cleanup": {
+        "pid": 84137,
+        "returncode": 0,
+        "method": "already_exited",
+        "process_group_gone": true
+      },
+      "exceeded_gui_15s": false,
+      "name": "code",
+      "count": 300
+    },
+    {
+      "status": "PASS",
+      "timed_out": false,
+      "child_started": true,
+      "cleanup_verified": true,
+      "metrics": {
+        "wall_seconds": 2.308402958,
+        "cpu_seconds": 0.406687,
+        "process_peak_rss_bytes": 16498688,
+        "sampled_peak_rss_bytes": 16384000,
+        "end_rss_bytes": 16384000,
+        "end_footprint_bytes": 11682176,
+        "sampled_peak_footprint_bytes": 11682176
+      },
+      "cleanup": {
+        "pid": 84149,
+        "returncode": 0,
+        "method": "already_exited",
+        "process_group_gone": true
+      },
+      "exceeded_gui_15s": false,
+      "name": "filtered",
+      "count": 300
+    },
+    {
+      "status": "PASS",
+      "timed_out": false,
+      "child_started": true,
+      "cleanup_verified": true,
+      "metrics": {
+        "wall_seconds": 2.1018168750000004,
+        "cpu_seconds": 0.5072639999999999,
+        "process_peak_rss_bytes": 16334848,
+        "sampled_peak_rss_bytes": 16269312,
+        "end_rss_bytes": 16269312,
+        "end_footprint_bytes": 11567512,
+        "sampled_peak_footprint_bytes": 11567512
+      },
+      "cleanup": {
+        "pid": 84167,
+        "returncode": 0,
+        "method": "already_exited",
+        "process_group_gone": true
+      },
+      "exceeded_gui_15s": false,
+      "name": "glob",
+      "count": 300
+    },
+    {
+      "status": "FAIL",
+      "timed_out": true,
+      "child_started": true,
+      "cleanup_verified": true,
+      "metrics": {
+        "wall_seconds": 15.009370708999999,
+        "cpu_seconds": 3.19929,
+        "process_peak_rss_bytes": 15876096,
+        "sampled_peak_rss_bytes": 15876096,
+        "end_rss_bytes": 15876096,
+        "end_footprint_bytes": 11157888,
+        "sampled_peak_footprint_bytes": 11157888
+      },
+      "cleanup": {
+        "pid": 84176,
+        "returncode": -15,
+        "method": "SIGTERM",
+        "process_group_gone": true
+      },
+      "error_type": "AssertionError",
+      "exceeded_gui_15s": true,
+      "name": "nohit",
+      "count": 0
+    },
+    {
+      "status": "PASS",
+      "timed_out": false,
+      "child_started": true,
+      "cleanup_verified": true,
+      "metrics": {
+        "wall_seconds": 1.353350332999998,
+        "cpu_seconds": 0.34272499999999995,
+        "process_peak_rss_bytes": 15908864,
+        "sampled_peak_rss_bytes": 15892480,
+        "end_rss_bytes": 15892480,
+        "end_footprint_bytes": 11207064,
+        "sampled_peak_footprint_bytes": 11207064
+      },
+      "cleanup": {
+        "pid": 84229,
+        "returncode": 0,
+        "method": "already_exited",
+        "process_group_gone": true
+      },
+      "exceeded_gui_15s": false,
+      "name": "fuzzy",
+      "count": 0
+    },
+    {
+      "status": "PASS",
+      "timed_out": false,
+      "child_started": true,
+      "cleanup_verified": true,
+      "metrics": {
+        "wall_seconds": 0.7106519169999999,
+        "cpu_seconds": 0.30505499999999997,
+        "process_peak_rss_bytes": 16531456,
+        "sampled_peak_rss_bytes": 16433152,
+        "end_rss_bytes": 16433152,
+        "end_footprint_bytes": 11731328,
+        "sampled_peak_footprint_bytes": 11731328
+      },
+      "cleanup": {
+        "pid": 84243,
+        "returncode": 0,
+        "method": "already_exited",
+        "process_group_gone": true
+      },
+      "exceeded_gui_15s": false,
+      "name": "real-fuzzy",
+      "count": 300
+    },
+    {
+      "status": "PASS",
+      "timed_out": false,
+      "child_started": true,
+      "cleanup_verified": true,
+      "metrics": {
+        "wall_seconds": 0.3011539170000006,
+        "cpu_seconds": 0.275904,
+        "process_peak_rss_bytes": 16482304,
+        "sampled_peak_rss_bytes": 16416768,
+        "end_rss_bytes": 16400384,
+        "end_footprint_bytes": 11698560,
+        "sampled_peak_footprint_bytes": 11714944
+      },
+      "cleanup": {
+        "pid": 84245,
+        "returncode": 0,
+        "method": "already_exited",
+        "process_group_gone": true
+      },
+      "exceeded_gui_15s": false,
+      "name": "multi-ext",
+      "count": 300
+    },
+    {
+      "status": "PASS",
+      "timed_out": false,
+      "child_started": true,
+      "cleanup_verified": true,
+      "metrics": {
+        "wall_seconds": 0.2779474999999998,
+        "cpu_seconds": 0.262748,
+        "process_peak_rss_bytes": 16465920,
+        "sampled_peak_rss_bytes": 16351232,
+        "end_rss_bytes": 16351232,
+        "end_footprint_bytes": 11649408,
+        "sampled_peak_footprint_bytes": 11649408
+      },
+      "cleanup": {
+        "pid": 84246,
+        "returncode": 0,
+        "method": "already_exited",
+        "process_group_gone": true
+      },
+      "exceeded_gui_15s": false,
+      "name": "neg-ext",
+      "count": 300
+    },
+    {
+      "status": "PASS",
+      "timed_out": false,
+      "child_started": true,
+      "cleanup_verified": true,
+      "metrics": {
+        "wall_seconds": 0.04673562500000017,
+        "cpu_seconds": 0.029626,
+        "process_peak_rss_bytes": 16367616,
+        "sampled_peak_rss_bytes": 16302080,
+        "end_rss_bytes": 16302080,
+        "end_footprint_bytes": 11616664,
+        "sampled_peak_footprint_bytes": 11616664
+      },
+      "cleanup": {
+        "pid": 84251,
+        "returncode": 0,
+        "method": "already_exited",
+        "process_group_gone": true
+      },
+      "exceeded_gui_15s": false,
+      "name": "path-filter",
+      "count": 300
+    },
+    {
+      "status": "FAIL",
+      "timed_out": true,
+      "child_started": true,
+      "cleanup_verified": true,
+      "metrics": {
+        "wall_seconds": 15.004183209,
+        "cpu_seconds": 5.173766,
+        "process_peak_rss_bytes": 16433152,
+        "sampled_peak_rss_bytes": 16433152,
+        "end_rss_bytes": 16433152,
+        "end_footprint_bytes": 4112768,
+        "sampled_peak_footprint_bytes": 11714944
+      },
+      "cleanup": {
+        "pid": 84252,
+        "returncode": -15,
+        "method": "SIGTERM",
+        "process_group_gone": true
+      },
+      "error_type": "AssertionError",
+      "exceeded_gui_15s": true,
+      "name": "multi-term",
+      "count": 0
+    }
+  ],
+  "status": "REJECTED_EXPLORATORY",
+  "note": "Third prototype covering-path rows still exceeded 15s for nohit and multi-term. Fixed old snapshot clone; no App installation. All timed-out owned groups verified gone. Caches uncontrolled; no equal-recall speedup claim."
+}

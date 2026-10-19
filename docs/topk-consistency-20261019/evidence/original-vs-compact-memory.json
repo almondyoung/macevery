@@ -1,0 +1,133 @@
+{
+  "status": "PASS",
+  "scope": "Same frozen old-memory binary, original-layout versus compacted-preparation snapshot, with identical deterministic probe transactions.",
+  "snapshot_sha256": "68bd22081af1eb5ec9164037407cb6c9c13349a7f8e460fa9aa682b3286b5b29",
+  "baseline_binary_sha256": "422e776c583ff9769c613c5f915f1b5c4e993da4085fa434042b81bd82a710ee",
+  "original_summary_sha256": "d42a4c68ccf6ac7efab86270cbeccbb2974d9d79836eacda478fb6e8a3ad52f5",
+  "compact_summary_sha256": "e3223b72d7afdfe7f64dac0afeafa5562658f9002e33c94bbc7bf6ec579e81b4",
+  "phases_equal": 24,
+  "six_field_ordered_digest_and_count_equal": true,
+  "phases": [
+    {
+      "phase": "initial/code",
+      "count": 300,
+      "ordered_full_json_sha256": "7990d334f2dc6cf72625d0474027ccd331e2d988d15a0e2840dec3918e47ce50"
+    },
+    {
+      "phase": "initial/filters",
+      "count": 5,
+      "ordered_full_json_sha256": "7454b06a527621f90af003b444db6daba0a18ec4faaf78a44e9d92b50e48a182"
+    },
+    {
+      "phase": "initial/glob",
+      "count": 6,
+      "ordered_full_json_sha256": "9ed543b89405a8d96dd63bdd31b0c6f4681c49b5cfefdc6d4e42ec33c639b67e"
+    },
+    {
+      "phase": "initial/fuzzy",
+      "count": 6,
+      "ordered_full_json_sha256": "f1f796b3be87b1270d230447d60f09a36f356cbeab7d0286fd0a73ca8dd47d70"
+    },
+    {
+      "phase": "initial/unicode",
+      "count": 1,
+      "ordered_full_json_sha256": "b444dbb88cc48f726192536bd83b278dcefb919a7518bc61b72a8befc4bfc647"
+    },
+    {
+      "phase": "initial/nohit",
+      "count": 0,
+      "ordered_full_json_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    {
+      "phase": "initial/probes",
+      "count": 6,
+      "ordered_full_json_sha256": "c96df542105ad2483128b75914a6e2f7f680b03a6feec44424a71229253b889d"
+    },
+    {
+      "phase": "initial/real_filtered_code",
+      "count": 300,
+      "ordered_full_json_sha256": "2553894863ac14641d38bfa675b88725723860d57c8b3175bc0caf18328c0650"
+    },
+    {
+      "phase": "initial/real_glob",
+      "count": 300,
+      "ordered_full_json_sha256": "4e3f0568acbcf394fc7c279172e379ddf46847eb95edc8f5bc509fa06526d114"
+    },
+    {
+      "phase": "initial/real_fuzzy",
+      "count": 300,
+      "ordered_full_json_sha256": "2553894863ac14641d38bfa675b88725723860d57c8b3175bc0caf18328c0650"
+    },
+    {
+      "phase": "initial/real_ext_or",
+      "count": 300,
+      "ordered_full_json_sha256": "b4209d0c03a74a7157cdec68acf07f11a70ee74b783f54362bebd2ce73e4eb0f"
+    },
+    {
+      "phase": "initial/real_ext_include_exclude",
+      "count": 300,
+      "ordered_full_json_sha256": "2553894863ac14641d38bfa675b88725723860d57c8b3175bc0caf18328c0650"
+    },
+    {
+      "phase": "initial/real_path",
+      "count": 300,
+      "ordered_full_json_sha256": "73fbb5840519904efc32024939cbb017fc55a512fb2fdce6e93c28c24f88e144"
+    },
+    {
+      "phase": "initial/real_part",
+      "count": 300,
+      "ordered_full_json_sha256": "efe0b76ef0122855158ac9531e8320947a3778a2dfe48504ce663bbaa9ae40c0"
+    },
+    {
+      "phase": "initial/real_terms",
+      "count": 300,
+      "ordered_full_json_sha256": "9c3039f1de811881748a0d2cc4fcbe269cca2f7a92e02e8c689252b30d71bd59"
+    },
+    {
+      "phase": "rename/code",
+      "count": 300,
+      "ordered_full_json_sha256": "7990d334f2dc6cf72625d0474027ccd331e2d988d15a0e2840dec3918e47ce50"
+    },
+    {
+      "phase": "rename/unicode",
+      "count": 1,
+      "ordered_full_json_sha256": "b444dbb88cc48f726192536bd83b278dcefb919a7518bc61b72a8befc4bfc647"
+    },
+    {
+      "phase": "rename/probes",
+      "count": 6,
+      "ordered_full_json_sha256": "d262eae1c6bf474c23e022f1dc1dd2f160cf924ab9059bec29e441b26ce86f56"
+    },
+    {
+      "phase": "modify/code",
+      "count": 300,
+      "ordered_full_json_sha256": "7990d334f2dc6cf72625d0474027ccd331e2d988d15a0e2840dec3918e47ce50"
+    },
+    {
+      "phase": "modify/unicode",
+      "count": 1,
+      "ordered_full_json_sha256": "b444dbb88cc48f726192536bd83b278dcefb919a7518bc61b72a8befc4bfc647"
+    },
+    {
+      "phase": "modify/probes",
+      "count": 6,
+      "ordered_full_json_sha256": "6743dfa0b04aa128d8de6b43147049d3bdb9e52ba9323ef35402633dc0c2a3c4"
+    },
+    {
+      "phase": "delete/code",
+      "count": 300,
+      "ordered_full_json_sha256": "7990d334f2dc6cf72625d0474027ccd331e2d988d15a0e2840dec3918e47ce50"
+    },
+    {
+      "phase": "delete/unicode",
+      "count": 1,
+      "ordered_full_json_sha256": "b444dbb88cc48f726192536bd83b278dcefb919a7518bc61b72a8befc4bfc647"
+    },
+    {
+      "phase": "delete/probes",
+      "count": 5,
+      "ordered_full_json_sha256": "41ce8eb24d85f1d66e6dac34ba52439aa030434967d36686a88e4aecaeb4dd29"
+    }
+  ],
+  "boundary": "This checks the query/update matrix. Full FileRecord equivalence is independently verified by the optimize CLI dual-cursor comparison."
+}

@@ -119,7 +119,7 @@ private final class StartupTransport: @unchecked Sendable {
         let ids = Set(events.filter { $0["kind"] as? String == "forward_start" && $0["phase"] as? String == phase
             && $0["path"] as? String == "/search" && $0["query_sha256"] as? String == startupDigest(query) }
             .compactMap { $0["id"] as? Int })
-        let successes = Set(events.filter { $0["kind"] as? String == "underlying_complete" && $0["status"] as? Int == 200 }
+        let successes = Set(events.filter { $0["kind"] as? String == "underlying_complete" && $0["status"] as? Int == 200 && $0["url_error_code"] == nil }
             .compactMap { $0["id"] as? Int })
         return events.contains { $0["kind"] as? String == "delivered" && ($0["id"] as? Int).map { ids.contains($0) && successes.contains($0) } == true }
     }
@@ -227,14 +227,20 @@ private enum StartupIntegrationChecks {
             let raw = try JSONSerialization.jsonObject(with: data) as? [[String: Any]]
             let fields: Set<String> = ["path", "basename", "kind", "size", "mtime", "score"]
             try requireStartup(raw != nil && raw!.allSatisfy { Set($0.keys) == fields }, "Oracle must have exactly six complete result fields")
-            return try JSONDecoder().decode([SearchResult].self, from: data).sorted {
+            return try JSONDecoder().decode([SearchResult].self, from: data)
+        }
+        let rawHTTP = try loadOracle("oracle-http-code.raw.json")
+        let rawCLI = try loadOracle("oracle-cli-code.raw.json")
+        try requireStartup(rawHTTP.count == config.expected_count && rawCLI.count == config.expected_count, "Unexpected oracle count")
+        try requireStartup(rawHTTP == rawCLI, "Exact TopK gate: CLI and HTTP must match in all six fields and original order")
+        func guiOrder(_ values: [SearchResult]) -> [SearchResult] {
+            values.sorted {
                 if $0.score != $1.score { return $0.score < $1.score }
                 return $0.path.localizedCaseInsensitiveCompare($1.path) == .orderedAscending
             }
         }
-        let expectedHTTP = try loadOracle("oracle-http-code.raw.json")
-        let expectedCLI = try loadOracle("oracle-cli-code.raw.json")
-        try requireStartup(expectedHTTP.count == config.expected_count && expectedCLI.count == config.expected_count, "Unexpected oracle count")
+        let expectedHTTP = guiOrder(rawHTTP)
+        let expectedCLI = guiOrder(rawCLI)
         let context = StartupTransport(config)
         StartupProtocol.transport = context
         let settings = URLSessionConfiguration.ephemeral

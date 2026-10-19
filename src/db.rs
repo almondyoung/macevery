@@ -4,7 +4,7 @@ use crate::model::{
 };
 use crate::sqlite::{Connection, Step};
 use std::collections::BTreeSet;
-use std::os::unix::fs::MetadataExt;
+use std::os::unix::fs::{DirBuilderExt, MetadataExt, PermissionsExt};
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
@@ -114,6 +114,7 @@ impl ContentObserver {
     }
 }
 
+#[derive(Debug, Eq, PartialEq)]
 pub struct DbRecordRef<'a> {
     pub id: i64,
     pub path: &'a str,
@@ -128,6 +129,62 @@ pub struct DbRecordRef<'a> {
     pub dev: Option<i64>,
     pub inode: Option<i64>,
     pub indexed_at: i64,
+}
+
+#[derive(Debug, Eq, PartialEq)]
+struct CompactFilePin {
+    identity: DatabaseFileIdentity,
+    bytes: u64,
+    mtime: i64,
+    mtime_nsec: i64,
+}
+
+impl CompactFilePin {
+    fn at(path: &Path) -> Result<Self> {
+        let metadata = std::fs::metadata(path)?;
+        Ok(Self {
+            identity: DatabaseFileIdentity {
+                device: metadata.dev(),
+                inode: metadata.ino(),
+            },
+            bytes: metadata.len(),
+            mtime: metadata.mtime(),
+            mtime_nsec: metadata.mtime_nsec(),
+        })
+    }
+}
+
+#[derive(Debug, Eq, PartialEq)]
+struct CompactControlPin {
+    database_id: String,
+    revision: i64,
+    journal_floor: i64,
+    roots: Vec<String>,
+    excludes: Vec<String>,
+    metadata: Vec<[String; 4]>,
+}
+
+fn compact_staging_directory(parent: &Path) -> Result<PathBuf> {
+    static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    let timestamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_nanos();
+    for _ in 0..32 {
+        let serial = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let directory = parent.join(format!(
+            ".macevery-compact-{}-{timestamp}-{serial}",
+            std::process::id()
+        ));
+        match std::fs::DirBuilder::new().mode(0o700).create(&directory) {
+            Ok(()) => return Ok(directory),
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
+            Err(error) => return Err(error.into()),
+        }
+    }
+    Err(MacEveryError::Cli(
+        "cannot allocate a private compact-copy staging directory".into(),
+    ))
 }
 
 impl Database {
@@ -193,6 +250,244 @@ impl Database {
         &self.path
     }
 
+    /// Explicit maintenance only: write a fresh, compact logical copy without
+    /// migrating, replacing or writing the source. Failed staging is retained
+    /// for diagnosis and must not be installed. Source activity detected across
+    /// the copy rejects success; callers should freeze writers before using it.
+    /// Returns the number of complete FileRecord rows compared in ID order.
+    pub fn write_compacted_copy(&self, output: &Path) -> Result<usize> {
+        if !self.conn.is_autocommit() || self.conn.has_active_statements() {
+            return Err(MacEveryError::Cli(
+                "cannot compact while the caller has an active transaction or statement".into(),
+            ));
+        }
+        if output.as_os_str().is_empty() {
+            return Err(MacEveryError::Cli(
+                "compacted output path must not be empty".into(),
+            ));
+        }
+        let name = output
+            .file_name()
+            .ok_or_else(|| MacEveryError::Cli("compacted output must name a fresh file".into()))?;
+        let parent = output
+            .parent()
+            .filter(|path| !path.as_os_str().is_empty())
+            .unwrap_or_else(|| Path::new("."));
+        // Absolute ordinary filenames cannot be reinterpreted as file: URIs by
+        // SQLite, and a canonical parent resolves directory/symlink aliases.
+        let output = parent.canonicalize()?.join(name);
+        output
+            .to_str()
+            .filter(|value| !value.contains('\0'))
+            .ok_or_else(|| {
+                MacEveryError::Cli("compacted output must be a UTF-8 path without NUL".into())
+            })?;
+        match std::fs::symlink_metadata(&output) {
+            Ok(_) => return Err(MacEveryError::Cli("compacted output already exists".into())),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => return Err(error.into()),
+        }
+        let source_file = CompactFilePin::at(&self.path)?;
+        if source_file.identity != self.identity {
+            return Err(MacEveryError::Sqlite(
+                "source database was replaced before compact copy".into(),
+            ));
+        }
+        // A currently absent source WAL/SHM/journal is not a valid destination.
+        // Checking its corresponding main file also catches hardlink, case and
+        // filesystem Unicode-normalization aliases without creating anything.
+        let output_name = name.to_str().ok_or_else(|| {
+            MacEveryError::Cli("compacted output must be a UTF-8 filename".into())
+        })?;
+        for suffix in ["-wal", "-shm", "-journal"] {
+            if let Some(tail) = output_name.get(output_name.len().saturating_sub(suffix.len())..) {
+                if tail.eq_ignore_ascii_case(suffix) {
+                    let main_name = &output_name[..output_name.len() - suffix.len()];
+                    match DatabaseFileIdentity::at(&output.with_file_name(main_name)) {
+                        Ok(identity) if identity == self.identity => {
+                            return Err(MacEveryError::Cli(
+                                "compacted output must not be a source database sidecar".into(),
+                            ))
+                        }
+                        Ok(_) => {}
+                        Err(MacEveryError::Io(error))
+                            if error.kind() == std::io::ErrorKind::NotFound => {}
+                        Err(error) => return Err(error),
+                    }
+                }
+            }
+            let mut sidecar = output.as_os_str().to_owned();
+            sidecar.push(suffix);
+            match std::fs::symlink_metadata(PathBuf::from(sidecar)) {
+                Ok(_) => {
+                    return Err(MacEveryError::Cli(
+                        "compacted output has an existing SQLite sidecar".into(),
+                    ))
+                }
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+                Err(error) => return Err(error.into()),
+            }
+        }
+        let source_path = self.path.canonicalize()?;
+        if source_path.to_str().is_none() {
+            return Err(MacEveryError::Cli(
+                "compact source must be a UTF-8 path".into(),
+            ));
+        }
+        let source = Self::open_read_only(source_path)?;
+        if source.identity != self.identity {
+            return Err(MacEveryError::Sqlite(
+                "source database was replaced while opening compact copy".into(),
+            ));
+        }
+        source
+            .conn
+            .execute_batch("PRAGMA temp_store=FILE; PRAGMA synchronous=FULL;")?;
+        // Some system SQLite builds reject even an existing empty INTO target.
+        // Let SQLite create an absent filename inside our private directory;
+        // publish only the verified inode with a no-clobber hard link.
+        let staging = compact_staging_directory(output.parent().ok_or_else(|| {
+            MacEveryError::Cli("compacted output needs a parent directory".into())
+        })?)?;
+        let staged = staging.join("index.sqlite");
+        let result = (|| {
+            let staged_text = staged
+                .to_str()
+                .ok_or_else(|| MacEveryError::Cli("compacted staging path must be UTF-8".into()))?;
+            let before = source.compact_control_pin()?;
+            let mut vacuum = source.conn.prepare("VACUUM INTO ?1;")?;
+            vacuum.bind_text(1, Some(staged_text))?;
+            expect_done(vacuum.step()?)?;
+            drop(vacuum);
+            std::fs::set_permissions(&staged, std::fs::Permissions::from_mode(0o600))?;
+            let destination = std::fs::OpenOptions::new()
+                .read(true)
+                .write(true)
+                .open(&staged)?;
+            destination.sync_all()?;
+            let descriptor = destination.metadata()?;
+            let destination_identity = DatabaseFileIdentity {
+                device: descriptor.dev(),
+                inode: descriptor.ino(),
+            };
+            if DatabaseFileIdentity::at(&staged)? != destination_identity {
+                return Err(MacEveryError::Sqlite(
+                    "compacted output was replaced during copy".into(),
+                ));
+            }
+            let copied_file = CompactFilePin::at(&staged)?;
+            let compacted = Self::open_read_only(staged.clone())?;
+            let mut check = compacted.conn.prepare("PRAGMA quick_check;")?;
+            if !matches!(check.step()?, Step::Row)
+                || check.column_str(0) != Some("ok")
+                || !matches!(check.step()?, Step::Done)
+            {
+                return Err(MacEveryError::Sqlite(
+                    "compacted output quick_check failed".into(),
+                ));
+            }
+            drop(check);
+            let copied = compacted.compact_control_pin()?;
+            let verified_records = source.verify_compacted_records(&compacted)?;
+            let after = source.compact_control_pin()?;
+            let copied_after = compacted.compact_control_pin()?;
+            if before != after
+                || copied != before
+                || copied_after != before
+                || CompactFilePin::at(&self.path)? != source_file
+            {
+                return Err(MacEveryError::Sqlite("source identity, revision or control metadata changed during compact copy; output retained".into()));
+            }
+            if CompactFilePin::at(&staged)? != copied_file {
+                return Err(MacEveryError::Sqlite(
+                    "compacted output was replaced during validation".into(),
+                ));
+            }
+            drop(compacted);
+            let staged_wal = PathBuf::from(format!("{}-wal", staged.display()));
+            match std::fs::metadata(staged_wal) {
+                Ok(metadata) if metadata.len() != 0 => {
+                    return Err(MacEveryError::Sqlite(
+                        "compacted staging still has WAL data; refusing main-file-only publication"
+                            .into(),
+                    ))
+                }
+                Ok(_) => {}
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+                Err(error) => return Err(error.into()),
+            }
+            // hard_link fails if any destination object appeared after preflight;
+            // it never overwrites an existing file or follows a dangling symlink.
+            std::fs::hard_link(&staged, &output)?;
+            if CompactFilePin::at(&output)? != copied_file {
+                return Err(MacEveryError::Sqlite(
+                    "published compacted output changed identity".into(),
+                ));
+            }
+            drop(destination);
+            std::fs::remove_dir_all(&staging)?;
+            Ok(verified_records)
+        })();
+        result.map_err(|error: MacEveryError| {
+            MacEveryError::Sqlite(format!(
+                "compact copy failed; staging retained at {}: {error}",
+                staging.display()
+            ))
+        })
+    }
+
+    fn verify_compacted_records(&self, compacted: &Self) -> Result<usize> {
+        let sql = "SELECT id,path,path_lower,basename,basename_lower,ext_lower,kind,size,mtime,ctime,dev,inode,indexed_at FROM files ORDER BY id;";
+        let mut source = self.conn.prepare(sql)?;
+        let mut copied = compacted.conn.prepare(sql)?;
+        let mut records = 0usize;
+        loop {
+            match (source.step()?, copied.step()?) {
+                (Step::Done, Step::Done) => return Ok(records),
+                (Step::Row, Step::Row) => {
+                    records = records.checked_add(1).ok_or_else(|| {
+                        MacEveryError::Sqlite("compacted record count overflow".into())
+                    })?;
+                    // Both rows remain borrowed only until the next pair of
+                    // steps. This checks all FileRecord fields without a Vec
+                    // or result/path materialization proportional to the index.
+                    if row_to_record_ref(&source)? != row_to_record_ref(&copied)? {
+                        return Err(MacEveryError::Sqlite(format!(
+                            "compacted records differ at ordinal {records}; output retained"
+                        )));
+                    }
+                }
+                _ => {
+                    return Err(MacEveryError::Sqlite(format!(
+                        "compacted record counts differ after ordinal {records}; output retained"
+                    )))
+                }
+            }
+        }
+    }
+
+    fn compact_control_pin(&self) -> Result<CompactControlPin> {
+        self.with_read_snapshot(|| {
+            let stamp = self.content_stamp()?;
+            let (roots, excludes) = self.roots_and_excludes()?;
+            let mut floor = self.conn.prepare("SELECT journal_floor FROM macevery_content_state WHERE singleton=1;")?;
+            if !matches!(floor.step()?, Step::Row) {
+                return Err(MacEveryError::Sqlite("missing journal floor during compact copy".into()));
+            }
+            let journal_floor = floor.column_i64(0).ok_or_else(|| MacEveryError::Sqlite("invalid journal floor during compact copy".into()))?;
+            let mut values = self.conn.prepare("SELECT typeof(key),hex(CAST(key AS BLOB)),typeof(value),hex(CAST(value AS BLOB)) FROM meta ORDER BY 1,2,3,4;")?;
+            let mut metadata = Vec::new();
+            while let Step::Row = values.step()? {
+                let mut row = std::array::from_fn(|_| String::new());
+                for (column, value) in row.iter_mut().enumerate() {
+                    *value = values.column_text(column as i32).ok_or_else(|| MacEveryError::Sqlite("invalid control metadata during compact copy".into()))?;
+                }
+                metadata.push(row);
+            }
+            Ok(CompactControlPin { database_id: stamp.database_id, revision: stamp.revision, journal_floor, roots, excludes, metadata })
+        })
+    }
+
     /// A single-row read; includes WAL commits and excludes control-plane metadata.
     /// Every API-visible files value, including indexed_at, participates; no-op
     /// updates leave the revision unchanged.
@@ -221,6 +516,33 @@ impl Database {
     /// The first SELECT pins a WAL read snapshot; callers must commit or roll back.
     pub fn begin_read(&self) -> Result<()> {
         self.conn.execute_batch("BEGIN DEFERRED TRANSACTION;")
+    }
+
+    /// Keep multi-pass searches in one snapshot without committing or rolling
+    /// back a transaction owned by the caller.
+    pub(crate) fn with_read_snapshot<T>(&self, read: impl FnOnce() -> Result<T>) -> Result<T> {
+        if !self.conn.is_autocommit() {
+            return read();
+        }
+        self.begin_read()?;
+        let result = read().and_then(|value| {
+            self.commit()?;
+            Ok(value)
+        });
+        if result.is_err() {
+            let _ = self.rollback();
+        }
+        result
+    }
+
+    /// Raw BLOB index predicates share column_str's bytes only in UTF-8
+    /// databases. UTF-16 BLOB-to-text conversion can change the byte sequence.
+    pub(crate) fn uses_utf8_encoding(&self) -> Result<bool> {
+        let mut stmt = self.conn.prepare("PRAGMA encoding;")?;
+        Ok(matches!(stmt.step()?, Step::Row)
+            && stmt
+                .column_str(0)
+                .is_some_and(|encoding| encoding.eq_ignore_ascii_case("UTF-8")))
     }
 
     pub fn init(&self) -> Result<()> {
@@ -882,6 +1204,142 @@ impl Database {
         Ok(())
     }
 
+    /// A superset of Rust basename-prefix matches for ASCII [lower, upper).
+    /// TEXT and explicit BLOB values are disjoint indexed ranges: column_str
+    /// decodes either when valid UTF-8. No SQL sort or LIMIT materializes the
+    /// prefix set, and the caller applies the exact Rust scorer and filters.
+    pub(crate) fn for_each_basename_prefix_ref<F>(
+        &self,
+        lower: &str,
+        upper: &str,
+        mut visit: F,
+    ) -> Result<()>
+    where
+        F: FnMut(DbRecordRef<'_>) -> Result<()>,
+    {
+        for blob in [false, true] {
+            let bounds = if blob {
+                "basename_lower >= CAST(?1 AS BLOB) COLLATE BINARY
+                 AND basename_lower < CAST(?2 AS BLOB) COLLATE BINARY"
+            } else {
+                "basename_lower >= ?1 COLLATE BINARY AND basename_lower < ?2 COLLATE BINARY"
+            };
+            let mut stmt = self.conn.prepare(&format!(
+                "SELECT id, path, path_lower, basename, basename_lower, ext_lower, kind, size, mtime, ctime, dev, inode, indexed_at
+                 FROM files WHERE {bounds};"
+            ))?;
+            stmt.bind_text(1, Some(lower))?;
+            stmt.bind_text(2, Some(upper))?;
+            while let Step::Row = stmt.step()? {
+                visit(row_to_record_ref(&stmt)?)?;
+            }
+        }
+        Ok(())
+    }
+
+    /// Scan the smaller basename index, fetching complete rows only when its
+    /// raw bytes contain a necessary literal. instr(BLOB,BLOB) preserves Rust
+    /// byte semantics for Unicode and embedded NULs, unlike LIKE wildcards.
+    /// This is only a superset: every row is still checked by the Rust scorer.
+    pub(crate) fn for_each_basename_literal_ref<F>(&self, literal: &str, mut visit: F) -> Result<()>
+    where
+        F: FnMut(DbRecordRef<'_>) -> Result<()>,
+    {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, path, path_lower, basename, basename_lower, ext_lower, kind, size, mtime, ctime, dev, inode, indexed_at
+             FROM files INDEXED BY idx_files_basename_lower
+             WHERE instr(CAST(basename_lower AS BLOB), CAST(?1 AS BLOB)) > 0;",
+        )?;
+        stmt.bind_text(1, Some(literal))?;
+        while let Step::Row = stmt.step()? {
+            visit(row_to_record_ref(&stmt)?)?;
+        }
+        Ok(())
+    }
+
+    /// Complete positive-extension candidates, with disjoint storage classes.
+    /// The caller has checked UTF-8 encoding and rechecks all Rust filters.
+    /// False means the bind list is unsuitable; it never means zero matches.
+    pub(crate) fn for_each_extension_ref<F>(
+        &self,
+        extensions: &[String],
+        mut visit: F,
+    ) -> Result<bool>
+    where
+        F: FnMut(DbRecordRef<'_>) -> Result<()>,
+    {
+        if extensions.is_empty()
+            || extensions.len() > 128
+            || extensions.iter().any(|value| value.contains('\0'))
+        {
+            return Ok(false);
+        }
+        let plain = placeholders(extensions.len());
+        let blobs = (0..extensions.len())
+            .map(|_| "CAST(? AS BLOB)")
+            .collect::<Vec<_>>()
+            .join(",");
+        for predicate in [
+            format!("typeof(ext_lower)='text' AND ext_lower IN ({plain})"),
+            format!("typeof(ext_lower)='blob' AND ext_lower IN ({blobs})"),
+            format!(
+                "ext_lower < '' COLLATE BINARY AND typeof(ext_lower) IN ('integer','real')
+                 AND CAST(ext_lower AS TEXT) IN ({plain})"
+            ),
+        ] {
+            let mut stmt = self.conn.prepare(&format!(
+                "SELECT id, path, path_lower, basename, basename_lower, ext_lower, kind, size, mtime, ctime, dev, inode, indexed_at
+                 FROM files INDEXED BY idx_files_ext_lower WHERE {predicate};"
+            ))?;
+            for (index, value) in extensions.iter().enumerate() {
+                stmt.bind_text(index as i32 + 1, Some(value))?;
+            }
+            while let Step::Row = stmt.step()? {
+                visit(row_to_record_ref(&stmt)?)?;
+            }
+        }
+        Ok(true)
+    }
+
+    /// Let a conservative connection-local function filter the covering path
+    /// index, returning only candidate IDs across the SQLite/Rust boundary.
+    /// NULL/empty/invalid UTF-8 fetch the original path for Unicode fallback.
+    /// If a complete basename pass preceded this, skip exactly its Rust set.
+    pub(crate) fn for_each_path_literal_ref<F>(
+        &self,
+        literal: &str,
+        skip_basename_literal: bool,
+        mut visit: F,
+    ) -> Result<()>
+    where
+        F: FnMut(DbRecordRef<'_>) -> Result<()>,
+    {
+        self.conn.register_path_literal_filter()?;
+        let mut paths = self.conn.prepare(
+            "SELECT id FROM files INDEXED BY idx_files_path_lower
+             WHERE macevery_path_may_contain(path_lower,?1);",
+        )?;
+        paths.bind_text(1, Some(literal))?;
+        let mut full = self.conn.prepare(
+            "SELECT id, path, path_lower, basename, basename_lower, ext_lower, kind, size, mtime, ctime, dev, inode, indexed_at
+             FROM files WHERE id=?1;",
+        )?;
+        while let Step::Row = paths.step()? {
+            full.reset()?;
+            full.bind_i64(1, paths.column_i64(0))?;
+            if !matches!(full.step()?, Step::Row) {
+                return Err(MacEveryError::Sqlite(
+                    "path-index candidate disappeared from search snapshot".into(),
+                ));
+            }
+            let row = row_to_record_ref(&full)?;
+            if !skip_basename_literal || !row.basename_lower.contains(literal) {
+                visit(row)?;
+            }
+        }
+        Ok(())
+    }
+
     /// Read the startup decision without counting indexed files. The first
     /// SELECT pins the snapshot used for all configuration and metadata reads.
     pub fn bootstrap_status(&self) -> Result<BootstrapStatus> {
@@ -1397,6 +1855,659 @@ mod content_revision_tests {
         fn drop(&mut self) {
             let _ = std::fs::remove_dir_all(&self.0);
         }
+    }
+
+    #[test]
+    fn compacted_copy_preserves_all_records_metadata_ids_and_future_journal_writes() {
+        let fixture = Fixture::new("compacted-copy-complete");
+        let db = Database::open(fixture.database()).unwrap();
+        db.begin().unwrap();
+        for i in 0..256 {
+            let mut value = FileRecord::new(
+                format!("/copy/目录/Code-{i:04}.RS"),
+                match i % 5 {
+                    0 => FileKind::File,
+                    1 => FileKind::Directory,
+                    2 => FileKind::Symlink,
+                    3 => FileKind::App,
+                    _ => FileKind::Other,
+                },
+                i64::MIN + i,
+            );
+            if i % 5 == 0 {
+                value.path_lower = format!("/independent/{i}/ος");
+            }
+            if i % 7 == 0 {
+                value.path_lower.clear();
+            }
+            value.basename = format!("independent original {i}/长名");
+            value.basename_lower = format!("independent lowered {i}/σ");
+            value.ext_lower = match i % 3 {
+                0 => None,
+                1 => Some(String::new()),
+                _ => Some("RS".into()),
+            };
+            value.size = match i % 3 {
+                0 => None,
+                1 => Some(i64::MIN),
+                _ => Some(i64::MAX),
+            };
+            value.mtime = match i % 4 {
+                0 => None,
+                1 => Some(-1),
+                2 => Some(0),
+                _ => Some(i64::MAX),
+            };
+            value.ctime = Some(i64::MAX - i);
+            value.dev = (i % 2 == 0).then_some(i64::MIN + i);
+            value.inode = (i % 2 != 0).then_some(i64::MAX - i);
+            db.upsert_file(&value).unwrap();
+        }
+        db.conn.execute_batch("UPDATE files SET id=-9223372036854775808 WHERE id=1; UPDATE files SET id=9223372036854775807 WHERE id=2; UPDATE files SET id=0,basename=basename||char(0),basename_lower=basename_lower||char(0) WHERE id=3;").unwrap();
+        db.set_roots(&["/copy/目录".into(), "/copy/Other".into()])
+            .unwrap();
+        db.set_excludes(&[".git".into(), "cache/目录".into()])
+            .unwrap();
+        db.set_meta("watch_last_event_id", "9123456789").unwrap();
+        db.set_meta("last_indexed_at", "1987654321").unwrap();
+        db.commit().unwrap();
+        let expected = db.all_records().unwrap();
+        let source_file = CompactFilePin::at(db.path()).unwrap();
+        let source_bytes = std::fs::read(db.path()).unwrap();
+        let wal = PathBuf::from(format!("{}-wal", db.path().display()));
+        let wal_before = std::fs::read(&wal).ok();
+        let control = db.compact_control_pin().unwrap();
+        let temp_store = scalar(&db, "PRAGMA temp_store;");
+        let output = fixture.0.join("file:copy'?cache=shared.sqlite");
+        assert_eq!(db.write_compacted_copy(&output).unwrap(), expected.len());
+        assert!(!std::fs::read_dir(&fixture.0).unwrap().any(|entry| entry
+            .unwrap()
+            .file_name()
+            .to_string_lossy()
+            .starts_with(".macevery-compact-")));
+        assert_eq!(CompactFilePin::at(db.path()).unwrap(), source_file);
+        assert_eq!(std::fs::read(db.path()).unwrap(), source_bytes);
+        assert_eq!(std::fs::read(&wal).ok(), wal_before);
+        assert_eq!(scalar(&db, "PRAGMA temp_store;"), temp_store);
+        assert!(db.conn.is_autocommit());
+        assert_eq!(std::fs::metadata(&output).unwrap().mode() & 0o777, 0o600);
+        let copied = Database::open_read_only(output.clone()).unwrap();
+        assert_eq!(copied.all_records().unwrap(), expected);
+        assert_eq!(copied.compact_control_pin().unwrap(), control);
+        assert_ne!(copied.identity, db.identity);
+        assert_eq!(
+            source_file.identity,
+            db.content_stamp().unwrap().file_identity
+        );
+        drop(copied);
+        let copied = Database::open_existing(output).unwrap();
+        let mut changed = expected[5].clone();
+        changed.size = Some(777);
+        for database in [&db, &copied] {
+            let base = database.content_stamp().unwrap();
+            database.upsert_file(&changed).unwrap();
+            database.begin_read().unwrap();
+            let delta = database.file_changes_since(&base, 4096, 4096).unwrap();
+            database.commit().unwrap();
+            let FileChangeRead::Available { target, changes } = delta else {
+                panic!("copy must retain functional change triggers and history");
+            };
+            assert_eq!(target.revision, base.revision + 1);
+            assert_eq!(changes.len(), 1);
+            assert_eq!(changes[0].id, changed.id);
+            assert_eq!(changes[0].record.as_ref(), Some(&changed));
+        }
+        assert_eq!(db.all_records().unwrap(), copied.all_records().unwrap());
+    }
+
+    #[test]
+    fn compacted_copy_rejects_existing_objects_source_aliases_and_missing_parents() {
+        let fixture = Fixture::new("compacted-copy-targets");
+        let db = Database::open(fixture.database()).unwrap();
+        let before = CompactFilePin::at(db.path()).unwrap();
+        let bytes = std::fs::read(db.path()).unwrap();
+        let sentinel = fixture.0.join("existing.sqlite");
+        std::fs::write(&sentinel, b"do not replace").unwrap();
+        assert!(db.write_compacted_copy(&sentinel).is_err());
+        assert_eq!(std::fs::read(&sentinel).unwrap(), b"do not replace");
+        let empty = fixture.0.join("empty.sqlite");
+        std::fs::write(&empty, b"").unwrap();
+        assert!(db.write_compacted_copy(&empty).is_err());
+        assert_eq!(std::fs::metadata(empty).unwrap().len(), 0);
+        let dangling = fixture.0.join("dangling.sqlite");
+        std::os::unix::fs::symlink(fixture.0.join("absent.sqlite"), &dangling).unwrap();
+        assert!(db.write_compacted_copy(&dangling).is_err());
+        assert!(std::fs::symlink_metadata(&dangling)
+            .unwrap()
+            .file_type()
+            .is_symlink());
+        assert!(db.write_compacted_copy(&fixture.0).is_err());
+        assert!(db.write_compacted_copy(db.path()).is_err());
+        assert!(db.write_compacted_copy(Path::new("")).is_err());
+        let missing = fixture.0.join("absent-parent/copy.sqlite");
+        assert!(db.write_compacted_copy(&missing).is_err());
+        assert!(!missing.parent().unwrap().exists());
+        let alias = fixture.0.join("source-alias.sqlite");
+        std::os::unix::fs::symlink(db.path(), &alias).unwrap();
+        for source_name in [db.path(), alias.as_path()] {
+            for suffix in ["-journal", "-JOURNAL", "-wal", "-shm"] {
+                let output = PathBuf::from(format!("{}{suffix}", source_name.display()));
+                let existed = std::fs::symlink_metadata(&output).is_ok();
+                assert!(db.write_compacted_copy(&output).is_err());
+                assert_eq!(std::fs::symlink_metadata(&output).is_ok(), existed);
+            }
+        }
+        for suffix in ["-wal", "-shm", "-journal"] {
+            let output = fixture.0.join(format!("sidecar{suffix}.sqlite"));
+            let sidecar = PathBuf::from(format!("{}{suffix}", output.display()));
+            std::os::unix::fs::symlink(fixture.0.join("missing-sidecar-target"), &sidecar).unwrap();
+            assert!(db.write_compacted_copy(&output).is_err());
+            assert!(!output.exists());
+            assert!(std::fs::symlink_metadata(sidecar)
+                .unwrap()
+                .file_type()
+                .is_symlink());
+        }
+        assert_eq!(CompactFilePin::at(db.path()).unwrap(), before);
+        assert_eq!(std::fs::read(db.path()).unwrap(), bytes);
+    }
+
+    #[test]
+    fn compacted_copy_rejects_explicit_transactions_and_implicit_active_cursors() {
+        let fixture = Fixture::new("compacted-copy-transactions");
+        let db = Database::open(fixture.database()).unwrap();
+        db.upsert_file(&record("/copy/code", 1)).unwrap();
+        let output = fixture.0.join("copy.sqlite");
+        db.begin().unwrap();
+        db.set_meta("caller-uncommitted", "must survive until caller rollback")
+            .unwrap();
+        assert!(db.write_compacted_copy(&output).is_err());
+        assert!(!output.exists());
+        assert!(!db.conn.is_autocommit());
+        assert_eq!(
+            db.get_meta("caller-uncommitted").unwrap().as_deref(),
+            Some("must survive until caller rollback")
+        );
+        db.rollback().unwrap();
+        db.begin_read().unwrap();
+        assert!(db.write_compacted_copy(&output).is_err());
+        assert!(!output.exists());
+        db.rollback().unwrap();
+        let mut visited = false;
+        db.for_each_record_ref(|_| {
+            assert!(db.conn.is_autocommit());
+            assert!(db.write_compacted_copy(&output).is_err());
+            assert!(!output.exists());
+            visited = true;
+            Ok(())
+        })
+        .unwrap();
+        assert!(visited);
+        let readonly = Database::open_read_only(fixture.database()).unwrap();
+        assert_eq!(readonly.write_compacted_copy(&output).unwrap(), 1);
+    }
+
+    #[test]
+    fn compacted_copy_retains_failed_output_and_stream_verifier_checks_every_field() {
+        let fixture = Fixture::new("compacted-copy-failures");
+        let db = Database::open(fixture.database()).unwrap();
+        db.upsert_file(&record("/private-fixture/do-not-include-in-errors/code", 1))
+            .unwrap();
+        let output = fixture.0.join("copy.sqlite");
+        assert_eq!(db.write_compacted_copy(&output).unwrap(), 1);
+        let copied = Database::open_existing(output.clone()).unwrap();
+        for change in [
+            "id=-9",
+            "path='/different'",
+            "path_lower='/independent-lower'",
+            "basename='independent original'",
+            "basename_lower='independent lower'",
+            "ext_lower='changed'",
+            "kind='directory'",
+            "size=99",
+            "mtime=99",
+            "ctime=99",
+            "dev=99",
+            "inode=99",
+            "indexed_at=99",
+        ] {
+            copied.begin().unwrap();
+            copied
+                .conn
+                .execute_batch(&format!("UPDATE files SET {change};"))
+                .unwrap();
+            let error = db
+                .verify_compacted_records(&copied)
+                .unwrap_err()
+                .to_string();
+            assert!(error.contains("ordinal 1"), "{error}");
+            assert!(!error.contains("do-not-include-in-errors"));
+            copied.rollback().unwrap();
+            assert!(output.exists());
+        }
+        copied.begin().unwrap();
+        copied.conn.execute_batch("DELETE FROM files;").unwrap();
+        assert!(db
+            .verify_compacted_records(&copied)
+            .unwrap_err()
+            .to_string()
+            .contains("counts differ"));
+        copied.rollback().unwrap();
+        assert_eq!(db.verify_compacted_records(&copied).unwrap(), 1);
+        drop(copied);
+        // Missing control metadata fails after creating private staging. Keep
+        // its recovery pointer and never publish an unverified output.
+        db.conn.execute_batch("DROP TABLE meta;").unwrap();
+        let failed = fixture.0.join("failed.sqlite");
+        let error = db.write_compacted_copy(&failed).unwrap_err().to_string();
+        assert!(!failed.exists());
+        let directories = std::fs::read_dir(&fixture.0)
+            .unwrap()
+            .map(|entry| entry.unwrap().path())
+            .filter(|path| {
+                path.file_name()
+                    .unwrap()
+                    .to_string_lossy()
+                    .starts_with(".macevery-compact-")
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(directories.len(), 1);
+        let retained = &directories[0];
+        assert!(error.contains(retained.to_str().unwrap()));
+        assert_eq!(std::fs::metadata(retained).unwrap().mode() & 0o777, 0o700);
+        std::fs::write(retained.join("failure-evidence"), b"preserve").unwrap();
+        assert!(db.write_compacted_copy(&failed).is_err());
+        assert!(!failed.exists());
+        assert_eq!(
+            std::fs::read(retained.join("failure-evidence")).unwrap(),
+            b"preserve"
+        );
+    }
+
+    #[test]
+    fn exact_search_matches_packed_with_raw_sqlite_unicode_null_blob_and_signed_ties() {
+        let fixture = Fixture::new("exact-search-fields");
+        let db = Database::open(fixture.database()).unwrap();
+        db.conn.execute_batch(
+            "INSERT INTO files(id,path,path_lower,basename,basename_lower,ext_lower,kind,size,mtime,ctime,dev,inode,indexed_at) VALUES
+             (-9223372036854775808,CAST(x'ff' AS TEXT),NULL,'Blob original',CAST('code' AS BLOB),NULL,'linK',-9223372036854775808,NULL,9223372036854775807,-9223372036854775808,9223372036854775807,-9223372036854775808),
+             (9223372036854775807,CAST(x'fe' AS TEXT),'','Text original','code','','unknown',9223372036854775807,NULL,-9223372036854775808,9223372036854775807,-9223372036854775808,9223372036854775807),
+             (-2,'/A/ΟΣ',NULL,'independent original','independent lower','PDF','FILE',1,-1,2,3,4,5),
+             (0,'/EMPTY/Σ','','not a suffix','code-prefix','pdf','directory',NULL,0,NULL,NULL,NULL,0),
+             (1,'/nul/'||char(0)||'code',NULL,'nul'||char(0),'',NULL,'file',10,100,20,30,40,50),
+             (2,'/independent/original','/elsewhere/汉','X','fuzzy-axbyczd',NULL,'app',NULL,9223372036854775807,NULL,NULL,NULL,1),
+             (3,'/invalid/lower',CAST(x'ff' AS TEXT),'display',CAST(x'fe' AS BLOB),NULL,'other',NULL,0,NULL,NULL,NULL,1),
+             (4,'/汉','/汉','汉','汉',NULL,'file',NULL,NULL,NULL,NULL,NULL,1),
+             (5,'/abcd','/abcd','abcd','abcd',NULL,'file',NULL,1,NULL,NULL,NULL,1),
+             (6,'/raw-bad/original','/code/fallback','display',CAST(x'636f6465ff' AS BLOB),NULL,'other',NULL,1,NULL,NULL,NULL,1),
+             (7,'/raw-path/blob',CAST('/code/blob' AS BLOB),'independent','',NULL,'file',NULL,1,NULL,NULL,NULL,1);"
+        ).unwrap();
+        let records = db.all_records().unwrap();
+        let packed = crate::compact_index::CompactIndex::load(&db).unwrap();
+        let mut cases = crate::search::test_reference::options();
+        for query in [
+            "code",
+            "CODE",
+            "ΟΣ",
+            "Σ",
+            "汉",
+            "~abcd",
+            "\0",
+            "code\0",
+            "*?*",
+            "invalid",
+            "code fallback",
+            "*a*longer*",
+            "kind:symlink code",
+            "!kind:file",
+            "!ext:pdf",
+            "path:elsewhere",
+            "!path:汉",
+        ] {
+            cases.push(SearchOptions {
+                query: query.into(),
+                ..Default::default()
+            });
+        }
+        cases.push(SearchOptions {
+            query: "????".into(),
+            path_only: true,
+            ..Default::default()
+        });
+        for mut options in cases {
+            for limit in [0, 1, 2, 7, 300, usize::MAX] {
+                options.limit = limit;
+                let expected = crate::search::test_reference::search_records(&records, &options);
+                let actual = crate::search::search(&db, &options).unwrap();
+                assert_eq!(actual, expected, "SQLite {options:?}");
+                assert_eq!(actual, packed.search(&options), "packed {options:?}");
+            }
+        }
+        let first = crate::search::search(
+            &db,
+            &SearchOptions {
+                query: "code".into(),
+                limit: 1,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(first[0].record.id, i64::MIN);
+        assert!(db.conn.is_autocommit());
+    }
+
+    #[test]
+    fn utf16_blob_text_conversion_bypasses_every_raw_byte_prepass() {
+        let fixture = Fixture::new("exact-utf16-blob");
+        let setup = Connection::open(&fixture.database()).unwrap();
+        setup
+            .execute_batch("PRAGMA encoding='UTF-16le'; CREATE TABLE encoding_probe(value TEXT);")
+            .unwrap();
+        drop(setup);
+        let db = Database::open(fixture.database()).unwrap();
+        assert!(!db.uses_utf8_encoding().unwrap());
+        db.conn.execute_batch(
+            "INSERT INTO files(id,path,path_lower,basename,basename_lower,ext_lower,kind,indexed_at) VALUES
+             (1,'/unicode-match','/different','physical',x'00d84100',x'720073','file',1),
+             (2,'/B','/elsewhere','physical',x'63006f0064006500','r','file',1),
+             (3,'/longer/path','/elsewhere','physical','code-prefix','r','file',1);"
+        ).unwrap();
+        let records = db.all_records().unwrap();
+        assert_eq!(records[0].basename_lower, "\u{10041}");
+        assert_eq!(records[0].ext_lower.as_deref(), Some("r"));
+        assert_eq!(records[1].basename_lower, "code");
+        let packed = crate::compact_index::CompactIndex::load(&db).unwrap();
+        for query in [
+            "code",
+            "\u{10041}",
+            "*\u{10041}*",
+            "ext:r",
+            "ext:r code",
+            "r",
+            "~r",
+        ] {
+            for limit in [0, 1, 2, 300] {
+                let options = SearchOptions {
+                    query: query.into(),
+                    limit,
+                    ..Default::default()
+                };
+                let got = crate::search::search(&db, &options).unwrap();
+                assert_eq!(
+                    got,
+                    crate::search::test_reference::search_records(&records, &options),
+                    "{options:?}"
+                );
+                assert_eq!(got, packed.search(&options), "{options:?}");
+            }
+        }
+    }
+
+    #[test]
+    fn extension_index_stream_preserves_text_blob_numeric_and_null_semantics() {
+        let fixture = Fixture::new("exact-extension-types");
+        let setup = Connection::open(&fixture.database()).unwrap();
+        // No affinity on this legacy ext_lower column keeps actual INTEGER and
+        // REAL values available to exercise column_str's text conversion.
+        setup.execute_batch(
+            "CREATE TABLE files(id INTEGER PRIMARY KEY,path TEXT NOT NULL UNIQUE,path_lower TEXT,
+             basename TEXT NOT NULL,basename_lower TEXT NOT NULL,ext_lower,kind TEXT NOT NULL,
+             size INTEGER,mtime INTEGER,ctime INTEGER,dev INTEGER,inode INTEGER,indexed_at INTEGER NOT NULL);"
+        ).unwrap();
+        drop(setup);
+        let db = Database::open(fixture.database()).unwrap();
+        assert!(db.uses_utf8_encoding().unwrap());
+        db.conn.execute_batch(
+            "INSERT INTO files(id,path,path_lower,basename,basename_lower,ext_lower,kind,indexed_at) VALUES
+             (-9,'/text/code',NULL,'code','code','rs','file',1),
+             (2,'/blob/code',NULL,'code','code',CAST('rs' AS BLOB),'file',1),
+             (3,'/swift/c-o-d-e',NULL,'c-o-d-e','c-o-d-e','swift','file',1),
+             (4,'/integer/c-o-d-e',NULL,'c-o-d-e','c-o-d-e',7,'file',1),
+             (5,'/real/code',NULL,'code','code',1.5,'file',1),
+             (6,'/null/code',NULL,'code','code',NULL,'file',1),
+             (7,'/empty/code',NULL,'code','code','','file',1),
+             (8,'/empty-blob/code',NULL,'code','code',x'','file',1),
+             (9,'/nul/code',NULL,'code','code','r'||char(0)||'s','file',1),
+             (10,'/uppercase/code',NULL,'code','code','RS','file',1),
+             (11,'/unicode/code',NULL,'code','code',CAST('汉' AS BLOB),'file',1);"
+        ).unwrap();
+        let records = db.all_records().unwrap();
+        let filters = ["rs", "swift", "7", "1.5", "", "汉"]
+            .map(str::to_owned)
+            .to_vec();
+        let mut ids = Vec::new();
+        assert!(db
+            .for_each_extension_ref(&filters, |row| {
+                ids.push(row.id);
+                Ok(())
+            })
+            .unwrap());
+        ids.sort();
+        let expected = records
+            .iter()
+            .filter(|row| {
+                row.ext_lower
+                    .as_ref()
+                    .is_some_and(|ext| filters.contains(ext))
+            })
+            .map(|row| row.id)
+            .collect::<Vec<_>>();
+        assert_eq!(ids, expected);
+        let packed = crate::compact_index::CompactIndex::load(&db).unwrap();
+        for ext_filters in [
+            filters,
+            vec!["rs".into(), "swift".into()],
+            vec!["r\0s".into()],
+            vec!["rs".into(); 129],
+        ] {
+            for query in [
+                "code",
+                "~code",
+                "*?code*",
+                "",
+                "kind:file ~cde",
+                "code text",
+            ] {
+                let options = SearchOptions {
+                    query: query.into(),
+                    ext_filters: ext_filters.clone(),
+                    limit: 300,
+                    ..Default::default()
+                };
+                let got = crate::search::search(&db, &options).unwrap();
+                assert_eq!(
+                    got,
+                    crate::search::test_reference::search_records(&records, &options),
+                    "{options:?}"
+                );
+                assert_eq!(got, packed.search(&options), "{options:?}");
+            }
+        }
+        for unsuitable in [vec![], vec!["r\0s".into()], vec!["rs".into(); 129]] {
+            assert!(!db
+                .for_each_extension_ref(&unsuitable, |_| panic!(
+                    "unsuitable list must not partially visit"
+                ))
+                .unwrap());
+        }
+        for predicate in [
+            "typeof(ext_lower)='text' AND ext_lower IN (?1)",
+            "typeof(ext_lower)='blob' AND ext_lower IN (CAST(?1 AS BLOB))",
+            "ext_lower < '' COLLATE BINARY AND typeof(ext_lower) IN ('integer','real') AND CAST(ext_lower AS TEXT) IN (?1)",
+        ] {
+            let mut plan = db.conn.prepare(&format!("EXPLAIN QUERY PLAN SELECT id,path FROM files INDEXED BY idx_files_ext_lower WHERE {predicate};")).unwrap();
+            plan.bind_text(1, Some("rs")).unwrap();
+            let mut details = Vec::new();
+            while let Step::Row = plan.step().unwrap() {
+                details.push(plan.column_text(3).unwrap());
+            }
+            assert!(
+                details
+                    .iter()
+                    .any(|text| text.contains("SEARCH files USING INDEX idx_files_ext_lower")),
+                "{details:?}"
+            );
+            assert!(
+                !details.iter().any(|text| text.contains("TEMP B-TREE")),
+                "{details:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn indexed_prefix_stream_has_no_limit_sort_or_duplicate_text_blob_rows() {
+        let fixture = Fixture::new("exact-prefix-range");
+        let db = Database::open(fixture.database()).unwrap();
+        db.conn
+            .execute_batch(
+                "INSERT INTO files(id,path,basename,basename_lower,kind,indexed_at) VALUES
+             (100,'/text','physical','code-z','file',1),
+             (-10,'/blob','physical',CAST('code-a' AS BLOB),'file',1),
+             (3,'/before','physical','cod','file',1),
+             (4,'/upper','physical','codf','file',1),
+             (5,'/empty','physical','','file',1),
+             (6,'/unicode','physical','code汉','file',1),
+             (7,'/invalid','physical',CAST(x'636f6465ff' AS BLOB),'file',1),
+             (8,'/nul-containing-name','physical','before'||char(0)||'code汉%_after','file',1);",
+            )
+            .unwrap();
+        let mut actual = Vec::new();
+        db.for_each_basename_prefix_ref("code", "codf", |row| {
+            // The indexed range may contain invalid UTF-8; the Rust scorer is
+            // authoritative and sees the same empty fallback as a full load.
+            if row.basename_lower.starts_with("code") {
+                actual.push(row.id);
+            }
+            Ok(())
+        })
+        .unwrap();
+        actual.sort();
+        assert_eq!(actual, [-10, 6, 100]);
+        for literal in ["code", "汉", "%_"] {
+            let mut actual = Vec::new();
+            db.for_each_basename_literal_ref(literal, |row| {
+                if row.basename_lower.contains(literal) {
+                    actual.push(row.id);
+                }
+                Ok(())
+            })
+            .unwrap();
+            actual.sort();
+            let expected = db
+                .all_records()
+                .unwrap()
+                .into_iter()
+                .filter(|row| row.basename_lower.contains(literal))
+                .map(|row| row.id)
+                .collect::<Vec<_>>();
+            assert_eq!(actual, expected, "literal={literal:?}");
+        }
+        for bounds in [
+            "basename_lower >= ?1 COLLATE BINARY AND basename_lower < ?2 COLLATE BINARY",
+            "basename_lower >= CAST(?1 AS BLOB) COLLATE BINARY AND basename_lower < CAST(?2 AS BLOB) COLLATE BINARY",
+        ] {
+            let mut stmt = db.conn.prepare(&format!(
+                "EXPLAIN QUERY PLAN SELECT id,path,path_lower,basename,basename_lower,ext_lower,kind,size,mtime,ctime,dev,inode,indexed_at FROM files WHERE {bounds};"
+            )).unwrap();
+            stmt.bind_text(1, Some("code")).unwrap();
+            stmt.bind_text(2, Some("codf")).unwrap();
+            let mut details = Vec::new();
+            while let Step::Row = stmt.step().unwrap() {
+                details.push(stmt.column_text(3).unwrap());
+            }
+            assert!(details.iter().any(|text| text.contains("SEARCH files USING INDEX idx_files_basename_lower")), "{details:?}");
+            assert!(!details.iter().any(|text| text.contains("TEMP B-TREE")), "{details:?}");
+        }
+    }
+
+    #[test]
+    fn indexed_basename_literal_scan_uses_no_temp_sort() {
+        let fixture = Fixture::new("exact-literal-plan");
+        let db = Database::open(fixture.database()).unwrap();
+        let mut stmt = db.conn.prepare(
+            "EXPLAIN QUERY PLAN SELECT id,path,path_lower,basename,basename_lower,ext_lower,kind,size,mtime,ctime,dev,inode,indexed_at
+             FROM files INDEXED BY idx_files_basename_lower
+             WHERE instr(CAST(basename_lower AS BLOB),CAST(?1 AS BLOB)) > 0;"
+        ).unwrap();
+        stmt.bind_text(1, Some("code")).unwrap();
+        let mut details = Vec::new();
+        while let Step::Row = stmt.step().unwrap() {
+            details.push(stmt.column_text(3).unwrap());
+        }
+        assert!(
+            details
+                .iter()
+                .any(|text| text.contains("SCAN files USING INDEX idx_files_basename_lower")),
+            "{details:?}"
+        );
+        assert!(
+            !details.iter().any(|text| text.contains("TEMP B-TREE")),
+            "{details:?}"
+        );
+        db.conn.register_path_literal_filter().unwrap();
+        let mut path_plan = db.conn.prepare("EXPLAIN QUERY PLAN SELECT id FROM files INDEXED BY idx_files_path_lower WHERE macevery_path_may_contain(path_lower,?1);").unwrap();
+        path_plan.bind_text(1, Some("code")).unwrap();
+        let mut details = Vec::new();
+        while let Step::Row = path_plan.step().unwrap() {
+            details.push(path_plan.column_text(3).unwrap());
+        }
+        assert!(
+            details
+                .iter()
+                .any(|text| text.contains("COVERING INDEX idx_files_path_lower")),
+            "{details:?}"
+        );
+    }
+
+    #[test]
+    fn search_read_snapshot_is_shared_with_callers_and_released_on_error() {
+        let fixture = Fixture::new("exact-search-snapshot");
+        let db = Database::open(fixture.database()).unwrap();
+        let writer = Database::open(fixture.database()).unwrap();
+        db.upsert_file(&record("/old/code", 1)).unwrap();
+        db.with_read_snapshot(|| {
+            let expected = db.all_records()?;
+            writer.upsert_file(&record("/new/code", 2))?;
+            let found = crate::search::search(
+                &db,
+                &SearchOptions {
+                    query: "code".into(),
+                    limit: 300,
+                    ..Default::default()
+                },
+            )?;
+            assert_eq!(
+                found,
+                crate::search::test_reference::search_records(
+                    &expected,
+                    &SearchOptions {
+                        query: "code".into(),
+                        limit: 300,
+                        ..Default::default()
+                    }
+                )
+            );
+            assert!(!db.conn.is_autocommit());
+            Ok(())
+        })
+        .unwrap();
+        assert!(db.conn.is_autocommit());
+        assert_eq!(db.all_records().unwrap().len(), 2);
+
+        let error = || Err::<(), _>(MacEveryError::Sqlite("injected read failure".into()));
+        assert!(db.with_read_snapshot(error).is_err());
+        assert!(db.conn.is_autocommit());
+        db.begin().unwrap();
+        db.set_meta("caller-uncommitted", "keep until caller rollback")
+            .unwrap();
+        assert!(db.with_read_snapshot(error).is_err());
+        assert!(!db.conn.is_autocommit());
+        assert_eq!(
+            db.get_meta("caller-uncommitted").unwrap().as_deref(),
+            Some("keep until caller rollback")
+        );
+        db.rollback().unwrap();
+        assert!(db.get_meta("caller-uncommitted").unwrap().is_none());
     }
 
     fn scalar(db: &Database, sql: &str) -> i64 {

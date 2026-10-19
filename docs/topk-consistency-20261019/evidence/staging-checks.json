@@ -1,0 +1,46 @@
+{
+  "status": "PASS",
+  "debug_unit_tests": 149,
+  "release_unit_tests": 149,
+  "bootstrap_cli_tests_per_profile": 3,
+  "optimize_cli_tests_per_profile": 3,
+  "mixed_index_transactions": 420,
+  "incremental_integration_tests_per_profile": 1,
+  "prefix_integration_tests_per_profile": 1,
+  "strict_clippy_all_targets": "PASS",
+  "fmt": "PASS",
+  "release_build": "PASS",
+  "checks": {
+    "debug": {
+      "status": "PASS",
+      "local_log_sha256": "b3323a4e5c4b55b14bd0a8a915d493815c5f43db6061fd853d9471d192401281"
+    },
+    "release-tests": {
+      "status": "PASS",
+      "local_log_sha256": "268ba8078f1c1311c6896d36c0ba85ad02745b3189ee6fe5fbd90e764d6a8ad0"
+    },
+    "clippy": {
+      "status": "PASS",
+      "local_log_sha256": "4f2733f6437843909aec87ddbf2ba8453ac265c72fcdba0ffe6c4edbfe71fb45"
+    },
+    "fmt": {
+      "status": "PASS",
+      "local_log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "build": {
+      "status": "PASS",
+      "local_log_sha256": "9576f1f7e73fc2bb1ec2336aae60cb485c591eadc60a1b998573411c34057e08"
+    }
+  },
+  "candidate_binary_sha256": "836a9e678254776be807d0cd2c7c46e00021db25d9ab6900572e8ff46b5cbe99",
+  "production_source_sha256": {
+    "src/search.rs": "101ee1589e2ecf03681c5b1afe01b670017febc4b9b8939ea5ff95b1bbfc82bb",
+    "src/db.rs": "64c74c4c8e40f53f8af5c790693cdf7a54905e3d6157159045a6f1dcbbc0ae76",
+    "src/sqlite.rs": "be2a5bc8f687de47560b908657152c005b81eb172d0f7244d51c09d5d0a9b825",
+    "src/cli.rs": "26fdca581a815af5fc325244db60a12937163b1e9c2e5cf861290bb7fb69accb",
+    "macos/MacEveryApp.swift": "fad3a3053ffc88136a33466d096249d278b5fda2238d54205eba36724316a328"
+  },
+  "swift_real_transport": "PENDING",
+  "native_installation": "PENDING",
+  "boundary": "Source/build and controlled backend checks only; prior prototype evidence remains separate."
+}

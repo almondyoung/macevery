@@ -32,6 +32,7 @@ where
         "reveal" => cmd_open_or_reveal(args, true),
         "status" => cmd_status(args),
         "bootstrap" => cmd_bootstrap(args),
+        "optimize" => cmd_optimize(args),
         "clean" => cmd_clean(args),
         "watch" => cmd_watch(args),
         "serve" => cmd_serve(args),
@@ -197,6 +198,54 @@ fn cmd_clean(args: Vec<String>) -> Result<()> {
             fs::remove_file(&path)?;
             println!("removed {}", path.to_string_lossy());
         }
+    }
+    Ok(())
+}
+
+fn cmd_optimize(args: Vec<String>) -> Result<()> {
+    let mut output = None;
+    let mut json = false;
+    let mut args = args.into_iter();
+    while let Some(arg) = args.next() {
+        match arg.as_str() {
+            "--output" if output.is_none() => {
+                let value = args.next().ok_or_else(|| {
+                    MacEveryError::Cli("--output requires a fresh destination path".into())
+                })?;
+                if value.is_empty() || value.starts_with('-') {
+                    return Err(MacEveryError::Cli(
+                        "--output requires a path; use ./ for names beginning with '-'".into(),
+                    ));
+                }
+                output = Some(expand_tilde(&value));
+            }
+            "--json" if !json => json = true,
+            "-h" | "--help" => return usage(),
+            _ => {
+                return Err(MacEveryError::Cli(format!(
+                    "unknown optimize option '{arg}'"
+                )))
+            }
+        }
+    }
+    let output = output.ok_or_else(|| {
+        MacEveryError::Cli("optimize requires --output with a fresh destination path".into())
+    })?;
+    let source = default_db_path();
+    let db = Database::open_read_only(source.clone())?;
+    let source_bytes = fs::metadata(&source)?.len();
+    let started = std::time::Instant::now();
+    let verified_records = db.write_compacted_copy(&output)?;
+    let output_bytes = fs::metadata(&output)?.len();
+    if json {
+        println!(
+            "{{\"optimized_copy\":true,\"source_main_bytes\":{},\"output_main_bytes\":{},\"wall_ms\":{},\"verified_records\":{},\"source_unchanged\":true}}",
+            source_bytes, output_bytes, started.elapsed().as_millis(), verified_records
+        );
+    } else {
+        println!("created compacted index copy: {}", output.display());
+        println!("source unchanged; main file bytes: {source_bytes} -> {output_bytes}");
+        println!("verified all fields of {verified_records} records");
     }
     Ok(())
 }
@@ -481,6 +530,7 @@ Usage:\n\
   macevery reveal QUERY\n\
   macevery status [--json]\n\
   macevery bootstrap --json\n\
+  macevery optimize --output NEW_DB_PATH [--json]  (compact copy; source unchanged)\n\
   macevery clean\n\
   macevery watch\n\
   macevery serve [--addr 127.0.0.1:17649] [--backend auto|memory|compact|sqlite]\n\

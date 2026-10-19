@@ -1,0 +1,8 @@
+{
+  "at_utc": "2026-10-19T09:45:59.439360+00:00",
+  "reason": "user authorized exact TopK fix and new 24h window after acceptance",
+  "stop": "verified-owned-collector-SIGTERM",
+  "original_window_finished": false,
+  "records_preserved": true,
+  "fixed_app_source": "8096e0a9c61cacd3402cd3017e95fc60ddb2c0f3"
+}

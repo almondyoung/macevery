@@ -1,0 +1,32 @@
+[
+  {
+    "query_id": "code",
+    "wall_seconds": 2.482317458,
+    "timed_out_15s": false,
+    "exit": 0,
+    "cpu_seconds": 0.131061,
+    "peak_rss_bytes": 16678912,
+    "group_gone": true,
+    "count": 300,
+    "matches_frozen_memory_oracle": true
+  },
+  {
+    "query_id": "filtered",
+    "wall_seconds": 12.477188334000001,
+    "timed_out_15s": false,
+    "exit": 0,
+    "cpu_seconds": 3.9633700000000003,
+    "peak_rss_bytes": 16531456,
+    "group_gone": true,
+    "count": 300
+  },
+  {
+    "query_id": "glob",
+    "wall_seconds": 15.037290957999998,
+    "timed_out_15s": true,
+    "exit": -15,
+    "cpu_seconds": 3.9988780000000004,
+    "peak_rss_bytes": 16269312,
+    "group_gone": true
+  }
+]

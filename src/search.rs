@@ -1,13 +1,11 @@
-use crate::db::Database;
+use crate::db::{Database, DbRecordRef};
 use crate::error::Result;
 use crate::model::{FileRecord, PathFilter, PathFilterMode, SearchOptions, SearchResult};
+use std::borrow::Cow;
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
-use std::env;
 
 const DEFAULT_LIMIT: usize = 50;
-const MAX_CANDIDATES: usize = 20_000;
-const DEFAULT_MAX_FUZZY_CANDIDATES: usize = 120_000;
 
 pub struct RecordView<'a> {
     pub path: &'a str,
@@ -35,25 +33,273 @@ impl<'a> From<&'a FileRecord> for RecordView<'a> {
 
 pub fn search(db: &Database, options: &SearchOptions) -> Result<Vec<SearchResult>> {
     let options = options.normalized();
-    if options.fuzzy_enabled() {
-        let limit = effective_limit(options.limit);
-        let max_candidates = fuzzy_candidate_limit(limit);
-        let mut candidates = db.candidate_records(&options, max_candidates)?;
-        if candidates.is_empty() {
-            candidates = db.filtered_records(&options, max_candidates)?;
-        }
-        return Ok(rank_records(candidates, &options, limit));
-    }
-
+    let query = PreparedQuery::new(&options);
     let limit = effective_limit(options.limit);
-    let max_candidates = MAX_CANDIDATES.max(limit.saturating_mul(80));
-    Ok(rank_records(
-        db.candidate_records(&options, max_candidates)?,
-        &options,
-        limit,
-    ))
+    db.with_read_snapshot(|| {
+        // UTF-16 databases may reinterpret raw BLOB text. Their correctness
+        // fallback is the complete decoded row stream, without byte prefilters.
+        if db.uses_utf8_encoding()? {
+            if let Some((lower, upper)) = sqlite_basename_prefix(&query) {
+                let mut hits = OwnedTopHits::new(limit);
+                db.for_each_basename_prefix_ref(lower, &upper, |record| {
+                    hits.consider_record(record, &query);
+                    Ok(())
+                })?;
+                // With one plain term, a non-prefix basename scores at least 250
+                // before the nonnegative path-length penalty (also when fuzzy is
+                // enabled). Only a strict bound proves no unvisited row can win.
+                if hits.is_complete_below(250) {
+                    return Ok(hits.finish());
+                }
+            }
+            if !options.ext_filters.is_empty() {
+                let mut hits = OwnedTopHits::new(limit);
+                if db.for_each_extension_ref(&options.ext_filters, |record| {
+                    hits.consider_record(record, &query);
+                    Ok(())
+                })? {
+                    return Ok(hits.finish());
+                }
+            }
+            let union_literal = sqlite_required_literal(&query);
+            let basename_proof = sqlite_basename_literal(&query);
+            if let Some(literal) = union_literal.or_else(|| basename_proof.map(|proof| proof.0)) {
+                let mut hits = OwnedTopHits::new(limit);
+                if !options.path_only {
+                    db.for_each_basename_literal_ref(literal, |record| {
+                        // Raw invalid-UTF8 BLOBs may pass instr while decoding to an
+                        // empty basename. They belong in the path pass, not both sets.
+                        if record.basename_lower.contains(literal) {
+                            hits.consider_record(record, &query);
+                        }
+                        Ok(())
+                    })?;
+                    // A match outside this complete basename set pays at least
+                    // the selected term's path/fuzzy bound. Every other term
+                    // and the path-length penalty contributes a nonnegative score.
+                    if basename_proof.is_some_and(|(selected, bound)| {
+                        selected == literal && hits.is_complete_below(bound)
+                    }) {
+                        return Ok(hits.finish());
+                    }
+                }
+                if union_literal.is_some() {
+                    // For a nonfuzzy required term, every true match must contain
+                    // its literal in basename or lowered path. These two complete
+                    // passes form a disjoint union and need no score early-stop.
+                    db.for_each_path_literal_ref(literal, !options.path_only, |record| {
+                        hits.consider_record(record, &query);
+                        Ok(())
+                    })?;
+                    return Ok(hits.finish());
+                }
+            }
+        }
+        // A pass without a proof is discarded: visit every row once in the
+        // same snapshot, without LIKE/glob/mtime candidate truncation.
+        let mut hits = OwnedTopHits::new(limit);
+        db.for_each_record_ref(|record| {
+            hits.consider_record(record, &query);
+            Ok(())
+        })?;
+        Ok(hits.finish())
+    })
 }
 
+fn sqlite_basename_prefix<'a>(query: &'a PreparedQuery<'_>) -> Option<(&'a str, String)> {
+    if query.options.path_only || query.terms.len() != 1 {
+        return None;
+    }
+    let term = &query.terms[0];
+    let lower = term.finder.value.as_str();
+    if term.glob.is_some() || lower.is_empty() || !lower.is_ascii() || lower.contains('\0') {
+        return None;
+    }
+    let mut upper = lower.as_bytes().to_vec();
+    let last = upper.last_mut()?;
+    *last = last.checked_add(1)?;
+    // An ASCII DEL suffix has no UTF-8 one-byte successor; just use the full
+    // stream for that unusual query. No query bytes are changed or discarded.
+    Some((lower, String::from_utf8(upper).ok()?))
+}
+
+fn sqlite_basename_literal<'a>(query: &'a PreparedQuery<'_>) -> Option<(&'a str, i64)> {
+    if query.options.path_only {
+        return None;
+    }
+    let (literal, term) = sqlite_selected_literal(query)?;
+    let score_bound = match &term.glob {
+        Some(glob) => i64::try_from(glob.pattern.len()).ok()?.checked_add(520)?,
+        // All basename literal matches are present. Without one, the path
+        // substring branch is >=550 and fuzzy branches are >=1000.
+        None => 550,
+    };
+    Some((literal, score_bound))
+}
+
+fn sqlite_term_literal(term: &PreparedTerm) -> Option<&str> {
+    let literal = match &term.glob {
+        // Every literal segment is necessary. Its bytes are contiguous UTF-8
+        // because glob delimiters are ASCII character boundaries.
+        Some(glob) => glob
+            .pattern
+            .split(['*', '?'])
+            .filter(|value| !value.is_empty() && !value.contains('\0'))
+            .max_by_key(|value| value.len())?,
+        None => term.finder.value.as_str(),
+    };
+    (!literal.is_empty() && !literal.contains('\0')).then_some(literal)
+}
+
+fn sqlite_required_literal<'a>(query: &'a PreparedQuery<'_>) -> Option<&'a str> {
+    if query.fuzzy {
+        return None;
+    }
+    sqlite_selected_literal(query).map(|selected| selected.0)
+}
+
+fn sqlite_selected_literal<'a>(
+    query: &'a PreparedQuery<'_>,
+) -> Option<(&'a str, &'a PreparedTerm)> {
+    // Share selection between proof and union: retain the owning term even if
+    // different terms have identical literal bytes but different score bounds.
+    // Terms are ANDed, so any term's necessary literal covers a true nonfuzzy
+    // match; choose the longest (last on equal lengths) to reduce row fetches.
+    query
+        .terms
+        .iter()
+        .filter_map(|term| sqlite_term_literal(term).map(|literal| (literal, term)))
+        .max_by_key(|(literal, _)| literal.len())
+}
+
+struct OwnedRankedHit {
+    score: i64,
+    record: FileRecord,
+}
+
+impl OwnedRankedHit {
+    fn compare_ref(&self, score: i64, record: &DbRecordRef<'_>) -> Ordering {
+        score
+            .cmp(&self.score)
+            .then_with(|| self.record.mtime.cmp(&record.mtime))
+            .then_with(|| record.path.len().cmp(&self.record.path.len()))
+            .then_with(|| record.path.cmp(&self.record.path))
+            // Full packed loads visit signed IDs in ascending order. SQLite
+            // prefix ranges have a different visit order, so encode that last
+            // stable tie explicitly rather than using the stream position.
+            .then_with(|| record.id.cmp(&self.record.id))
+    }
+}
+
+impl Ord for OwnedRankedHit {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.score
+            .cmp(&other.score)
+            .then_with(|| other.record.mtime.cmp(&self.record.mtime))
+            .then_with(|| self.record.path.len().cmp(&other.record.path.len()))
+            .then_with(|| self.record.path.cmp(&other.record.path))
+            .then_with(|| self.record.id.cmp(&other.record.id))
+    }
+}
+impl PartialOrd for OwnedRankedHit {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+impl PartialEq for OwnedRankedHit {
+    fn eq(&self, other: &Self) -> bool {
+        self.cmp(other) == Ordering::Equal
+    }
+}
+impl Eq for OwnedRankedHit {}
+
+struct OwnedTopHits {
+    hits: BinaryHeap<OwnedRankedHit>,
+    limit: usize,
+}
+
+impl OwnedTopHits {
+    fn new(limit: usize) -> Self {
+        Self {
+            hits: BinaryHeap::new(),
+            limit,
+        }
+    }
+
+    fn consider_record(&mut self, record: DbRecordRef<'_>, query: &PreparedQuery<'_>) {
+        if !query.matches_metadata(&record.kind, record.mtime, record.ext_lower) {
+            return;
+        }
+        let lowered = record
+            .path_lower
+            .filter(|path| !path.is_empty())
+            .map(Cow::Borrowed)
+            .unwrap_or_else(|| Cow::Owned(record.path.to_lowercase()));
+        let Some(score) = query.rank_lowered(
+            &lowered,
+            record.basename_lower,
+            record.path.len(),
+            record.mtime,
+        ) else {
+            return;
+        };
+        if self.limit == 0
+            || self.hits.len() >= self.limit
+                && self
+                    .hits
+                    .peek()
+                    .is_some_and(|worst| worst.compare_ref(score, &record) != Ordering::Less)
+        {
+            return;
+        }
+        // SQLite borrows expire at the next step. Copy only a competitive
+        // winner; the heap retains at most K complete results, never the scan.
+        let hit = OwnedRankedHit {
+            score,
+            record: FileRecord {
+                id: record.id,
+                path: record.path.to_owned(),
+                path_lower: lowered.into_owned(),
+                basename: record.basename.to_owned(),
+                basename_lower: record.basename_lower.to_owned(),
+                ext_lower: record.ext_lower.map(ToOwned::to_owned),
+                kind: record.kind,
+                size: record.size,
+                mtime: record.mtime,
+                ctime: record.ctime,
+                dev: record.dev,
+                inode: record.inode,
+                indexed_at: record.indexed_at,
+            },
+        };
+        if self.hits.len() < self.limit {
+            self.hits.push(hit);
+        } else {
+            *self.hits.peek_mut().unwrap() = hit;
+        }
+    }
+
+    fn is_complete_below(&self, score_bound: i64) -> bool {
+        self.hits.len() == self.limit
+            && self
+                .hits
+                .peek()
+                .is_some_and(|worst| worst.score < score_bound)
+    }
+
+    fn finish(self) -> Vec<SearchResult> {
+        self.hits
+            .into_sorted_vec()
+            .into_iter()
+            .map(|hit| SearchResult {
+                record: hit.record,
+                score: hit.score,
+            })
+            .collect()
+    }
+}
+
+#[cfg(test)]
 fn rank_records(
     records: Vec<FileRecord>,
     options: &SearchOptions,
@@ -289,15 +535,6 @@ pub(crate) fn top_hits<'a>(
         }
     }
     hits.finish()
-}
-
-fn fuzzy_candidate_limit(limit: usize) -> usize {
-    env::var("MACEVERY_FUZZY_CANDIDATES")
-        .ok()
-        .and_then(|value| value.parse::<usize>().ok())
-        .filter(|value| *value > 0)
-        .unwrap_or(DEFAULT_MAX_FUZZY_CANDIDATES)
-        .max(limit.saturating_mul(200))
 }
 
 pub fn rank_record(record: &FileRecord, options: &SearchOptions) -> Option<i64> {
@@ -782,6 +1019,453 @@ mod tests {
 
     fn record(path: &str) -> FileRecord {
         FileRecord::new(path.to_string(), FileKind::File, 1)
+    }
+
+    fn db_record(record: &FileRecord) -> DbRecordRef<'_> {
+        DbRecordRef {
+            id: record.id,
+            path: &record.path,
+            path_lower: Some(&record.path_lower),
+            basename: &record.basename,
+            basename_lower: &record.basename_lower,
+            ext_lower: record.ext_lower.as_deref(),
+            kind: record.kind.clone(),
+            size: record.size,
+            mtime: record.mtime,
+            ctime: record.ctime,
+            dev: record.dev,
+            inode: record.inode,
+            indexed_at: record.indexed_at,
+        }
+    }
+
+    #[test]
+    fn sqlite_prefix_bounds_cover_every_ascii_suffix_without_changing_query_bytes() {
+        let options = SearchOptions::default();
+        let mut prepared = PreparedQuery::new(&options);
+        for byte in 1..=126u8 {
+            let needle = format!("code{}", byte as char);
+            prepared.terms = vec![PreparedTerm {
+                finder: Finder::new(needle.clone()),
+                glob: None,
+            }];
+            let (lower, upper) = sqlite_basename_prefix(&prepared).unwrap();
+            assert_eq!(lower, needle);
+            for value in [
+                needle.clone(),
+                format!("{needle}\0rest"),
+                format!("{needle}Σ/汉"),
+                format!("before{needle}"),
+                "code".to_owned(),
+                upper.clone(),
+            ] {
+                assert_eq!(
+                    value.starts_with(&needle),
+                    value.as_bytes() >= lower.as_bytes() && value.as_bytes() < upper.as_bytes(),
+                    "needle={needle:?}, value={value:?}"
+                );
+            }
+        }
+        for needle in ["", "code\0", "a\0b", "code\u{7f}", "Σ", "汉"] {
+            prepared.terms = vec![PreparedTerm {
+                finder: Finder::new(needle.to_owned()),
+                glob: None,
+            }];
+            assert!(sqlite_basename_prefix(&prepared).is_none(), "{needle:?}");
+        }
+        for query in ["*code", "code?", "code report", "", "~"] {
+            let options = SearchOptions {
+                query: query.to_owned(),
+                ..Default::default()
+            };
+            assert!(sqlite_basename_prefix(&PreparedQuery::new(&options)).is_none());
+        }
+        let options = SearchOptions {
+            query: "code".into(),
+            path_only: true,
+            ..Default::default()
+        };
+        assert!(sqlite_basename_prefix(&PreparedQuery::new(&options)).is_none());
+    }
+
+    #[test]
+    fn owned_sqlite_heap_has_strict_score_bound_and_canonical_signed_id_ties() {
+        let options = SearchOptions {
+            query: "code".into(),
+            ..Default::default()
+        };
+        let prepared = PreparedQuery::new(&options);
+        let mut hits = OwnedTopHits::new(2);
+        for length in [145, 146] {
+            let mut value = record(&"x".repeat(length));
+            value.basename_lower = "code-physical-name-is-independent".into();
+            hits.consider_record(db_record(&value), &prepared);
+        }
+        assert_eq!(hits.hits.peek().unwrap().score, 250);
+        assert!(!hits.is_complete_below(250));
+        assert!(hits.is_complete_below(251));
+        let mut incomplete = OwnedTopHits::new(3);
+        incomplete.consider_record(db_record(&record("/code")), &prepared);
+        assert!(!incomplete.is_complete_below(250));
+
+        let options = SearchOptions {
+            query: "code".into(),
+            limit: 3,
+            ..Default::default()
+        };
+        let prepared = PreparedQuery::new(&options);
+        let mut records = [i64::MIN, -10, 0, 5, i64::MAX]
+            .into_iter()
+            .map(|id| {
+                let mut value = record("/same/code");
+                value.id = id;
+                value.size = Some(id);
+                value.ctime = Some(i64::MIN);
+                value.dev = Some(i64::MAX);
+                value.indexed_at = id;
+                value
+            })
+            .collect::<Vec<_>>();
+        let expected = test_reference::search_records(&records, &options);
+        records.reverse();
+        let mut hits = OwnedTopHits::new(options.limit);
+        for value in &records {
+            hits.consider_record(db_record(value), &prepared);
+            assert!(hits.hits.len() <= options.limit);
+        }
+        assert_eq!(hits.finish(), expected);
+    }
+
+    #[test]
+    fn sqlite_basename_literal_prepass_uses_only_necessary_bytes_and_strict_bounds() {
+        for (text, expected) in [
+            ("code", Some(("code", 550))),
+            ("~code", Some(("code", 550))),
+            ("汉", Some(("汉", 550))),
+            ("*.rs", Some((".rs", 524))),
+            ("*a?longer*Σ", Some(("longer", 532))),
+            ("\0*code", Some(("code", 526))),
+            ("?", None),
+            ("***", None),
+            ("a\0b", None),
+            ("code report", Some(("report", 550))),
+            ("~code report", Some(("report", 550))),
+            ("code *test*", Some(("test", 526))),
+            ("*test* code", Some(("code", 550))),
+            ("code *code*", Some(("code", 526))),
+            ("*code* code", Some(("code", 550))),
+        ] {
+            let options = SearchOptions {
+                query: text.into(),
+                ..Default::default()
+            }
+            .normalized();
+            let prepared = PreparedQuery::new(&options);
+            assert_eq!(sqlite_basename_literal(&prepared), expected, "{text:?}");
+        }
+        for (text, basename, path_len, bound) in
+            [("code", "xcode", 299, 550), ("*.rs", ".rs", 340, 524)]
+        {
+            let options = SearchOptions {
+                query: text.into(),
+                ..Default::default()
+            };
+            let prepared = PreparedQuery::new(&options);
+            let mut value = record(&"x".repeat(path_len));
+            value.basename_lower = basename.into();
+            let mut hits = OwnedTopHits::new(1);
+            hits.consider_record(db_record(&value), &prepared);
+            assert_eq!(hits.hits.peek().unwrap().score, bound);
+            assert!(!hits.is_complete_below(bound));
+            assert!(hits.is_complete_below(bound + 1));
+        }
+    }
+
+    #[test]
+    fn multi_term_basename_proof_tracks_selected_term_and_keeps_strict_boundary() {
+        for (text, basename, path_len, literal, bound) in [
+            ("code test", "test_code", 191, "test", 550),
+            ("~code test", "test_code", 191, "test", 550),
+            ("code *test*", "testcode", 86, "test", 526),
+            ("~code *test*", "testcode", 86, "test", 526),
+            ("*test* code", "testcode", 110, "code", 550),
+            ("code *code*", "code", 340, "code", 526),
+            ("*code* code", "code", 364, "code", 550),
+        ] {
+            let options = SearchOptions {
+                query: text.into(),
+                ..Default::default()
+            }
+            .normalized();
+            let prepared = PreparedQuery::new(&options);
+            assert_eq!(
+                sqlite_basename_literal(&prepared),
+                Some((literal, bound)),
+                "{text:?}"
+            );
+            if !prepared.fuzzy {
+                assert_eq!(sqlite_required_literal(&prepared), Some(literal));
+            } else {
+                assert!(sqlite_required_literal(&prepared).is_none());
+            }
+            let mut value = record(&"x".repeat(path_len));
+            value.basename_lower = basename.into();
+            let mut hits = OwnedTopHits::new(1);
+            hits.consider_record(db_record(&value), &prepared);
+            assert_eq!(hits.hits.peek().unwrap().score, bound, "{text:?}");
+            assert!(!hits.is_complete_below(bound), "{text:?}");
+            value.path.pop();
+            hits.consider_record(db_record(&value), &prepared);
+            assert!(hits.is_complete_below(bound), "{text:?}");
+            let path_only = SearchOptions {
+                path_only: true,
+                ..options
+            };
+            assert!(sqlite_basename_literal(&PreparedQuery::new(&path_only)).is_none());
+        }
+    }
+
+    #[test]
+    fn sqlite_basename_prepasses_retain_outside_path_competitors_and_fuzzy_results() {
+        let temp = unique_temp_dir("macevery-basename-prepass-proof");
+        let db = Database::open(temp.join("index.sqlite")).unwrap();
+        for (path, basename) in [
+            (format!("/{}/xcode", "long".repeat(100)), "xcode"),
+            ("/code/x".into(), "x"),
+            (format!("/{}/x.rs", "long".repeat(100)), "x.rs"),
+            ("/short.rs".into(), "independent-name"),
+            ("/z/c-o-d-e".into(), "c-o-d-e"),
+            ("/汉/ab汉.rs".into(), "ab汉.rs"),
+        ] {
+            let mut value = record(&path);
+            value.basename_lower = basename.into();
+            db.upsert_file(&value).unwrap();
+        }
+        let records = db.all_records().unwrap();
+        for query in ["code", "~code", "*.rs", "*?汉*", "*汉*", "?", "***"] {
+            for limit in [1, 2, 7, 300] {
+                let options = SearchOptions {
+                    query: query.into(),
+                    limit,
+                    ..Default::default()
+                };
+                assert_eq!(
+                    search(&db, &options).unwrap(),
+                    test_reference::search_records(&records, &options),
+                    "{options:?}"
+                );
+            }
+        }
+        let options = SearchOptions {
+            query: "code".into(),
+            limit: 1,
+            ..Default::default()
+        };
+        assert_eq!(search(&db, &options).unwrap()[0].record.path, "/code/x");
+        let options = SearchOptions {
+            query: "*.rs".into(),
+            limit: 1,
+            ..Default::default()
+        };
+        assert_eq!(search(&db, &options).unwrap()[0].record.path, "/汉/ab汉.rs");
+        drop(db);
+        fs::remove_dir_all(temp).unwrap();
+    }
+
+    #[test]
+    fn sqlite_literal_union_handles_independent_fields_path_only_and_all_required_terms() {
+        let temp = unique_temp_dir("macevery-literal-union");
+        let db = Database::open(temp.join("index.sqlite")).unwrap();
+        for (path, lowered, basename, ext) in [
+            ("/physical/basename-code", "/report/route", "code", "rs"),
+            (
+                "/physical/basename-report",
+                "/code/route",
+                "report",
+                "swift",
+            ),
+            ("/physical/path-only", "/code/route", "code", "rs"),
+            ("/physical/no-path-code", "/different", "code", "rs"),
+            (
+                "/physical/longest-glob-literal",
+                "/a/longer",
+                "has-a",
+                "swift",
+            ),
+            ("/physical/basename-glob", "/different", "alonger", "rs"),
+            ("/physical/path-glob", "/a/longer", "outside", "rs"),
+            ("/physical/fuzzy", "/different", "c-o-d-e", "rs"),
+            ("/cheap/test_code", "/independent", "test_code", "rs"),
+            ("/cheap/testcode", "/independent", "testcode", "swift"),
+            ("/physical/fuzzy-multi", "/test", "c-o-d-e", "rs"),
+        ] {
+            let mut value = record(path);
+            value.path_lower = lowered.into();
+            value.basename_lower = basename.into();
+            value.ext_lower = Some(ext.into());
+            db.upsert_file(&value).unwrap();
+        }
+        let records = db.all_records().unwrap();
+        let cases = [
+            "code",
+            "code report",
+            "code test",
+            "~code test",
+            "code *test*",
+            "~code *test*",
+            "*test* code",
+            "code *code*",
+            "*code* code",
+            "code missing-long-term",
+            "*a*longer*",
+            "*?longer*",
+            "code *port*",
+            "~code",
+            "ext:rs ~code",
+            "ext:rs|swift code",
+            "path:route code",
+            "part:route code",
+            "!path:different code",
+            "zzzzzz-not-present-anywhere",
+        ];
+        for query in cases {
+            for path_only in [false, true] {
+                for limit in [0, 1, 2, 300] {
+                    let options = SearchOptions {
+                        query: query.into(),
+                        path_only,
+                        limit,
+                        ..Default::default()
+                    };
+                    assert_eq!(
+                        search(&db, &options).unwrap(),
+                        test_reference::search_records(&records, &options),
+                        "{options:?}"
+                    );
+                }
+            }
+        }
+        let options = SearchOptions {
+            query: "*a*longer*".into(),
+            limit: 300,
+            ..Default::default()
+        };
+        let results = search(&db, &options).unwrap();
+        assert!(results
+            .iter()
+            .any(|hit| hit.record.path == "/physical/longest-glob-literal"));
+        let options = SearchOptions {
+            query: "code".into(),
+            path_only: true,
+            limit: 300,
+            ..Default::default()
+        };
+        let results = search(&db, &options).unwrap();
+        assert!(results
+            .iter()
+            .any(|hit| hit.record.path == "/physical/path-only"));
+        assert!(!results
+            .iter()
+            .any(|hit| hit.record.path == "/physical/no-path-code"));
+        drop(db);
+        fs::remove_dir_all(temp).unwrap();
+    }
+
+    #[test]
+    fn sqlite_stream_matches_independent_reference_for_all_query_modes_and_limits() {
+        let temp = unique_temp_dir("macevery-exact-stream");
+        let db = Database::open(temp.join("index.sqlite")).unwrap();
+        db.begin().unwrap();
+        for value in test_reference::records() {
+            db.upsert_file(&value).unwrap();
+        }
+        for path in ["/汉", "/abc", "/x/axbyczd", "/x/abcd", "/code-old"] {
+            db.upsert_file(&record(path)).unwrap();
+        }
+        db.commit().unwrap();
+        let records = db.all_records().unwrap();
+        let mut cases = test_reference::options();
+        cases.extend([
+            SearchOptions {
+                query: "????".into(),
+                path_only: true,
+                ..Default::default()
+            },
+            SearchOptions {
+                query: "~abcd".into(),
+                ..Default::default()
+            },
+            SearchOptions {
+                query: "code".into(),
+                fuzzy: true,
+                ..Default::default()
+            },
+        ]);
+        for mut options in cases {
+            for limit in [0, 1, 2, 7, 50, 300, records.len() + 1, usize::MAX] {
+                options.limit = limit;
+                assert_eq!(
+                    search(&db, &options).unwrap(),
+                    test_reference::search_records(&records, &options),
+                    "{options:?}"
+                );
+            }
+        }
+        drop(db);
+        fs::remove_dir_all(temp).unwrap();
+    }
+
+    #[test]
+    fn sqlite_prefix_proof_falls_back_for_outside_competitors_or_too_few_hits() {
+        let temp = unique_temp_dir("macevery-prefix-proof");
+        let db = Database::open(temp.join("index.sqlite")).unwrap();
+        db.upsert_file(&record(&format!("/{}/code-prefix", "long".repeat(80))))
+            .unwrap();
+        db.upsert_file(&record("/xcode")).unwrap();
+        db.upsert_file(&record("/co-de")).unwrap();
+        let records = db.all_records().unwrap();
+        for query in ["code", "~code"] {
+            for limit in [1, 2, 3, 300] {
+                let options = SearchOptions {
+                    query: query.into(),
+                    limit,
+                    ..Default::default()
+                };
+                let got = search(&db, &options).unwrap();
+                assert_eq!(got, test_reference::search_records(&records, &options));
+                assert_eq!(got[0].record.path, "/xcode");
+            }
+        }
+        drop(db);
+        fs::remove_dir_all(temp).unwrap();
+    }
+
+    #[test]
+    fn sqlite_exact_search_does_not_drop_old_hits_after_twenty_four_thousand_candidates() {
+        let temp = unique_temp_dir("macevery-old-hit-recall");
+        let db = Database::open(temp.join("index.sqlite")).unwrap();
+        db.begin().unwrap();
+        for i in 0..24_100 {
+            let mut value = record(&format!("/new/sqlite-code-path-{i:05}"));
+            value.mtime = Some(100 + i);
+            db.upsert_file(&value).unwrap();
+        }
+        let mut old = record("/code");
+        old.mtime = Some(-1);
+        db.upsert_file(&old).unwrap();
+        db.commit().unwrap();
+        let records = db.all_records().unwrap();
+        let options = SearchOptions {
+            query: "code".into(),
+            limit: 300,
+            ..Default::default()
+        };
+        let got = search(&db, &options).unwrap();
+        assert_eq!(got, test_reference::search_records(&records, &options));
+        assert_eq!(got[0].record.path, "/code");
+        assert_eq!(got.len(), 300);
+        drop(db);
+        fs::remove_dir_all(temp).unwrap();
     }
 
     #[test]

@@ -153,6 +153,18 @@ Inspect or clean the database:
 ./target/release/macevery clean
 ```
 
+Create a compact SQLite copy after substantial index churn:
+
+```bash
+./target/release/macevery optimize --output /tmp/macevery-compacted.sqlite --json
+```
+
+This explicit maintenance command opens the source read-only, checks every
+record field and ID against the new copy, and reports the verified row count.
+It leaves the source and any failed output in place. It does not run during
+startup or automatically install the output. File watching resumes from the
+preserved checkpoint when a verified copy is adopted while the App is stopped.
+
 Start incremental indexing for the already indexed roots:
 
 ```bash
@@ -175,9 +187,11 @@ Search service backends:
 
 The GUI defaults to `memory` because MacEvery is optimized for fast local use.
 Switch to Low Memory in Settings to query SQLite with less resident index memory.
-SQLite and CLI searches rank a bounded candidate set, while Fastest and Balanced
-rank the full in-memory index. Broad queries can therefore return different top
-results when the GUI falls back to CLI search or uses Low Memory mode.
+SQLite, CLI fallback, Fastest and Balanced use the same complete matching and
+ranking rules, including result fields and ordering. SQLite retains only the
+requested top results while scanning complete candidates; indexed prefilters
+are used only when they cannot omit a winning result. Low Memory trades query
+work for a smaller resident index, so broad searches can still take longer.
 The service's `actual_index_bytes` reports allocated index capacity, not process RSS.
 Status polling and watcher checkpoints do not reload the index; committed file
 changes are loaded lazily from one consistent database snapshot on the next search.
