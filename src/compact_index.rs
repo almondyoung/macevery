@@ -21,6 +21,7 @@ const MAX_EXTENSION_GROWTH_BYTES: usize = 4 * 1024 * 1024;
 const METADATA_FIELDS: usize = 6;
 const ESCAPED_VALUE: u32 = 1 << 31;
 const INLINE_SPAN: i128 = (ESCAPED_VALUE - 1) as i128;
+const NO_TEXT_PARENT: u8 = 3;
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum ApplyOutcome {
@@ -93,13 +94,16 @@ struct CompactRecord {
     id: i64,
     path: Slice,
     path_lower: Slice,
-    basename: Slice,
-    basename_lower: Slice,
+    basename_len: u32,
+    basename_lower_len: u32,
     arena: u32,
     ext: u32,
     prefix: u32,
     kind: FileKind,
     present: u8,
+    // Two 2-bit parents from RowLayout: lower path, physical original suffix,
+    // original basename, or independently appended text (NO_TEXT_PARENT).
+    basename_parents: u8,
 }
 
 impl CompactRecord {
@@ -124,6 +128,35 @@ impl CompactRecord {
             if value.is_some() {
                 self.present |= 1 << i;
             }
+        }
+    }
+
+    fn basename_slice(&self, path_suffix: Slice) -> Slice {
+        let len = self.basename_len;
+        match self.basename_parents & 3 {
+            0 => self.path_lower.suffix(len),
+            1 => path_suffix.suffix(len),
+            _ => Slice {
+                start: self.path_lower.end().max(path_suffix.end()),
+                len,
+            },
+        }
+    }
+
+    fn basename_lower_slice(&self, path_suffix: Slice) -> Slice {
+        let len = self.basename_lower_len;
+        match self.basename_parents >> 2 {
+            0 => self.path_lower.suffix(len),
+            1 => path_suffix.suffix(len),
+            2 => self.basename_slice(path_suffix).suffix(len),
+            _ => Slice {
+                start: self
+                    .path_lower
+                    .end()
+                    .max(path_suffix.end())
+                    .max(self.basename_slice(path_suffix).end()),
+                len,
+            },
         }
     }
 }
@@ -522,6 +555,19 @@ struct Slice {
 }
 
 impl Slice {
+    // Ends refer to physical arena slices. The logical record.path length
+    // includes its shared prefix and must be shortened before using this.
+    fn end(self) -> u32 {
+        self.start + self.len
+    }
+
+    fn suffix(self, len: u32) -> Self {
+        Self {
+            start: self.end() - len,
+            len,
+        }
+    }
+
     fn checked(start: usize, len: usize) -> Result<Self> {
         let end = start.checked_add(len).ok_or_else(index_too_large)?;
         if end > u32::MAX as usize {
@@ -597,6 +643,11 @@ impl RowLayout {
         }
         Slice::checked(0, required)?;
         Ok(Self { parents, required })
+    }
+
+    fn basename_parents(&self) -> u8 {
+        self.parents[2].map_or(NO_TEXT_PARENT, |parent| parent as u8)
+            | (self.parents[3].map_or(NO_TEXT_PARENT, |parent| parent as u8) << 2)
     }
 }
 
@@ -825,8 +876,8 @@ impl CompactIndex {
     ) -> bool {
         self.path_view(old) == PathView::from(record.path)
             && self.get(old, old.path_lower) == text.lowered
-            && self.get(old, old.basename) == record.basename
-            && self.get(old, old.basename_lower) == record.basename_lower
+            && self.get(old, self.basename_slice(old)) == record.basename
+            && self.get(old, self.basename_lower_slice(old)) == record.basename_lower
     }
 
     fn find_id(&self, id: i64) -> Option<usize> {
@@ -938,13 +989,14 @@ impl CompactIndex {
                 len: u32::try_from(record.path.len()).map_err(|_| index_too_large())?,
             },
             path_lower: slices[0],
-            basename: slices[2],
-            basename_lower: slices[3],
+            basename_len: slices[2].len,
+            basename_lower_len: slices[3].len,
             arena: u32::try_from(arena).map_err(|_| index_too_large())?,
             ext,
             prefix,
             kind: record.kind.clone(),
             present: 0,
+            basename_parents: layout.basename_parents(),
         };
         packed.update_metadata(record, ext);
         Ok(packed)
@@ -1106,7 +1158,7 @@ impl CompactIndex {
                 ""
             };
             let basename = if query.needs_basename() {
-                get(record.basename_lower)
+                get(self.basename_lower_slice(record))
             } else {
                 ""
             };
@@ -1147,6 +1199,25 @@ impl CompactIndex {
     fn ext(&self, record: &CompactRecord) -> Option<&str> {
         (record.ext != NO_EXTENSION).then(|| self.extensions[record.ext as usize].as_ref())
     }
+    fn path_suffix_slice(&self, record: &CompactRecord) -> Slice {
+        Slice {
+            start: record.path.start,
+            len: record.path.len - self.prefixes.get(record.prefix).len() as u32,
+        }
+    }
+    fn basename_slice(&self, record: &CompactRecord) -> Slice {
+        record.basename_slice(self.path_suffix_slice(record))
+    }
+    #[inline]
+    fn basename_lower_slice(&self, record: &CompactRecord) -> Slice {
+        // The common search path only needs the contiguous lower path. Keep
+        // prefix lookup and other field derivation off this branch.
+        if record.basename_parents >> 2 == 0 {
+            record.path_lower.suffix(record.basename_lower_len)
+        } else {
+            record.basename_lower_slice(self.path_suffix_slice(record))
+        }
+    }
     fn path_parts<'a>(&'a self, record: &'a CompactRecord) -> (&'a str, &'a str) {
         let prefix = self.prefixes.get(record.prefix);
         let suffix = self.get(
@@ -1163,15 +1234,12 @@ impl CompactIndex {
         PathView::new(prefix, suffix)
     }
     fn row_string_bytes(&self, record: &CompactRecord) -> usize {
-        let path = Slice {
-            start: record.path.start,
-            len: record.path.len - self.prefixes.get(record.prefix).len() as u32,
-        };
+        let path = self.path_suffix_slice(record);
         let slices = [
             path,
             record.path_lower,
-            record.basename,
-            record.basename_lower,
+            record.basename_slice(path),
+            record.basename_lower_slice(path),
         ];
         let start = slices
             .iter()
@@ -1200,12 +1268,15 @@ impl CompactIndex {
     }
     fn to_file_record(&self, index: usize) -> FileRecord {
         let record = self.record_at(index);
+        let path_suffix = self.path_suffix_slice(record);
         FileRecord {
             id: record.id,
             path: self.original_path(record),
             path_lower: self.get(record, record.path_lower).into(),
-            basename: self.get(record, record.basename).into(),
-            basename_lower: self.get(record, record.basename_lower).into(),
+            basename: self.get(record, record.basename_slice(path_suffix)).into(),
+            basename_lower: self
+                .get(record, record.basename_lower_slice(path_suffix))
+                .into(),
             ext_lower: self.ext(record).map(str::to_string),
             kind: record.kind.clone(),
             size: self.optional_metadata(index, record, 0),
@@ -1581,13 +1652,231 @@ mod tests {
         let index = from_records(std::slice::from_ref(&record));
         let packed = index.record_at(0);
         assert_eq!(packed.path.start, packed.path_lower.start);
-        assert_eq!(packed.basename.start, packed.basename_lower.start);
+        let basename = index.basename_slice(packed);
+        let basename_lower = index.basename_lower_slice(packed);
+        assert_eq!(basename.start, basename_lower.start);
         assert_eq!(
-            packed.basename.start as usize,
+            basename.start as usize,
             packed.path.start as usize + record.path.len() - record.basename.len()
         );
         record.path_lower = record.path.to_lowercase();
         assert_eq!(index.to_file_record(0), record);
+    }
+
+    fn assert_derived_basename_layout(index: &CompactIndex, slot: usize, expected: &FileRecord) {
+        let record = index.record_at(slot);
+        let prefix = index.prefixes.get(record.prefix);
+        let fields = [
+            expected.path_lower.as_str(),
+            &expected.path[prefix.len()..],
+            expected.basename.as_str(),
+            expected.basename_lower.as_str(),
+        ];
+        // Reconstruct the old explicit slices without using RowLayout or the
+        // new derivation helpers. Arena bytes/offsets must remain identical.
+        let mut expected_slices = [Slice::default(); 4];
+        let mut owned = String::new();
+        let row_start = record.path_lower.start;
+        let mut parents = [NO_TEXT_PARENT; 4];
+        for (field, text) in fields.iter().enumerate() {
+            if let Some(parent) = fields[..field]
+                .iter()
+                .position(|earlier| earlier.ends_with(text))
+            {
+                parents[field] = parent as u8;
+                expected_slices[field] = Slice {
+                    start: expected_slices[parent].start + fields[parent].len() as u32
+                        - text.len() as u32,
+                    len: text.len() as u32,
+                };
+            } else {
+                expected_slices[field] = Slice {
+                    start: row_start + owned.len() as u32,
+                    len: text.len() as u32,
+                };
+                owned.push_str(text);
+            }
+        }
+        assert_eq!(record.basename_parents & 3, parents[2]);
+        assert_eq!(record.basename_parents >> 2, parents[3]);
+        let actual_slices = [
+            record.path_lower,
+            index.path_suffix_slice(record),
+            index.basename_slice(record),
+            index.basename_lower_slice(record),
+        ];
+        for (field, slice) in actual_slices.into_iter().enumerate() {
+            assert_eq!(slice.start, expected_slices[field].start, "field {field}");
+            assert_eq!(slice.len, expected_slices[field].len, "field {field}");
+            assert_eq!(index.get(record, slice), fields[field]);
+        }
+        assert_eq!(index.row_string_bytes(record), owned.len());
+        assert_eq!(
+            &index.arenas[record.arena as usize]
+                [row_start as usize..row_start as usize + owned.len()],
+            owned
+        );
+        assert_eq!(index.to_file_record(slot), *expected);
+    }
+
+    #[test]
+    fn derived_basename_layout_preserves_all_parents_raw_rows_and_metadata_updates() {
+        let mut builder = IndexBuilder::new(128, 3);
+        builder.index.prefixes = PrefixPool::new(1536);
+        let mut records = Vec::new();
+        let mut crossing = FileRecord::new(
+            "/Shared Original Parent/Σ/BASE-Σ-PATH".into(),
+            FileKind::File,
+            99,
+        );
+        crossing.id = i64::MIN;
+        crossing.path_lower = "/unrelated/lower/Ω".into();
+        crossing.basename = crossing.path.clone();
+        crossing.basename_lower = crossing.path.trim_start_matches("/Shared").into();
+        push_record(&mut builder, &crossing);
+        records.push(crossing);
+        for original in 0..7 {
+            for lowered in 0..6 {
+                let mut record = FileRecord::new(
+                    format!("/Shared Original Parent/Σ-{original}-{lowered}/BASE-Σ-PATH"),
+                    FileKind::File,
+                    99,
+                );
+                record.id = i64::MIN + records.len() as i64;
+                record.path_lower = "/unrelated/lower/Ω".into();
+                record.basename = match original {
+                    0 => "Ω".into(),
+                    1 => "BASE-Σ-PATH".into(),
+                    2 => "independent-📷".into(),
+                    3 => record.path.clone(),
+                    4 => String::new(),
+                    5 => format!("{}📷", "Q".repeat(70_000)),
+                    _ => record.path_lower.clone(),
+                };
+                record.basename_lower = match lowered {
+                    0 => "Ω".into(),
+                    1 => "PATH".into(),
+                    2 => record.basename.clone(),
+                    3 => "separate-lower\0界".into(),
+                    // Can alias an independent full original basename across
+                    // the prefix/suffix boundary, but not the physical suffix.
+                    4 => record.path.trim_start_matches("/Shared").into(),
+                    _ => String::new(),
+                };
+                push_record(&mut builder, &record);
+                records.push(record);
+            }
+        }
+        let mut index = builder.index;
+        assert_eq!(size_of::<CompactRecord>(), 48);
+        // This is deliberately admitted before the small pool fills: the lower
+        // basename aliases a separately stored full original basename across
+        // the shared prefix, while path_suffix itself contains only the leaf.
+        assert_ne!(index.record_at(0).prefix, NO_PREFIX);
+        assert_eq!(
+            index.record_at(0).basename_parents,
+            NO_TEXT_PARENT | (2 << 2)
+        );
+        assert!(index.records.len() > 1 && index.arenas.len() > 1);
+        assert!(index
+            .iter_records()
+            .any(|record| record.prefix != NO_PREFIX));
+        assert!(index
+            .iter_records()
+            .any(|record| record.prefix == NO_PREFIX));
+        let mut original_parents = [false; 4];
+        let mut lower_parents = [false; 4];
+        for (slot, record) in records.iter().enumerate() {
+            assert_derived_basename_layout(&index, slot, record);
+            let tags = index.record_at(slot).basename_parents;
+            original_parents[(tags & 3) as usize] = true;
+            lower_parents[(tags >> 2) as usize] = true;
+        }
+        assert_eq!(original_parents, [true, true, false, true]);
+        assert_eq!(lower_parents, [true; 4]);
+        assert_delta_matches(&index, &records);
+
+        let tags = index
+            .iter_records()
+            .map(|record| record.basename_parents)
+            .collect::<Vec<_>>();
+        let arenas = index.arenas.clone();
+        for record in &mut records {
+            record.kind = FileKind::Other;
+            record.size = Some(i64::MIN);
+            record.mtime = Some(i64::MAX);
+            record.ctime = Some(i64::MIN);
+            record.dev = None;
+            record.inode = Some(i64::MAX);
+            record.indexed_at = i64::MAX;
+        }
+        let changes = records
+            .iter()
+            .map(|record| FileChange {
+                id: record.id,
+                record: Some(record.clone()),
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            index.apply_changes(&changes).unwrap(),
+            ApplyOutcome::Applied
+        );
+        assert_eq!(index.arenas, arenas);
+        assert_eq!(
+            index
+                .iter_records()
+                .map(|record| record.basename_parents)
+                .collect::<Vec<_>>(),
+            tags
+        );
+        for (slot, record) in records.iter().enumerate() {
+            assert_derived_basename_layout(&index, slot, record);
+        }
+        assert_delta_matches(&index, &records);
+        let deleted = records
+            .iter()
+            .step_by(3)
+            .map(|record| FileChange {
+                id: record.id,
+                record: None,
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            index.apply_changes(&deleted).unwrap(),
+            ApplyOutcome::Applied
+        );
+        assert_eq!(
+            index.apply_changes(&changes).unwrap(),
+            ApplyOutcome::Applied
+        );
+        assert_eq!(index.fragmentation.dead_records, 0);
+        assert_eq!(index.fragmentation.dead_string_bytes, 0);
+        assert_eq!(index.arenas, arenas);
+        assert_delta_matches(&index, &records);
+    }
+
+    #[test]
+    fn derived_basename_lengths_keep_the_full_u32_range() {
+        for len in [1 << 31, u32::MAX] {
+            let path = Slice::checked(0, len as usize).unwrap();
+            let record = CompactRecord {
+                id: i64::MIN,
+                path,
+                path_lower: path,
+                basename_len: len,
+                basename_lower_len: len,
+                arena: 0,
+                ext: NO_EXTENSION,
+                prefix: NO_PREFIX,
+                kind: FileKind::File,
+                present: 0,
+                basename_parents: 0,
+            };
+            assert_eq!(record.basename_slice(path).start, 0);
+            assert_eq!(record.basename_slice(path).len, len);
+            assert_eq!(record.basename_lower_slice(path).start, 0);
+            assert_eq!(record.basename_lower_slice(path).len, len);
+        }
     }
 
     #[test]
@@ -1730,7 +2019,7 @@ mod tests {
         records[2] = changed;
         records.push(appended);
         assert_eq!(index.physical_len, 8);
-        assert_eq!(size_of::<CompactRecord>(), 56);
+        assert_eq!(size_of::<CompactRecord>(), 48);
         assert_delta_matches(&index, &records);
         // Deleting an unknown ID is an idempotent no-op, including low IDs.
         assert_eq!(
@@ -2031,7 +2320,7 @@ mod tests {
         let before = index.memory_breakdown();
         assert_eq!(before.narrow_metadata_blocks, 1);
         assert_eq!(before.live_metadata_escapes, 0);
-        assert_eq!(size_of::<CompactRecord>(), 56);
+        assert_eq!(size_of::<CompactRecord>(), 48);
         for round in 1..100 {
             let row = &mut records[5];
             row.size = Some(round);
@@ -2063,7 +2352,7 @@ mod tests {
         assert_eq!(index.memory_usage_bytes(), accounted as u64);
         assert_eq!(
             before.record_capacity_bytes + before.metadata_capacity_bytes,
-            RECORDS_PER_BLOCK * 80
+            RECORDS_PER_BLOCK * 72
         );
     }
 
@@ -2148,7 +2437,7 @@ mod tests {
         custom.basename_lower = "arbitrary-Σ".into();
         records.push(custom);
         let mut index = from_records(&records);
-        assert_eq!(size_of::<CompactRecord>(), 56);
+        assert_eq!(size_of::<CompactRecord>(), 48);
         assert_eq!(index.record_at(5).prefix, NO_PREFIX);
         assert_eq!(
             index.record_at(5).path.start,
@@ -2355,7 +2644,7 @@ mod tests {
             hinted.prefixes.capacity_bytes(),
             ordinary.prefixes.capacity_bytes()
         );
-        assert_eq!(size_of::<CompactRecord>(), 56);
+        assert_eq!(size_of::<CompactRecord>(), 48);
         for record in &mut records {
             if record.path_lower.is_empty() {
                 record.path_lower = record.path.to_lowercase();

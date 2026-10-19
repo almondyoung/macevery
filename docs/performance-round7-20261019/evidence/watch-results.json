@@ -1,0 +1,104 @@
+[
+  {
+    "binary": ".build/performance-round7-20261019/baseline-target/release/macevery",
+    "rows_seeded": 300000,
+    "elapsed_s": 8.762418584,
+    "cpu_s": 0.020918,
+    "peak_rss_bytes": 8241152,
+    "cpu_percent": 0.2387240440464217,
+    "checks": [
+      "create",
+      "modify",
+      "rename",
+      "directory create",
+      "directory rename",
+      "directory delete",
+      "file delete",
+      "excluded directory write storm",
+      "update after excluded events"
+    ],
+    "final_rows": [
+      [
+        ".",
+        "dir",
+        null
+      ],
+      [
+        "after-noise.txt",
+        "file",
+        2
+      ]
+    ],
+    "stress_elapsed_s": 5.814757166,
+    "log": "local-evidence/watch-aba/baseline/watch.log",
+    "label": "baseline"
+  },
+  {
+    "binary": ".build/performance-round7-20261019/candidate-target/release/macevery",
+    "rows_seeded": 300000,
+    "elapsed_s": 8.693296833000002,
+    "cpu_s": 0.017341,
+    "peak_rss_bytes": 8192000,
+    "cpu_percent": 0.19947553078106192,
+    "checks": [
+      "create",
+      "modify",
+      "rename",
+      "directory create",
+      "directory rename",
+      "directory delete",
+      "file delete",
+      "excluded directory write storm",
+      "update after excluded events"
+    ],
+    "final_rows": [
+      [
+        ".",
+        "dir",
+        null
+      ],
+      [
+        "after-noise.txt",
+        "file",
+        2
+      ]
+    ],
+    "stress_elapsed_s": 5.760849417000003,
+    "log": "local-evidence/watch-aba/candidate/watch.log",
+    "label": "candidate"
+  },
+  {
+    "binary": ".build/performance-round7-20261019/baseline-target/release/macevery",
+    "rows_seeded": 300000,
+    "elapsed_s": 8.764944791000001,
+    "cpu_s": 0.018591,
+    "peak_rss_bytes": 8241152,
+    "cpu_percent": 0.21210629893629865,
+    "checks": [
+      "create",
+      "modify",
+      "rename",
+      "directory create",
+      "directory rename",
+      "directory delete",
+      "file delete",
+      "excluded directory write storm",
+      "update after excluded events"
+    ],
+    "final_rows": [
+      [
+        ".",
+        "dir",
+        null
+      ],
+      [
+        "after-noise.txt",
+        "file",
+        2
+      ]
+    ],
+    "stress_elapsed_s": 5.812611042,
+    "log": "local-evidence/watch-aba/baseline-repeat/watch.log",
+    "label": "baseline-repeat"
+  }
+]

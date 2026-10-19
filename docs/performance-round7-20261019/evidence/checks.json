@@ -1,0 +1,72 @@
+{
+  "debug": {
+    "name": "debug",
+    "exit_code": 0,
+    "wall_seconds": 6.150272042
+  },
+  "release": {
+    "name": "release",
+    "exit_code": 0,
+    "wall_seconds": 14.181020083
+  },
+  "clippy": {
+    "name": "clippy",
+    "exit_code": 0,
+    "wall_seconds": 0.7682962499999988
+  },
+  "fmt": {
+    "name": "fmt",
+    "exit_code": 0,
+    "wall_seconds": 0.1155482499999998
+  },
+  "build": {
+    "name": "build",
+    "exit_code": 0,
+    "wall_seconds": 0.04426658300000241
+  },
+  "gui_original": {
+    "status": "PASS",
+    "verification": "direct swiftc with MACEVERY_TESTING, -O, arm64-apple-macos13.0 and private module cache; final checker exit0",
+    "source_sha256": {
+      "macos/MacEveryApp.swift": "c1e01b5e010826bdf0353618a729683e28312d4d755c800b4b44c89df9252f1e",
+      "tests/macos/GUIRegressionChecks.swift": "eba09f87a1515d70969d45a3b2f4451e0739f408c342195006d1a274f006a7d2"
+    },
+    "log_sha256": {
+      "compile.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "checks.log": "279bab179cfcb18014fffd5bd9aaa318975b4f000fd03ad69062325a776a139c",
+      "compile-metadata-epoch.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "checks-metadata-epoch.log": "964f9135a7c1f174b5ff5d5ccab306513adb23a5c35f64bb81872130ec76bdb0"
+    },
+    "prior_logs_note": "compile.log/checks.log preserve initial pre-epoch PASS; *metadata-epoch.log verifies final source",
+    "owned_exec_sessions": "both compiler sessions and both checker sessions completed exit0",
+    "independent_ps_check": "sandbox PermissionError; root asked to confirm separately",
+    "app_or_live_index_operated": false
+  },
+  "gui": {
+    "created_at_utc": "2026-10-19T06:47:18.583114+00:00",
+    "stage": "round7 deferred exact startup counts after strict service ready",
+    "compile_exit_code": 0,
+    "checks_exit_code": 0,
+    "source_sha256": {
+      "macos/MacEveryApp.swift": "fad3a3053ffc88136a33466d096249d278b5fda2238d54205eba36724316a328",
+      "tests/macos/GUIRegressionChecks.swift": "d44d5777dec387be140167393ce380119c3e7f16448199f9a50fa4d509a1202f"
+    },
+    "evidence_sha256": {
+      "compile-deferred-counts.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "checks-deferred-counts.log": "06725929372978c68ac7265235acce409bea82014847d35357c65081769a0cf8"
+    },
+    "compiler_command": "swiftc -O -parse-as-library -D MACEVERY_TESTING -module-cache-path local-evidence/gui-bootstrap/module-cache -target arm64-apple-macos13.0 -o local-evidence/gui-bootstrap/gui-regression-deferred-counts-checks macos/MacEveryApp.swift tests/macos/GUIRegressionChecks.swift",
+    "checker_command": "local-evidence/gui-bootstrap/gui-regression-deferred-counts-checks",
+    "boundaries": [
+      "no App bundle build or replacement",
+      "readiness intercepted by URLProtocol, no localhost listener request",
+      "only private fake CLI children, including a fake serve that exits without listening",
+      "production fixed startup deadline 60 seconds, mode restart inherits remaining budget",
+      "full status is deferred, not removed; timeout may overlap a slow load",
+      "all compiler/checker exec sessions completed exit 0; independent process inventory unavailable in this subagent sandbox"
+    ]
+  },
+  "gui_cleanup": {
+    "residual_test_processes": []
+  }
+}

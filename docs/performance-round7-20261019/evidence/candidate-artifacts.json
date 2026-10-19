@@ -1,0 +1,43 @@
+{
+  "source_sha256": {
+    "src/sqlite.rs": "8e473f2b9f4fbb091ba9563e06aaa4c3fcd1de11d823458458b0bd709cd7acb6",
+    "src/process_lifetime.rs": "fe4ded2a9adacdefb13926974b7c551f860f819a3f7188a2d8c476daf9698600",
+    "src/error.rs": "f625ef016471ec59f6d6d014fe78495867c7a65bca13d46879070012fde59d48",
+    "src/config.rs": "683701a84abc5617f6e3c80853e6f06ab8005a1bc861950f59f3f4de549ad4ff",
+    "src/macos.rs": "c9ac332b1140e4cb7b5db76bff34387717b149b4cd7bc311824a4ff3e6c72ace",
+    "src/lib.rs": "6a234c410c36eabd50616c6f7f54516207735b560e073c91db5c39918dc000ea",
+    "src/server.rs": "95354f8a7f7f13f72ba9085037d15a672466d87c7f9e4873fe41a9cef333a459",
+    "src/scanner.rs": "4a221ccced754c564fcd2ca85833c1aee872a5b7887170324438c1c541f0a642",
+    "src/db.rs": "dbbf8075db81a00d1dc5ce8b2c3abc9f693a7adfa1894dcedc2372b1fd23635d",
+    "src/compact_index.rs": "e7056aa01db6ab7d3f8b41573f3b9246978d6d8fa80c7da3e864e9c505b1bf06",
+    "src/watch.rs": "25ca08237822fff9f6cde012b0612001434caf9884808a90f117f370e9677ebf",
+    "src/main.rs": "9841539de18a7cb5d38c5c117b53b0f5aff0c8d9874769e80efa7b12219c722d",
+    "src/search.rs": "737a76419eada694a988864f3205032efdab1c3b898c0e3abdbd80153fe9abdc",
+    "src/model.rs": "0724a27c391d3bfa232c24575115da403ed9561154489fc167a363ed53a72053",
+    "src/bench.rs": "da942d038737d49c890fe01db972d53d9a99fd4bdbb7b936020628670c19331d",
+    "src/cli.rs": "7816d2f35f33b946047c53b2d3171f66ab3abf9ed2d9ba72277105cda5ef0b84",
+    "tests/round5_prefix_updates.rs": "e74051dab0f8422f11ff3d8f0f8fa33da75edc4fb2a90c9d3400f45a4a2ab200",
+    "tests/bootstrap_cli.rs": "d67407497ea81e9195b4ef07e1d52d3e0840eaa2be82ad45f7cb355a372bd506",
+    "tests/incremental_index.rs": "fc761551cc8e9659f5472bef711e3d58b1bf3f327aba7ad106a1e802e44f2b08",
+    "Cargo.toml": "c3bda648bcd3be055a6f9c6961f6ce990d760c999fc640f207b2b3daf80bc9cf",
+    "Cargo.lock": "6330566cb39068b5ad8f8d070a716c7ca86d434c4973339d32aaa587b90207b0",
+    "macos/MacEveryApp.swift": "fad3a3053ffc88136a33466d096249d278b5fda2238d54205eba36724316a328",
+    "tests/macos/GUIRegressionChecks.swift": "d44d5777dec387be140167393ce380119c3e7f16448199f9a50fa4d509a1202f",
+    "tools/check_startup_round7.py": "5755794baf292d974cae11fbe4ac5fd7059e4ced95126dc3a206eebd902a5404"
+  },
+  "binary_sha256": {
+    "baseline": {
+      "macevery": "4744bbca3fd03da9f16c14328e8d8c5921c342f79769805809df7d44ba08f163",
+      "libmacevery.rlib": "3a93a9091ff705ba54e66c049dffc09f9e8e00c448c35383d91bd395042e47ca"
+    },
+    "candidate": {
+      "macevery": "5eecf3699a53d114a64b0e51e494c2139fda98cb9e97f44ea7f35e437a4efb34",
+      "libmacevery.rlib": "8cdd6ed712b0af6ffcb48a699782765f3ea167caf53e7e2d379a3e405943599b"
+    }
+  },
+  "reuse_evidence": {
+    "rust_source_binary_unchanged": true,
+    "prior_complete_queries_http_fsevents_and_capacity_retained": true,
+    "reason": "Only GUI/deferred full-status scheduling and startup driver changed after rejected parallel-count design"
+  }
+}

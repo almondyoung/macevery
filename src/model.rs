@@ -479,3 +479,13 @@ pub struct IndexStats {
     pub roots: Vec<String>,
     pub excludes: Vec<String>,
 }
+
+/// The startup decision and configuration, read from one database snapshot.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct BootstrapStatus {
+    pub db_path: String,
+    pub has_records: bool,
+    pub roots: Vec<String>,
+    pub excludes: Vec<String>,
+    pub last_indexed_at: Option<i64>,
+}

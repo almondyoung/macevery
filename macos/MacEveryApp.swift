@@ -30,12 +30,22 @@ struct IndexStatus: Codable {
     var total: Int64 { files + dirs + apps + symlinks + others }
 }
 
+struct IndexBootstrap: Codable {
+    let db_path: String
+    let has_records: Bool
+    let roots: [String]
+    let excludes: [String]
+    let last_indexed_at: Int64?
+}
+
 struct SearchServiceStatus: Codable {
     let backend: String
     let requestedBackend: String
     let records: Int64
     let estimatedMemoryBytes: UInt64
     var actualIndexBytes: UInt64? = nil
+    var ready: Bool? = nil
+    var stale: Bool? = nil
 
     enum CodingKeys: String, CodingKey {
         case backend
@@ -43,6 +53,8 @@ struct SearchServiceStatus: Codable {
         case records
         case estimatedMemoryBytes = "estimated_memory_bytes"
         case actualIndexBytes = "actual_index_bytes"
+        case ready
+        case stale
     }
 
     var backendLabel: String {
@@ -586,6 +598,8 @@ final class SearchViewModel: ObservableObject {
     @Published var results: [SearchResult] = []
     @Published var selectedPath: String?
     @Published var status: IndexStatus?
+    @Published private(set) var startupBootstrap: IndexBootstrap?
+    @Published private(set) var isBootstrapping = false
     @Published var isSearching = false
     @Published var isIndexing = false
     @Published var message = "Ready"
@@ -633,6 +647,23 @@ final class SearchViewModel: ObservableObject {
     private var searchServiceStderr: Pipe?
     private var hotKey: GlobalHotKey?
     private var hasAttemptedInitialIndex = false
+    private var hasStartedBootstrap = false
+    private var indexReadGeneration = 0
+    private var startupCountsGeneration: Int?
+    private var startupCountsDeadline: TimeInterval?
+    private var serviceStatusGeneration = 0
+    private var serviceStatusTask: URLSessionDataTask?
+    private var serviceStatusRetry: DispatchWorkItem?
+    private var serviceStatusDeadline: DispatchWorkItem?
+    private let startupCountsTimeout: TimeInterval
+    private let serviceStatusRetryDelay: TimeInterval
+    private var startupStatusRetryCount: Int {
+        max(1, Int(ceil(startupCountsTimeout / serviceStatusRetryDelay)))
+    }
+#if MACEVERY_TESTING
+    // Observe requests without starting a listener or watcher in model checks.
+    var childStartObserverForTesting: ((String) -> Void)?
+#endif
     private let authToken: String = {
         var bytes = [UInt8](repeating: 0, count: 24)
         if SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes) == errSecSuccess {
@@ -647,12 +678,16 @@ final class SearchViewModel: ObservableObject {
         cli: MacEveryCLI = MacEveryCLI(),
         searchSession: URLSession = .shared,
         managesChildProcesses: Bool = true,
-        searchDebounceDelay: TimeInterval = 0.12
+        searchDebounceDelay: TimeInterval = 0.12,
+        startupCountsTimeout: TimeInterval = 60,
+        serviceStatusRetryDelay: TimeInterval = 0.5
     ) {
         self.cli = cli
         self.searchSession = searchSession
         self.managesChildProcesses = managesChildProcesses
         self.searchDebounceDelay = searchDebounceDelay
+        self.startupCountsTimeout = max(0.05, startupCountsTimeout)
+        self.serviceStatusRetryDelay = max(0.005, serviceStatusRetryDelay)
     }
 
     var selectedResult: SearchResult? {
@@ -660,19 +695,102 @@ final class SearchViewModel: ObservableObject {
         return results.first { $0.path == selectedPath }
     }
 
+    var hasIndexedRecords: Bool {
+        status.map { $0.total > 0 } ?? startupBootstrap?.has_records ?? false
+    }
+
+    private var indexRoots: [String] {
+        status?.roots ?? startupBootstrap?.roots ?? []
+    }
+
+    func bootstrapIfNeeded() {
+        guard !hasStartedBootstrap else { return }
+        hasStartedBootstrap = true
+        isBootstrapping = true
+        let generation = indexReadGeneration
+        DispatchQueue.global(qos: .userInitiated).async {
+            let output: CommandOutput
+            do {
+                output = try self.cli.run(["bootstrap", "--json"])
+            } catch {
+                DispatchQueue.main.async {
+                    guard generation == self.indexReadGeneration else { return }
+                    self.isBootstrapping = false
+                    self.message = "Bootstrap failed: \(error.localizedDescription)"
+                }
+                return
+            }
+            DispatchQueue.main.async {
+                guard generation == self.indexReadGeneration else { return }
+                self.isBootstrapping = false
+                guard output.exitCode == 0 else {
+                    self.message = "Bootstrap failed: \(output.stderr.trimmingCharacters(in: .whitespacesAndNewlines))"
+                    return
+                }
+                do {
+                    let bootstrap = try JSONDecoder().decode(IndexBootstrap.self, from: Data(output.stdout.utf8))
+                    self.startupBootstrap = bootstrap
+                    guard !self.isIndexing, self.status == nil else { return }
+                    self.applyIndexConfiguration(roots: bootstrap.roots, excludes: bootstrap.excludes)
+                    if self.startInitialIndexIfNeeded(hasRecords: bootstrap.has_records, roots: bootstrap.roots) {
+                        return
+                    }
+                    self.message = "Loading index counts..."
+                    if bootstrap.has_records {
+                        self.startupCountsGeneration = generation
+                        self.startupCountsDeadline = ProcessInfo.processInfo.systemUptime + self.startupCountsTimeout
+                        self.startSearchServiceIfNeeded()
+                    }
+                    if !bootstrap.roots.isEmpty {
+                        self.startWatcherIfNeeded()
+                    }
+                    if !bootstrap.has_records {
+                        self.refreshStatus()
+                    }
+                } catch {
+                    self.message = "Bootstrap decode failed: \(error.localizedDescription)"
+                }
+            }
+        }
+    }
+
+    private func applyIndexConfiguration(roots: [String], excludes: [String]) {
+        if !roots.isEmpty {
+            settings.rootsText = roots.joined(separator: "\n")
+        }
+        if !excludes.isEmpty {
+            settings.excludesText = excludes.joined(separator: "\n")
+        }
+    }
+
+    private func startInitialIndexIfNeeded(hasRecords: Bool, roots: [String]) -> Bool {
+        guard !hasRecords, roots.isEmpty, !hasAttemptedInitialIndex, !isIndexing else { return false }
+        hasAttemptedInitialIndex = true
+        settings = IndexSettings.defaultSettings()
+        message = "Building initial index..."
+        rebuildIndex()
+        return true
+    }
+
     func refreshStatus() {
+        // An explicit refresh consumes the deferred startup request as well.
+        startupCountsGeneration = nil
+        startupCountsDeadline = nil
+        let generation = indexReadGeneration
         DispatchQueue.global(qos: .userInitiated).async {
             let output: CommandOutput
             do {
                 output = try self.cli.run(["status", "--json"])
             } catch {
                 DispatchQueue.main.async {
+                    guard generation == self.indexReadGeneration else { return }
                     self.message = "Status failed: \(error.localizedDescription)"
                 }
                 return
             }
 
             DispatchQueue.main.async {
+                guard generation == self.indexReadGeneration else { return }
                 guard output.exitCode == 0 else {
                     self.message = output.stderr.trimmingCharacters(in: .whitespacesAndNewlines)
                     return
@@ -681,17 +799,9 @@ final class SearchViewModel: ObservableObject {
                     let data = Data(output.stdout.utf8)
                     let status = try JSONDecoder().decode(IndexStatus.self, from: data)
                     self.status = status
-                    if !status.roots.isEmpty {
-                        self.settings.rootsText = status.roots.joined(separator: "\n")
-                    }
-                    if !status.excludes.isEmpty {
-                        self.settings.excludesText = status.excludes.joined(separator: "\n")
-                    }
-                    if status.total == 0 && status.roots.isEmpty && !self.hasAttemptedInitialIndex {
-                        self.hasAttemptedInitialIndex = true
-                        self.settings = IndexSettings.defaultSettings()
-                        self.message = "Building initial index..."
-                        self.rebuildIndex()
+                    guard !self.isIndexing else { return }
+                    self.applyIndexConfiguration(roots: status.roots, excludes: status.excludes)
+                    if self.startInitialIndexIfNeeded(hasRecords: status.total > 0, roots: status.roots) {
                         return
                     }
                     self.message = "Indexed \(Self.formatCount(status.total)) entries"
@@ -756,6 +866,12 @@ final class SearchViewModel: ObservableObject {
             message = "No index roots configured"
             return
         }
+        // Reads begun before/during a rebuild must not replace its completed
+        // configuration or trigger an initial index after isIndexing turns off.
+        indexReadGeneration += 1
+        startupCountsGeneration = nil
+        startupCountsDeadline = nil
+        isBootstrapping = false
         stopWatcher()
         stopSearchService()
         isIndexing = true
@@ -775,6 +891,7 @@ final class SearchViewModel: ObservableObject {
                 output = try self.cli.run(args, timeout: 3600)
             } catch {
                 DispatchQueue.main.async {
+                    self.indexReadGeneration += 1
                     self.isIndexing = false
                     self.message = "Index failed: \(error.localizedDescription)"
                 }
@@ -782,6 +899,7 @@ final class SearchViewModel: ObservableObject {
             }
 
             DispatchQueue.main.async {
+                self.indexReadGeneration += 1
                 self.isIndexing = false
                 if output.exitCode == 0 {
                     self.message = output.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -896,8 +1014,23 @@ final class SearchViewModel: ObservableObject {
     }
 
     func startSearchServiceIfNeeded() {
-        guard managesChildProcesses else { return }
-        if let searchServiceProcess, searchServiceProcess.isRunning { return }
+#if MACEVERY_TESTING
+        childStartObserverForTesting?("serve")
+#endif
+        guard managesChildProcesses else {
+#if MACEVERY_TESTING
+            if startupCountsGeneration != nil && serviceStatusDeadline == nil {
+                refreshSearchServiceStatus(retries: startupStatusRetryCount)
+            }
+#endif
+            return
+        }
+        if let searchServiceProcess, searchServiceProcess.isRunning {
+            if startupCountsGeneration != nil && serviceStatusDeadline == nil {
+                refreshSearchServiceStatus(retries: startupStatusRetryCount)
+            }
+            return
+        }
 
         let process = Process()
         process.executableURL = cli.executableURL
@@ -921,6 +1054,8 @@ final class SearchViewModel: ObservableObject {
             DispatchQueue.main.async {
                 if self?.searchServiceProcess === process {
                     self?.searchServiceProcess = nil
+                    self?.cancelServiceStatusPolling()
+                    self?.finishStartupCounts()
                 }
             }
         }
@@ -928,45 +1063,109 @@ final class SearchViewModel: ObservableObject {
         do {
             try process.run()
             searchServiceProcess = process
-            refreshSearchServiceStatus(retries: 20)
+            refreshSearchServiceStatus(retries: startupStatusRetryCount)
         } catch {
             message = "Search service failed: \(error.localizedDescription)"
+            finishStartupCounts()
         }
     }
 
     func restartSearchService() {
         stopSearchService()
         serviceStatus = nil
-        if status?.total ?? 0 > 0 {
+        if hasIndexedRecords {
             startSearchServiceIfNeeded()
             scheduleSearch()
         }
     }
 
     func refreshSearchServiceStatus(retries: Int = 0) {
-        guard let url = serviceStatusURL() else { return }
+        cancelServiceStatusPolling()
+        let pollGeneration = serviceStatusGeneration
+        let metadataGeneration = indexReadGeneration
+        let process = searchServiceProcess
+        // Repeated searches and mode restarts share the startup's fixed budget.
+        let deadline = startupCountsDeadline ?? ProcessInfo.processInfo.systemUptime + startupCountsTimeout
+        let remaining = max(0, deadline - ProcessInfo.processInfo.systemUptime)
+        let timeout = DispatchWorkItem { [weak self, weak process] in
+            guard let self, self.isCurrentStatusPoll(pollGeneration, metadataGeneration, process) else { return }
+            self.cancelServiceStatusPolling()
+            self.finishStartupCounts()
+        }
+        serviceStatusDeadline = timeout
+        DispatchQueue.main.asyncAfter(deadline: .now() + remaining, execute: timeout)
+        pollSearchServiceStatus(retries: retries, deadline: deadline, pollGeneration: pollGeneration,
+                                metadataGeneration: metadataGeneration, process: process)
+    }
+
+    private func isCurrentStatusPoll(_ pollGeneration: Int, _ metadataGeneration: Int, _ process: Process?) -> Bool {
+        pollGeneration == serviceStatusGeneration && metadataGeneration == indexReadGeneration
+            && (!managesChildProcesses || (process != nil && searchServiceProcess === process))
+    }
+
+    private func pollSearchServiceStatus(retries: Int, deadline: TimeInterval, pollGeneration: Int,
+                                         metadataGeneration: Int, process: Process?) {
+        guard isCurrentStatusPoll(pollGeneration, metadataGeneration, process) else { return }
+        let remaining = deadline - ProcessInfo.processInfo.systemUptime
+        guard remaining > 0, let url = serviceStatusURL() else {
+            cancelServiceStatusPolling()
+            finishStartupCounts()
+            return
+        }
         var request = URLRequest(url: url)
+        request.timeoutInterval = min(5, remaining)
         request.setValue("Bearer \(authToken)", forHTTPHeaderField: "Authorization")
-        URLSession.shared.dataTask(with: request) { data, response, error in
-            guard error == nil,
-                  (response as? HTTPURLResponse)?.statusCode == 200,
-                  let data,
-                  let decoded = try? JSONDecoder().decode(SearchServiceStatus.self, from: data)
-            else {
-                if retries > 0 {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                        self.refreshSearchServiceStatus(retries: retries - 1)
+        let task = searchSession.dataTask(with: request) { [weak self, weak process] data, response, error in
+            let decoded = error == nil && (response as? HTTPURLResponse)?.statusCode == 200
+                ? data.flatMap { try? JSONDecoder().decode(SearchServiceStatus.self, from: $0) } : nil
+            DispatchQueue.main.async {
+                guard let self, self.isCurrentStatusPoll(pollGeneration, metadataGeneration, process) else { return }
+                self.serviceStatusTask = nil
+                if let decoded {
+                    self.serviceStatus = decoded
+                    if decoded.ready == true && decoded.stale == false {
+                        self.cancelServiceStatusPolling()
+                        self.finishStartupCounts()
+                        return
                     }
                 }
-                return
+                guard retries > 0, ProcessInfo.processInfo.systemUptime < deadline else {
+                    self.cancelServiceStatusPolling()
+                    self.finishStartupCounts()
+                    return
+                }
+                let retry = DispatchWorkItem { [weak self, weak process] in
+                    self?.pollSearchServiceStatus(retries: retries - 1, deadline: deadline,
+                        pollGeneration: pollGeneration, metadataGeneration: metadataGeneration, process: process)
+                }
+                self.serviceStatusRetry = retry
+                DispatchQueue.main.asyncAfter(deadline: .now() + self.serviceStatusRetryDelay, execute: retry)
             }
-            DispatchQueue.main.async {
-                self.serviceStatus = decoded
-            }
-        }.resume()
+        }
+        serviceStatusTask = task
+        task.resume()
+    }
+
+    private func cancelServiceStatusPolling() {
+        serviceStatusGeneration += 1
+        serviceStatusTask?.cancel()
+        serviceStatusTask = nil
+        serviceStatusRetry?.cancel()
+        serviceStatusRetry = nil
+        serviceStatusDeadline?.cancel()
+        serviceStatusDeadline = nil
+    }
+
+    private func finishStartupCounts() {
+        guard let generation = startupCountsGeneration else { return }
+        startupCountsGeneration = nil
+        startupCountsDeadline = nil
+        guard generation == indexReadGeneration, !isIndexing else { return }
+        refreshStatus()
     }
 
     func stopSearchService() {
+        cancelServiceStatusPolling()
         searchServiceStdout?.fileHandleForReading.readabilityHandler = nil
         searchServiceStderr?.fileHandleForReading.readabilityHandler = nil
         if let searchServiceProcess, searchServiceProcess.isRunning {
@@ -978,8 +1177,11 @@ final class SearchViewModel: ObservableObject {
     }
 
     func startWatcherIfNeeded() {
+        guard !indexRoots.isEmpty else { return }
+#if MACEVERY_TESTING
+        childStartObserverForTesting?("watch")
+#endif
         guard managesChildProcesses else { return }
-        guard status?.roots.isEmpty == false else { return }
         if let watchProcess, watchProcess.isRunning { return }
 
         let process = Process()
@@ -1311,6 +1513,10 @@ final class SearchViewModel: ObservableObject {
         formatter.numberStyle = .decimal
         return formatter.string(from: NSNumber(value: value)) ?? "\(value)"
     }
+
+    static func formatOptionalCount(_ value: Int64?) -> String {
+        value.map(formatCount) ?? "—"
+    }
 }
 
 struct IndexSettings {
@@ -1415,7 +1621,7 @@ struct MacEveryDesktopApp: App {
                 .onAppear {
                     model.installGlobalHotKey()
                     model.refreshPermissionStatus()
-                    model.refreshStatus()
+                    model.bootstrapIfNeeded()
                 }
         }
         .commands {
@@ -1534,10 +1740,10 @@ struct ContentView: View {
             VStack(alignment: .leading, spacing: 8) {
                 Label("Index", systemImage: "externaldrive.connected.to.line.below")
                     .font(.headline)
-                MetricLine(label: "Entries", value: SearchViewModel.formatCount(model.status?.total ?? 0))
-                MetricLine(label: "Files", value: SearchViewModel.formatCount(model.status?.files ?? 0))
-                MetricLine(label: "Folders", value: SearchViewModel.formatCount(model.status?.dirs ?? 0))
-                MetricLine(label: "Apps", value: SearchViewModel.formatCount(model.status?.apps ?? 0))
+                MetricLine(label: "Entries", value: SearchViewModel.formatOptionalCount(model.status?.total))
+                MetricLine(label: "Files", value: SearchViewModel.formatOptionalCount(model.status?.files))
+                MetricLine(label: "Folders", value: SearchViewModel.formatOptionalCount(model.status?.dirs))
+                MetricLine(label: "Apps", value: SearchViewModel.formatOptionalCount(model.status?.apps))
             }
 
             VStack(alignment: .leading, spacing: 8) {
@@ -1639,7 +1845,7 @@ struct ContentView: View {
                     if model.results.isEmpty {
                         EmptyResultsView(
                             hasQuery: !model.query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-                            hasIndex: (model.status?.total ?? 0) > 0,
+                            hasIndex: model.hasIndexedRecords,
                             isIndexing: model.isIndexing,
                             onIndex: { model.rebuildIndex() }
                         )
@@ -2095,7 +2301,7 @@ struct OnboardingView: View {
 
                 OnboardingRow(
                     title: "Index",
-                    value: SearchViewModel.formatCount(model.status?.total ?? 0),
+                    value: SearchViewModel.formatOptionalCount(model.status?.total),
                     systemImage: "externaldrive.connected.to.line.below",
                     color: .secondary
                 ) {

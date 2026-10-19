@@ -2,7 +2,7 @@ use crate::config::{default_db_path, default_excludes, expand_tilde};
 use crate::db::Database;
 use crate::error::{MacEveryError, Result};
 use crate::macos;
-use crate::model::{FileKind, IndexStats, SearchOptions, SearchResult};
+use crate::model::{BootstrapStatus, FileKind, IndexStats, SearchOptions, SearchResult};
 use crate::scanner::{index_paths, IndexRequest};
 use crate::search;
 use crate::server;
@@ -31,6 +31,7 @@ where
         "open" => cmd_open_or_reveal(args, false),
         "reveal" => cmd_open_or_reveal(args, true),
         "status" => cmd_status(args),
+        "bootstrap" => cmd_bootstrap(args),
         "clean" => cmd_clean(args),
         "watch" => cmd_watch(args),
         "serve" => cmd_serve(args),
@@ -163,6 +164,23 @@ fn cmd_status(args: Vec<String>) -> Result<()> {
             println!("  {exclude}");
         }
     }
+    Ok(())
+}
+
+fn cmd_bootstrap(args: Vec<String>) -> Result<()> {
+    match args.as_slice() {
+        [option] if option == "-h" || option == "--help" => return usage(),
+        [option] if option == "--json" => {}
+        [] => return Err(MacEveryError::Cli("bootstrap requires --json".to_string())),
+        _ => {
+            return Err(MacEveryError::Cli(format!(
+                "unsupported bootstrap arguments: {}",
+                args.join(" ")
+            )))
+        }
+    }
+    let db = Database::open(default_db_path())?;
+    print_bootstrap_json(&db.bootstrap_status()?);
     Ok(())
 }
 
@@ -402,6 +420,17 @@ fn print_status_json(stats: &IndexStats) {
     );
 }
 
+fn print_bootstrap_json(status: &BootstrapStatus) {
+    println!(
+        "{{\"db_path\":\"{}\",\"has_records\":{},\"roots\":{},\"excludes\":{},\"last_indexed_at\":{}}}",
+        json_escape(&status.db_path),
+        status.has_records,
+        json_string_array(&status.roots),
+        json_string_array(&status.excludes),
+        json_i64(status.last_indexed_at)
+    );
+}
+
 fn json_i64(value: Option<i64>) -> String {
     value
         .map(|value| value.to_string())
@@ -451,6 +480,7 @@ Usage:\n\
   macevery open QUERY\n\
   macevery reveal QUERY\n\
   macevery status [--json]\n\
+  macevery bootstrap --json\n\
   macevery clean\n\
   macevery watch\n\
   macevery serve [--addr 127.0.0.1:17649] [--backend auto|memory|compact|sqlite]\n\

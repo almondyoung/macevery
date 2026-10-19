@@ -1,5 +1,7 @@
 use crate::error::{MacEveryError, Result};
-use crate::model::{FileKind, FileRecord, IndexStats, PathFilter, PathFilterMode, SearchOptions};
+use crate::model::{
+    BootstrapStatus, FileKind, FileRecord, IndexStats, PathFilter, PathFilterMode, SearchOptions,
+};
 use crate::sqlite::{Connection, Step};
 use std::collections::BTreeSet;
 use std::os::unix::fs::MetadataExt;
@@ -880,6 +882,47 @@ impl Database {
         Ok(())
     }
 
+    /// Read the startup decision without counting indexed files. The first
+    /// SELECT pins the snapshot used for all configuration and metadata reads.
+    pub fn bootstrap_status(&self) -> Result<BootstrapStatus> {
+        self.begin_read()?;
+        let result = self.bootstrap_status_in_snapshot().and_then(|status| {
+            self.commit()?;
+            Ok(status)
+        });
+        if result.is_err() {
+            let _ = self.rollback();
+        }
+        result
+    }
+
+    fn bootstrap_status_in_snapshot(&self) -> Result<BootstrapStatus> {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT EXISTS(SELECT 1 FROM files LIMIT 1);")?;
+        if !matches!(stmt.step()?, Step::Row) {
+            return Err(MacEveryError::Sqlite(
+                "missing indexed-record existence result".to_string(),
+            ));
+        }
+        let has_records = stmt.column_i64(0).ok_or_else(|| {
+            MacEveryError::Sqlite("invalid indexed-record existence result".into())
+        })? != 0;
+        drop(stmt);
+
+        let (roots, excludes) = self.roots_and_excludes()?;
+        let last_indexed_at = self
+            .get_meta("last_indexed_at")?
+            .and_then(|value| value.parse().ok());
+        Ok(BootstrapStatus {
+            db_path: self.path.to_string_lossy().to_string(),
+            has_records,
+            roots,
+            excludes,
+            last_indexed_at,
+        })
+    }
+
     pub fn stats(&self) -> Result<IndexStats> {
         let mut stats = IndexStats {
             db_path: self.path.to_string_lossy().to_string(),
@@ -1591,6 +1634,143 @@ mod content_revision_tests {
             )
         );
         assert!(reader.stats().is_err());
+    }
+
+    #[test]
+    fn bootstrap_covers_empty_and_configured_databases_independently() {
+        for has_records in [false, true] {
+            for has_roots in [false, true] {
+                let fixture = Fixture::new("bootstrap-grid");
+                let db = Database::open(fixture.database()).unwrap();
+                if has_records {
+                    db.upsert_file(&record("/Unrelated/Record.txt", 7)).unwrap();
+                }
+                if has_roots {
+                    db.set_roots(&["/资料/Σ".into(), "/A".into(), "/A".into()])
+                        .unwrap();
+                }
+                db.set_excludes(&["缓存".into(), ".git".into()]).unwrap();
+                let expected_roots: Vec<String> = if has_roots {
+                    vec!["/A".into(), "/资料/Σ".into()]
+                } else {
+                    vec![]
+                };
+                let initial = db.content_stamp().unwrap();
+                let status = db.bootstrap_status().unwrap();
+                assert_eq!(status.db_path, fixture.database().to_string_lossy());
+                assert_eq!(status.has_records, has_records);
+                assert_eq!(status.roots, expected_roots);
+                assert_eq!(status.excludes, [".git", "缓存"]);
+                assert_eq!(status.last_indexed_at, None);
+                for value in [i64::MIN, 0, i64::MAX] {
+                    db.set_meta("last_indexed_at", &value.to_string()).unwrap();
+                    assert_eq!(db.bootstrap_status().unwrap().last_indexed_at, Some(value));
+                }
+                db.set_meta("last_indexed_at", "not-an-integer").unwrap();
+                assert_eq!(db.bootstrap_status().unwrap().last_indexed_at, None);
+                assert_eq!(db.content_stamp().unwrap(), initial);
+            }
+        }
+    }
+
+    #[test]
+    fn bootstrap_preserves_required_legacy_migration() {
+        let fixture = Fixture::new("bootstrap-legacy");
+        let legacy = Connection::open(&fixture.database()).unwrap();
+        legacy
+            .execute_batch(
+                "CREATE TABLE files (
+                    id INTEGER PRIMARY KEY, path TEXT NOT NULL UNIQUE,
+                    basename TEXT NOT NULL, basename_lower TEXT NOT NULL,
+                    ext_lower TEXT, kind TEXT NOT NULL, size INTEGER,
+                    mtime INTEGER, ctime INTEGER, dev INTEGER, inode INTEGER,
+                    indexed_at INTEGER NOT NULL);
+                 INSERT INTO files(id,path,basename,basename_lower,kind,indexed_at)
+                    VALUES(1,'/Legacy/Σ.txt','Σ.txt','σ.txt','file',12);
+                 CREATE TABLE roots(path TEXT PRIMARY KEY);
+                 INSERT INTO roots VALUES('/Legacy');
+                 CREATE TABLE meta(key TEXT PRIMARY KEY, value TEXT NOT NULL);
+                 INSERT INTO meta VALUES('last_indexed_at','12');",
+            )
+            .unwrap();
+        drop(legacy);
+        let db = Database::open(fixture.database()).unwrap();
+        let status = db.bootstrap_status().unwrap();
+        assert!(status.has_records);
+        assert_eq!(status.roots, ["/Legacy"]);
+        assert!(status.excludes.is_empty());
+        assert_eq!(status.last_indexed_at, Some(12));
+        assert_eq!(db.all_records().unwrap()[0].path_lower, "/legacy/σ.txt");
+        assert!(db.has_change_journal().unwrap());
+        let schema = scalar(&db, "PRAGMA schema_version;");
+        drop(db);
+        let reopened = Database::open(fixture.database()).unwrap();
+        assert_eq!(reopened.bootstrap_status().unwrap(), status);
+        assert_eq!(scalar(&reopened, "PRAGMA schema_version;"), schema);
+    }
+
+    #[test]
+    fn bootstrap_read_errors_are_not_empty_and_release_the_transaction() {
+        let fixture = Fixture::new("bootstrap-errors");
+        let db = Database::open(fixture.database()).unwrap();
+        db.upsert_file(&record("/Retained.txt", 7)).unwrap();
+        db.begin().unwrap();
+        db.set_meta("caller-owned-transaction", "uncommitted")
+            .unwrap();
+        assert!(db.bootstrap_status().is_err());
+        assert_eq!(
+            db.get_meta("caller-owned-transaction").unwrap().as_deref(),
+            Some("uncommitted")
+        );
+        db.rollback().unwrap();
+        assert!(db.get_meta("caller-owned-transaction").unwrap().is_none());
+        // Fail after the existence query has already pinned a snapshot.
+        db.conn.execute_batch("DROP TABLE roots;").unwrap();
+        assert!(db.bootstrap_status().is_err());
+        db.conn
+            .execute_batch("CREATE TABLE roots(path TEXT PRIMARY KEY);")
+            .unwrap();
+        assert!(db.bootstrap_status().unwrap().has_records);
+        // A broken files schema must also propagate, never becoming false.
+        db.conn.execute_batch("DROP TABLE files;").unwrap();
+        assert!(db.bootstrap_status().is_err());
+        db.begin_read().unwrap();
+        db.rollback().unwrap();
+
+        let broken = fixture.0.join("corrupt.sqlite");
+        std::fs::write(&broken, b"this is not a SQLite database").unwrap();
+        assert!(Database::open(broken).is_err());
+    }
+
+    #[test]
+    fn bootstrap_configuration_and_existence_share_a_wal_snapshot() {
+        let fixture = Fixture::new("bootstrap-snapshot");
+        let writer = Database::open(fixture.database()).unwrap();
+        writer.set_roots(&["/Before".into()]).unwrap();
+        writer.set_excludes(&["old-exclude".into()]).unwrap();
+        writer.set_meta("last_indexed_at", "10").unwrap();
+        let reader = Database::open_read_only(fixture.database()).unwrap();
+        reader.begin_read().unwrap();
+        let before = reader.bootstrap_status_in_snapshot().unwrap();
+        assert!(!before.has_records);
+
+        writer.begin().unwrap();
+        writer.upsert_file(&record("/After/New.txt", 20)).unwrap();
+        writer.set_roots(&["/After".into()]).unwrap();
+        writer.set_excludes(&["new-exclude".into()]).unwrap();
+        writer.set_meta("last_indexed_at", "20").unwrap();
+        writer.commit().unwrap();
+        assert_eq!(reader.bootstrap_status_in_snapshot().unwrap(), before);
+        reader.commit().unwrap();
+
+        let after = reader.bootstrap_status().unwrap();
+        assert!(after.has_records);
+        assert_eq!(after.roots, ["/After"]);
+        assert_eq!(after.excludes, ["new-exclude"]);
+        assert_eq!(after.last_indexed_at, Some(20));
+        assert_eq!(before.roots, ["/Before"]);
+        assert_eq!(before.excludes, ["old-exclude"]);
+        assert_eq!(before.last_indexed_at, Some(10));
     }
 }
 
