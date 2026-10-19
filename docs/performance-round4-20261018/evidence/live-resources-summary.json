@@ -1,0 +1,77 @@
+{
+  "acceptance_date": "2026-10-19 Asia/Shanghai",
+  "scope": "two separate twenty-second point observations, other user apps retained; native tests/code search before final sample, not controlled idle A/B or long-term leak proof",
+  "roles_stable_during_candidate_sample": true,
+  "baseline": {
+    "note": "2026-10-19 pre-install 20s point observation, query empty, old App gd93f3f6. Other user background retained; not controlled idle A/B or long-term leak proof.",
+    "wall_seconds": 20.069681083,
+    "processes": [
+      {
+        "pid": 76429,
+        "parent": 1,
+        "executable": "/Users/yangtao/pine/code/macevery/.build/MacEvery.app/Contents/MacOS/MacEveryApp",
+        "cpu_seconds": 0.026136084,
+        "average_cpu_percent_one_core": 0.13022670311457285,
+        "end_rss_bytes": 136118272,
+        "end_physical_footprint_bytes": 45417552
+      },
+      {
+        "pid": 76436,
+        "parent": 76429,
+        "executable": "/Users/yangtao/pine/code/macevery/.build/MacEvery.app/Contents/MacOS/macevery",
+        "cpu_seconds": 0.000172376,
+        "average_cpu_percent_one_core": 0.0008588875891307056,
+        "end_rss_bytes": 2648440832,
+        "end_physical_footprint_bytes": 2643642960
+      },
+      {
+        "pid": 76437,
+        "parent": 76429,
+        "executable": "/Users/yangtao/pine/code/macevery/.build/MacEvery.app/Contents/MacOS/macevery",
+        "cpu_seconds": 0.007718792,
+        "average_cpu_percent_one_core": 0.03845996340489034,
+        "end_rss_bytes": 19529728,
+        "end_physical_footprint_bytes": 6603352
+      }
+    ],
+    "total_average_cpu_percent_one_core": 0.1695455541085939,
+    "total_end_rss_bytes": 2804088832,
+    "sample_count": 21
+  },
+  "candidate": {
+    "note": "2026-10-19 post-install 20s observation after native lifecycle and code query, query cleared. Other user background retained; not controlled idle A/B or a long-term leak test.",
+    "wall_seconds": 20.063278708,
+    "processes": [
+      {
+        "pid": 67307,
+        "parent": 1,
+        "executable": "/Users/yangtao/pine/code/macevery/.build/MacEvery.app/Contents/MacOS/MacEveryApp",
+        "cpu_seconds": 0.015310334,
+        "average_cpu_percent_one_core": 0.07631022936393335,
+        "end_rss_bytes": 151699456,
+        "end_physical_footprint_bytes": 64701496
+      },
+      {
+        "pid": 67318,
+        "parent": 67307,
+        "executable": "/Users/yangtao/pine/code/macevery/.build/MacEvery.app/Contents/MacOS/macevery",
+        "cpu_seconds": 0.000158291,
+        "average_cpu_percent_one_core": 0.0007889587853698274,
+        "end_rss_bytes": 2518269952,
+        "end_physical_footprint_bytes": 2513160568
+      },
+      {
+        "pid": 67319,
+        "parent": 67307,
+        "executable": "/Users/yangtao/pine/code/macevery/.build/MacEvery.app/Contents/MacOS/macevery",
+        "cpu_seconds": 0.031001125,
+        "average_cpu_percent_one_core": 0.1545167440037538,
+        "end_rss_bytes": 20398080,
+        "end_physical_footprint_bytes": 6308392
+      }
+    ],
+    "total_average_cpu_percent_one_core": 0.23161593215305698,
+    "total_end_rss_bytes": 2690367488,
+    "sample_count": 21
+  }
+}

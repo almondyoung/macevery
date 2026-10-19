@@ -1,6 +1,8 @@
 # MacEvery Round 4 Status
 
-Updated: 2026-10-18 (Asia/Shanghai). Controlled verification complete; built candidate waits for manual unlock/native acceptance.
+Updated: 2026-10-19 (Asia/Shanghai). Local implementation, installation, native acceptance and resource sampling complete.
+
+Current App: 0.1.3-gd62aa1d at the original path; native18 ->35 ->beta-only ->0 and code300 PASS. Final twenty-second observation: CPU0.232% onecore/RSSsum2.506GiB. Earlier checkpoints below retain their historical timing; they are not the current installation state.
 
 ## Task capsule
 
@@ -36,7 +38,7 @@ Updated: 2026-10-18 (Asia/Shanghai). Controlled verification complete; built can
 
 ## Next
 
-等待手动解锁后完成原位替换与原生验收。先核对旧 App 路径/PID，停止精确 GUI 并等待其 serve/watch 退出（不要在 GUI quit 后调用AX重新唤起旧包）；原包归档，再将已验证候选重命名原路径并 open。运行已准备的 .build/performance-round4-20261018/live_window_fixture.py create/modify/rename/delete 并用CUA核对18/35/beta-only/0，清理查询，再20秒资源采样。若跨会话间隔较久，重新核对源码/候选SHA并刷新live备份；不重复整个已通过CPU基准。
+本轮本机目标已完成。验收文档随最后 docs-only 提交保存，精确远端回读在忽略目录 final-git-receipt.json；App 源码仍为 d62aa1d，不因文档提交重新构建。远端 CI、正式 QA、长期后台观察未执行。
 
 ## Design checkpoint
 
@@ -78,3 +80,12 @@ Updated: 2026-10-18 (Asia/Shanghai). Controlled verification complete; built can
 - Live read-only online backup completed7,297,642rows / quick_check ok, SHAc2f97353d23ee90aab1117df5b00700416fe52019c1c6bbea74903aa8bc6c968. Original approllback retained.
 - Mac locked; async request for manual unlock sent. No App replacement/native create-modify-rename-delete/final idle observation yet. Do not infer PASS from backend tests. Old app source d93f3f6 remains active; candidate path .build/MacEvery.round4-candidate.app.
 - Independent report/math/link/privacy and payload-accounting review PASS. All tested source hashes preserved. Final native acceptance and documentation-only commit/push remain after unlock.
+
+## 2026-10-19 final native acceptance
+
+- Manual unlock confirmed by actual native AX. Candidate signature/source/hash rechecked; origin/main3a59b3a contained source d62aa1d,0behind before install.
+- Refreshed live read-only online backup7,297,944rows/quick_check ok/SHAbb92a5386d7080ddd6b7e88b55503256555454ecc9b096ede1b1f49703158ede; new dated file preserves previous backup.
+- OldGUI76429/service76436/watch76437 all exited before replacement. NewGUI67307/service67318/watch67319 at original path, role/parent/PID stable during sample. App0.1.3-gd62aa1d; deep/strict and freshly normalized Rustpayload hash equality PASS.
+- Native18->35->beta-only->0 plus shortcode300 PASS, exact-path SQL independently confirms each write/delete. Fixture and query removed, No Query. Fastest/shortcut/roots/excludes preserved; DBidentity preserved; Limited permission unchanged; no index rebuild or access expansion.
+- Fresh same-day before20.070s CPU.170%/RSSsum2.612GiB; after20.063s CPU.232%/RSSsum2.506GiB. Point observations only, not controlled idle A/B, footprint or long-term leak proof. Original controlled A/B/A evidence unchanged.
+- Added app-final/native/resources evidence; historical candidate/pending receipts retained. Documentation-only final push/readback receipt follows; no production-source change or new release version.
