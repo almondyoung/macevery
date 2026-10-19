@@ -1,0 +1,85 @@
+{
+  "at_utc": "2026-10-19T07:16:52.428835+00:00",
+  "path": ".build/MacEvery.app",
+  "source_commit": "8096e0a9c61cacd3402cd3017e95fc60ddb2c0f3",
+  "build_label": "0.1.3-g8096e0a",
+  "build_time": "2026-10-19T06:58:29Z",
+  "worktree_clean": true,
+  "signature_deep_strict": true,
+  "gui_sha256": "265b3ed6c370cb04c653beb5613d1f19e3ebf8b2298ebe52be77b9365306eece",
+  "signed_cli_sha256": "422e776c583ff9769c613c5f915f1b5c4e993da4085fa434042b81bd82a710ee",
+  "normalized_cli_sha256": "5f446790b935a7f889d6d0cdeb40e25b5acae571952575bb557cc3e485d2e898",
+  "tested_payload_equal": true,
+  "installed_payload_equal": true,
+  "normalized_installed_cli_sha256": "5f446790b935a7f889d6d0cdeb40e25b5acae571952575bb557cc3e485d2e898",
+  "old_exact_processes": [
+    {
+      "pid": 55324,
+      "parent": 1,
+      "executable": ".build/MacEvery.app/Contents/MacOS/MacEveryApp",
+      "role": "gui"
+    },
+    {
+      "pid": 55336,
+      "parent": 55324,
+      "executable": ".build/MacEvery.app/Contents/MacOS/macevery",
+      "role": "serve"
+    },
+    {
+      "pid": 55337,
+      "parent": 55324,
+      "executable": ".build/MacEvery.app/Contents/MacOS/macevery",
+      "role": "watch"
+    }
+  ],
+  "old_exact_processes_exited": true,
+  "rollback": ".build/performance-round7-20261019/original-app-before-install.app",
+  "processes": [
+    {
+      "pid": 97195,
+      "parent": 1,
+      "executable": ".build/MacEvery.app/Contents/MacOS/MacEveryApp",
+      "role": "gui"
+    },
+    {
+      "pid": 97199,
+      "parent": 97195,
+      "executable": ".build/MacEvery.app/Contents/MacOS/macevery",
+      "role": "serve"
+    },
+    {
+      "pid": 97200,
+      "parent": 97195,
+      "executable": ".build/MacEvery.app/Contents/MacOS/macevery",
+      "role": "watch"
+    }
+  ],
+  "native_acceptance_pass": true,
+  "settings": {
+    "build": "0.1.3-g8096e0a",
+    "mode": "Fastest",
+    "shortcut": "Command-Shift-Space",
+    "permission_label_before": "Limited",
+    "permission_label_after": "Unknown",
+    "permission_recheck_after": "Unknown",
+    "permission_label_same_as_baseline": false,
+    "system_permissions_changed_by_task": false
+  },
+  "index_final": {
+    "at_utc": "2026-10-19T07:16:52.355263+00:00",
+    "rows": 7315500,
+    "content_state": [
+      "c11e38f8128ce976ccb2acec808a7622",
+      2661918
+    ],
+    "journal_rows": 16926,
+    "journal_bound_exclusive": 17408,
+    "roots_match_backup": true,
+    "excludes_match_backup": true,
+    "database_id_unchanged": true,
+    "fixture_rows_absent": true
+  },
+  "owned_test_processes_remaining": [],
+  "source_files_match_tested": true,
+  "installed_binary_hashes_unchanged": true
+}

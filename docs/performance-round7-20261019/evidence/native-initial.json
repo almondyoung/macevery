@@ -1,0 +1,30 @@
+{
+  "at_utc": "2026-10-19T07:06:14.882201+00:00",
+  "processes": [
+    {
+      "pid": 97195,
+      "parent": 1,
+      "executable": ".build/MacEvery.app/Contents/MacOS/MacEveryApp",
+      "role": "gui"
+    },
+    {
+      "pid": 97199,
+      "parent": 97195,
+      "executable": ".build/MacEvery.app/Contents/MacOS/macevery",
+      "role": "serve"
+    },
+    {
+      "pid": 97200,
+      "parent": 97195,
+      "executable": ".build/MacEvery.app/Contents/MacOS/macevery",
+      "role": "watch"
+    }
+  ],
+  "initial_native_window": {
+    "counts_placeholder_seen": true,
+    "empty_state": "No Query",
+    "mode": "Fastest",
+    "watching_roots": 2
+  },
+  "method": "CUA first native window and exact process identity"
+}

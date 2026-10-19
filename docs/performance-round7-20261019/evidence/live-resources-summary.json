@@ -1,0 +1,94 @@
+{
+  "scope": "Two separate20s point observations; background activity/history/live input differ. RSS sums may double count shared pages; no stable idle/leak inference.",
+  "periods": {
+    "baseline": {
+      "note": "Round7 baseline 20s point observation, query cleared; ordinary user background retained. Not controlled idle A/B or long-term leak proof.",
+      "wall_seconds": 20.068809208,
+      "processes": [
+        {
+          "pid": 55324,
+          "parent": 1,
+          "executable": ".build/MacEvery.app/Contents/MacOS/MacEveryApp",
+          "cpu_seconds": 0.022665084,
+          "average_cpu_percent_one_core": 0.11293686518762183,
+          "end_rss_bytes": 135331840,
+          "end_physical_footprint_bytes": 48006152
+        },
+        {
+          "pid": 55336,
+          "parent": 55324,
+          "executable": ".build/MacEvery.app/Contents/MacOS/macevery",
+          "cpu_seconds": 0.000148751,
+          "average_cpu_percent_one_core": 0.0007412049138456287,
+          "end_rss_bytes": 1712160768,
+          "end_physical_footprint_bytes": 1457276608
+        },
+        {
+          "pid": 55337,
+          "parent": 55324,
+          "executable": ".build/MacEvery.app/Contents/MacOS/macevery",
+          "cpu_seconds": 0.067744,
+          "average_cpu_percent_one_core": 0.33755864285657416,
+          "end_rss_bytes": 21004288,
+          "end_physical_footprint_bytes": 6881808
+        }
+      ],
+      "total_average_cpu_percent_one_core": 0.45123671295804163,
+      "total_end_rss_bytes": 1868496896,
+      "roles_stable_during_sample": true,
+      "content_state_before": [
+        "c11e38f8128ce976ccb2acec808a7622",
+        2324892
+      ],
+      "content_state_after": [
+        "c11e38f8128ce976ccb2acec808a7622",
+        2325472
+      ]
+    },
+    "final": {
+      "note": "Round7 final 20s point observation, query cleared; ordinary user background retained. Not controlled idle A/B or long-term leak proof.",
+      "wall_seconds": 20.073546,
+      "processes": [
+        {
+          "pid": 97195,
+          "parent": 1,
+          "executable": ".build/MacEvery.app/Contents/MacOS/MacEveryApp",
+          "cpu_seconds": 0.0,
+          "average_cpu_percent_one_core": 0.0,
+          "end_rss_bytes": 152911872,
+          "end_physical_footprint_bytes": 66061368
+        },
+        {
+          "pid": 97199,
+          "parent": 97195,
+          "executable": ".build/MacEvery.app/Contents/MacOS/macevery",
+          "cpu_seconds": 0.000153918,
+          "average_cpu_percent_one_core": 0.0007667703553721899,
+          "end_rss_bytes": 1655439360,
+          "end_physical_footprint_bytes": 1401505472
+        },
+        {
+          "pid": 97200,
+          "parent": 97195,
+          "executable": ".build/MacEvery.app/Contents/MacOS/macevery",
+          "cpu_seconds": 0.003343,
+          "average_cpu_percent_one_core": 0.01665375913154557,
+          "end_rss_bytes": 20398080,
+          "end_physical_footprint_bytes": 6324824
+        }
+      ],
+      "total_average_cpu_percent_one_core": 0.01742052948691776,
+      "total_end_rss_bytes": 1828749312,
+      "roles_stable_during_sample": true,
+      "content_state_before": [
+        "c11e38f8128ce976ccb2acec808a7622",
+        2661906
+      ],
+      "content_state_after": [
+        "c11e38f8128ce976ccb2acec808a7622",
+        2661906
+      ]
+    }
+  },
+  "rss_sum_change_pct": -2.1272491319139997
+}
