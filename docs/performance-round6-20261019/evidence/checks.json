@@ -77,7 +77,7 @@
         "macos/MacEveryApp.swift",
         "tests/macos/GUIRegressionChecks.swift",
         "-o",
-        "/Users/yangtao/pine/code/macevery/.build/performance-round6-20261019/gui-regression"
+        ".build/performance-round6-20261019/gui-regression"
       ]
     },
     "gui-regression": {
@@ -85,7 +85,7 @@
       "wall_seconds": 11.800270750000003,
       "log": "gui-regression.log",
       "command": [
-        "/Users/yangtao/pine/code/macevery/.build/performance-round6-20261019/gui-regression"
+        ".build/performance-round6-20261019/gui-regression"
       ]
     }
   },

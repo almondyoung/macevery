@@ -96,7 +96,7 @@
         "macos/MacEveryApp.swift",
         "tests/macos/GUIRegressionChecks.swift",
         "-o",
-        "/Users/yangtao/pine/code/macevery/.build/performance-round6-20261019/gui-regression"
+        ".build/performance-round6-20261019/gui-regression"
       ]
     },
     "gui-regression": {
@@ -104,11 +104,13 @@
       "wall_seconds": 11.800270750000003,
       "log": "gui-regression.log",
       "command": [
-        "/Users/yangtao/pine/code/macevery/.build/performance-round6-20261019/gui-regression"
+        ".build/performance-round6-20261019/gui-regression"
       ]
     }
   },
   "benchmark_tool_sha256": {
     "tools/check_startup_round6.py": "f8492fcbe0370274ac59fc67a6505c21d1ef548fd6629c82795d215aff312dad"
-  }
+  },
+  "source_commit": "2f32302c640228dad9b3a2e4c111b3fff823450c",
+  "source_remote_readback": "2f32302c640228dad9b3a2e4c111b3fff823450c"
 }

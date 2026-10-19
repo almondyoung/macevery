@@ -1,6 +1,6 @@
 # MacEvery Round 6 Status
 
-Updated: 2026-10-19 (Asia/Shanghai). Controlled implementation and verification complete; installation/native acceptance pending.
+Updated: 2026-10-19 (Asia/Shanghai). Local implementation, controlled verification, App installation, native acceptance and resource sampling complete.
 
 ## Task capsule
 
@@ -35,23 +35,17 @@ Updated: 2026-10-19 (Asia/Shanghai). Controlled implementation and verification 
 
 ## Current evidence
 
-- main and origin/main match 26a72463c4cf876cafb6e8db1b843aae723eb5d1 (ahead=behind=0), clean before edits.
-- Round-5 release CLI/library reused after source and artifact hash verification; current installed App copied to named rollback.
-- Frozen snapshot copied to this round's /private/tmp location; SHA 68bd22081af1eb5ec9164037407cb6c9c13349a7f8e460fa9aa682b3286b5b29 verified.
-- Debug/Release 123 unit tests each plus 420-transaction and prefix-update integrations pass; format, strict all-target Clippy and GUI regression pass. Independent cross-review of compact and decoding/watch changes found no blocker.
-- Exact eight-part retained capacity is unchanged at 1,537,288,452 bytes; string usage, prefix entries/capacity, metadata escapes and 56B records agree.
-- Native old-App settings and No Query verified; 20.073s baseline CPU0.216% one-core sum, RSSsum1.734GiB, revision+5 (point observation, not idle benchmark).
-- HTTP correctness/update/recovery, sequential performance, startup and FSEvents complete. No direct live index edit/rebuild or App replacement so far.
+- Baseline main26a7246 / installed d701658 frozen, hashes and snapshot verified. Exact capacity remains1,537,288,452B.
+- Debug/Release123 unit tests each plus420-transaction/prefix-update integrations, strict Clippy/fmt/Python/GUI pass; independent source, mechanism, math and report reviews found no blocker.
+- Original-nine and short29 two-block ABA complete, all full ordered digests match. Loading CPU median -9.76%/-11.88%; short group -2.39%, hot code -4.11%. Fresh code ordinary +1.54%, nine queries +2.46%, nohit and first-service-load +2.2% retained in REPORT r2.
+- Startup initial6run wall mixed +1.765%/-5.344%; one whole follow-up ABA appended, no sample selection. All9 status/strictready/code300/count/hash/cleanup pass. Ready19.764->18.820s, CPU5.532->5.117s; paired wall -4.201% with positive block retained. Scope excludes GUI/window/watch.
+- HTTP normal waves full0/delta1/2/3, busy40=2correct200+38busy503, all fallback/readfailure/recovery pass. 300k FSEvents ABA nine lifecycle checks and final states match.
+- Source2f32302c640228dad9b3a2e4c111b3fff823450c pushed/read back exact main and clean. App0.1.3-g2f32302 clean build/signatures/payload equality, original-path replacement complete; rollback and original App kept. No source changes after controlled acceptance.
+- Fresh source-mode=ro online backup7,310,058rows/quick_checkok/SHA dd4db6f36f1b059d71a57ad10752f399de722fd92721fa19e301d892a6c2ced8. Roots/excludes/database_id unchanged; no manual live rebuild/direct index edit.
+- Old exact roles16389/16393/16394 exited. New55324/55336/55337 parentage/stability verified. Native18->35->beta-only->0, code300 PASS; fixture and query cleaned toNoQuery, Fastest/Command-Shift-Space/Limited preserved.
+- Native baseline20.073s CPU0.21598%/RSSsum1.734GiB/revision+5; final20.067s CPU0.01830%/RSSsum1.754GiB/revision0. Point observations only, RSSsum+1.13%; retained alongside controlled results, no idle/long-term claim.
+- Final readonly index7,311,144rows, database_id preserved,16,735 journal events<17,408 bound, fixture rows absent. Owned benchmark processes none. REPORT r2/evidence complete; final docs push receipt in ignored final-git-receipt.json.
 
-## Measurement follow-up
+## Next
 
-- Initial startup two-block A/B/A passed correctness and CPU; bootstrap-ready wall paired changes +1.765% and -5.344% differ in direction. One additional complete startup A/B/A block is scheduled to quantify this variability. Keep all first six runs; combine all nine without selecting samples. Other workloads do not require repetition.
-
-## Controlled completion
-
-- All prescribed checks, original-nine/short29 two-block ABA, strict startup nine-run aggregate, HTTP recovery and 300k FSEvents passed; performance-gates.json all_pass=true.
-- Loading CPU median -9.76%/-11.88%; capacity unchanged, RSS effectively unchanged. Short29 CPU -2.39%, hot code -4.11%; fresh code ordinary +1.54% retained (paired -1.13%).
-- Startup ready 19.764->18.820s, cumulative CPU5.532->5.117s; paired wall -4.201% with one +1.765% block retained. REPORT r1 explicitly limits startup evidence to status->serve and keeps first-service-load +2.2% CPU regression.
-- Fresh live read-only backup complete; source commit/push, clean App and native acceptance follow.
-
-- Fresh live source mode=ro online backup complete:7,310,058rows,quick_check=ok,SHA dd4db6f36f1b059d71a57ad10752f399de722fd92721fa19e301d892a6c2ced8; database_id/roots/excludes preserved. No live rebuild/direct SQL write.
+本轮本机目标已完成；最终文档提交/推送的精确SHA、远端回读、ahead/behind和干净状态在忽略目录回执保存。App源码固定2f32302，不随文档提交重新构建。远端CI、正式QA、长时间后台和受保护目录扩展覆盖未执行。

@@ -1,0 +1,13 @@
+{
+  "at_utc": "2026-10-19T05:36:34.995980+00:00",
+  "method": "read-only source SQLite online backup; immutable only on completed isolated backup",
+  "rows": 7310058,
+  "content_state": [
+    "c11e38f8128ce976ccb2acec808a7622",
+    1997552
+  ],
+  "quick_check": "ok",
+  "bytes": 5488377856,
+  "wall_seconds": 14.761003875,
+  "sha256": "dd4db6f36f1b059d71a57ad10752f399de722fd92721fa19e301d892a6c2ced8"
+}

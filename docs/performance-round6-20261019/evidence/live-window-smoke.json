@@ -1,0 +1,78 @@
+{
+  "folder": "round6-window-smoke-b3a817e4",
+  "query_marker": "r6loadb3a817e4",
+  "checks": {
+    "create": {
+      "database_pass": true,
+      "wait_seconds": 0.307560917,
+      "row": [
+        "alpha-r6loadb3a817e4.txt",
+        "file",
+        18,
+        1792388544
+      ],
+      "at_unix": 1792388545.272224,
+      "native_pass": true,
+      "native_size_bytes": 18,
+      "native_name": "alpha-r6loadb3a817e4.txt",
+      "query": "r6loadb3a817e4 ext:txt"
+    },
+    "modify": {
+      "database_pass": true,
+      "wait_seconds": 0.211346416,
+      "row": [
+        "alpha-r6loadb3a817e4.txt",
+        "file",
+        35,
+        1792388569
+      ],
+      "at_unix": 1792388569.8837929,
+      "native_pass": true,
+      "native_size_bytes": 35,
+      "native_name": "alpha-r6loadb3a817e4.txt",
+      "query": "r6loadb3a817e4"
+    },
+    "rename": {
+      "database_pass": true,
+      "wait_seconds": 0.419836041,
+      "row": [
+        "beta-r6loadb3a817e4.txt",
+        "file",
+        35,
+        1792388569
+      ],
+      "at_unix": 1792388578.6154392,
+      "native_pass": true,
+      "native_size_bytes": 35,
+      "native_name": "beta-r6loadb3a817e4.txt",
+      "old_name_absent": true,
+      "result_count": 1,
+      "query": "r6loadb3a817e4 ext:txt"
+    },
+    "delete": {
+      "database_pass": true,
+      "wait_seconds": 0.316929625,
+      "row": null,
+      "at_unix": 1792388587.693082,
+      "native_pass": true,
+      "result_count": 0,
+      "query": "r6loadb3a817e4"
+    }
+  },
+  "cleaned": true,
+  "code_search": {
+    "native_pass": true,
+    "query": "code",
+    "count": 300,
+    "scope": "native smoke only; complete results not published"
+  },
+  "query_cleared": true,
+  "ui_final": "No Query",
+  "settings": {
+    "build_label": "0.1.3-g2f32302",
+    "search_mode": "Fastest",
+    "shortcut": "Command-Shift-Space",
+    "permissions": "Limited",
+    "settings_closed": true
+  }
+}

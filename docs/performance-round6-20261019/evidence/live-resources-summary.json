@@ -1,0 +1,90 @@
+{
+  "baseline": {
+    "note": "Round6 baseline 20s point observation, query cleared; ordinary user background retained. Not controlled idle A/B or long-term leak proof.",
+    "wall_seconds": 20.0727425,
+    "total_average_cpu_percent_one_core": 0.21597924150125475,
+    "total_end_rss_bytes": 1862156288,
+    "processes": [
+      {
+        "pid": 16389,
+        "parent": 1,
+        "cpu_seconds": 0.036455166,
+        "average_cpu_percent_one_core": 0.18161527255181995,
+        "end_rss_bytes": 141017088,
+        "end_physical_footprint_bytes": 48874552,
+        "role": "gui"
+      },
+      {
+        "pid": 16393,
+        "parent": 16389,
+        "cpu_seconds": 0.000132166,
+        "average_cpu_percent_one_core": 0.0006584351889135228,
+        "end_rss_bytes": 1700052992,
+        "end_physical_footprint_bytes": 1449084584,
+        "role": "serve"
+      },
+      {
+        "pid": 16394,
+        "parent": 16389,
+        "cpu_seconds": 0.006765625,
+        "average_cpu_percent_one_core": 0.03370553376052126,
+        "end_rss_bytes": 21086208,
+        "end_physical_footprint_bytes": 7012976,
+        "role": "watch"
+      }
+    ],
+    "content_state_before": [
+      "c11e38f8128ce976ccb2acec808a7622",
+      1989246
+    ],
+    "content_state_after": [
+      "c11e38f8128ce976ccb2acec808a7622",
+      1989251
+    ],
+    "roles_stable": true
+  },
+  "final": {
+    "note": "Round6 final 20s point observation, query cleared; ordinary user background retained. Not controlled idle A/B or long-term leak proof.",
+    "wall_seconds": 20.067381542,
+    "total_average_cpu_percent_one_core": 0.01829711062360186,
+    "total_end_rss_bytes": 1883258880,
+    "processes": [
+      {
+        "pid": 55324,
+        "parent": 1,
+        "cpu_seconds": 0.000138792,
+        "average_cpu_percent_one_core": 0.0006916298457250911,
+        "end_rss_bytes": 150192128,
+        "end_physical_footprint_bytes": 63177736,
+        "role": "gui"
+      },
+      {
+        "pid": 55336,
+        "parent": 55324,
+        "cpu_seconds": 0.000152167,
+        "average_cpu_percent_one_core": 0.0007582802952219865,
+        "end_rss_bytes": 1712160768,
+        "end_physical_footprint_bytes": 1457276608,
+        "role": "serve"
+      },
+      {
+        "pid": 55337,
+        "parent": 55324,
+        "cpu_seconds": 0.003380792,
+        "average_cpu_percent_one_core": 0.01684720048265478,
+        "end_rss_bytes": 20905984,
+        "end_physical_footprint_bytes": 6783504,
+        "role": "watch"
+      }
+    ],
+    "content_state_before": [
+      "c11e38f8128ce976ccb2acec808a7622",
+      2324745
+    ],
+    "content_state_after": [
+      "c11e38f8128ce976ccb2acec808a7622",
+      2324745
+    ],
+    "roles_stable": true
+  }
+}
