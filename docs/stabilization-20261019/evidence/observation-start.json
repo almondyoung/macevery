@@ -1,0 +1,150 @@
+{
+  "schema": 1,
+  "source_commit": "8096e0a9c61cacd3402cd3017e95fc60ddb2c0f3",
+  "app_fingerprint": "4fc668a10ec821363766a42f87204b20b3c2d17cc2e28fcdf6f78c2253d9656e",
+  "window_hours": 48.0,
+  "window_finished": false,
+  "elapsed_window_seconds": 60.018768167,
+  "samples": 2,
+  "last_sample_utc": "2026-10-19T08:40:14.294271+00:00",
+  "nominal_interval_seconds": 60.0,
+  "sleep_clock_difference_tolerance_seconds": 0.001,
+  "nominal_slots_so_far": 2,
+  "captured_unique_slots": 2,
+  "deadline_evaluation_clock_basis": "continuous_same_boot",
+  "last_endpoint_elapsed_seconds": 60.018768167,
+  "last_endpoint_age_wall_seconds": 30.555086,
+  "barrier_counts": {
+    "initial_endpoint": 1
+  },
+  "database_pin_status_counts": {
+    "match": 2
+  },
+  "roles": {
+    "gui": {
+      "known_endpoints": 2,
+      "unknown_endpoints": 0,
+      "observed_identity_count": 1,
+      "minimum_observed_restarts": 0,
+      "measured_intervals": 1,
+      "measured_awake_seconds": 26.405740709,
+      "cpu_seconds_in_measured_intervals": 0.004979875,
+      "average_cpu_percent_one_core_in_measured_intervals": 0.01885906195504936,
+      "rss_first_bytes": 289800192,
+      "rss_last_bytes": 289898496,
+      "sampled_peak_rss_bytes": 289898496,
+      "footprint_first_bytes": 51020928,
+      "footprint_last_bytes": 51119232,
+      "sampled_peak_footprint_bytes": 51119232,
+      "process_identities": [
+        {
+          "identity_key": "e632636bba6378598f98159e5de376cbe79be7566842f62307c3054bbb316a22",
+          "pid": 21972,
+          "first_utc": "2026-10-19T08:39:47.888956+00:00",
+          "last_utc": "2026-10-19T08:40:14.294271+00:00",
+          "endpoints": 2,
+          "measured_awake_seconds": 26.405740709,
+          "cpu_seconds_in_measured_intervals": 0.004979875,
+          "average_cpu_percent_one_core": 0.01885906195504936,
+          "rss_first_bytes": 289800192,
+          "rss_last_bytes": 289898496,
+          "sampled_peak_rss_bytes": 289898496,
+          "footprint_first_bytes": 51020928,
+          "footprint_last_bytes": 51119232
+        }
+      ]
+    },
+    "serve": {
+      "known_endpoints": 2,
+      "unknown_endpoints": 0,
+      "observed_identity_count": 1,
+      "minimum_observed_restarts": 0,
+      "measured_intervals": 1,
+      "measured_awake_seconds": 26.405740709,
+      "cpu_seconds_in_measured_intervals": 0.000220917,
+      "average_cpu_percent_one_core_in_measured_intervals": 0.0008366248931797765,
+      "rss_first_bytes": 1631993856,
+      "rss_last_bytes": 1631993856,
+      "sampled_peak_rss_bytes": 1631993856,
+      "footprint_first_bytes": 1379600136,
+      "footprint_last_bytes": 1379600136,
+      "sampled_peak_footprint_bytes": 1379600136,
+      "process_identities": [
+        {
+          "identity_key": "9a967d71090a0484620ca42567cbdcbf998f33b8696a36f1bef5f25d1128dd3b",
+          "pid": 21975,
+          "first_utc": "2026-10-19T08:39:47.888956+00:00",
+          "last_utc": "2026-10-19T08:40:14.294271+00:00",
+          "endpoints": 2,
+          "measured_awake_seconds": 26.405740709,
+          "cpu_seconds_in_measured_intervals": 0.000220917,
+          "average_cpu_percent_one_core": 0.0008366248931797765,
+          "rss_first_bytes": 1631993856,
+          "rss_last_bytes": 1631993856,
+          "sampled_peak_rss_bytes": 1631993856,
+          "footprint_first_bytes": 1379600136,
+          "footprint_last_bytes": 1379600136
+        }
+      ]
+    },
+    "watch": {
+      "known_endpoints": 2,
+      "unknown_endpoints": 0,
+      "observed_identity_count": 1,
+      "minimum_observed_restarts": 0,
+      "measured_intervals": 1,
+      "measured_awake_seconds": 26.405740709,
+      "cpu_seconds_in_measured_intervals": 0.006240751,
+      "average_cpu_percent_one_core_in_measured_intervals": 0.02363406907905043,
+      "rss_first_bytes": 24395776,
+      "rss_last_bytes": 24395776,
+      "sampled_peak_rss_bytes": 24395776,
+      "footprint_first_bytes": 7422576,
+      "footprint_last_bytes": 7422576,
+      "sampled_peak_footprint_bytes": 7422576,
+      "process_identities": [
+        {
+          "identity_key": "8a3bbfcf3a3a583d4684d21852c6d57b9b5cba320888ae40f3437abe09ac2d10",
+          "pid": 21976,
+          "first_utc": "2026-10-19T08:39:47.888956+00:00",
+          "last_utc": "2026-10-19T08:40:14.294271+00:00",
+          "endpoints": 2,
+          "measured_awake_seconds": 26.405740709,
+          "cpu_seconds_in_measured_intervals": 0.006240751,
+          "average_cpu_percent_one_core": 0.02363406907905043,
+          "rss_first_bytes": 24395776,
+          "rss_last_bytes": 24395776,
+          "sampled_peak_rss_bytes": 24395776,
+          "footprint_first_bytes": 7422576,
+          "footprint_last_bytes": 7422576
+        }
+      ]
+    }
+  },
+  "endpoints_with_untracked_cli": 0,
+  "endpoints_with_unresolved_cli": 0,
+  "initial_database_status": "known",
+  "last_database_pin_status": "match",
+  "worker": {
+    "pid": 35412,
+    "start_abstime": 3482448139589,
+    "collector_session": "run-e3f0d874e341459cb482d80d7c9707d5",
+    "started_utc": "2026-10-19T08:39:47.879446+00:00",
+    "status": "running"
+  },
+  "last_exit": null,
+  "notes": [
+    "Discrete sampled RSS/footprint peaks may miss between-sample peaks.",
+    "CPU only joins adjacent same-identity samples without sleep/gap/collector barriers.",
+    "No continuous coverage/idle/leak PASS is inferred from the window ending.",
+    "Short-lived CLI helper CPU can be missed. The three roles are reported separately.",
+    "Worker status is last persisted bookkeeping, not a live PID check.",
+    "A final endpoint can straddle the deadline; exact measured interval lengths remain recorded.",
+    "CPU, RSS and footprint are segmented by observed process identity; a restart is not a leak trend.",
+    "Hourly files are cumulative as-of snapshots; missing hours are not backfilled.",
+    "Power UUID changes are conservative interval barriers, not independent proof of actual sleep; clock differences above 1ms are also excluded."
+  ],
+  "automation_id": "macevery-48",
+  "deadline_utc": "2026-10-21T08:39:14.276295+00:00",
+  "status": "RUNNING_NOT_LONG_TERM_PASS"
+}

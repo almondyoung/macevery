@@ -1,0 +1,56 @@
+{
+  "status": "PASS_SHORT_CYCLE_ONLY",
+  "sleep_request_local": "2026-10-19 16:19:34 +0800",
+  "enter_sleep_local": "2026-10-19 16:19:39 +0800",
+  "darkwake_local": "2026-10-19 16:19:41 +0800",
+  "fullwake_local": "2026-10-19 16:19:48 +0800",
+  "wake_cause": "wifibt / E_RX_IP_PACKET / ARPT then UserActivity Assertion",
+  "continuous_seconds": 76.087194083,
+  "awake_seconds": 75.694026625,
+  "continuous_minus_awake_seconds": 0.39316745799999353,
+  "same_boot": true,
+  "same_process_identities": true,
+  "same_database_id": true,
+  "same_roots_hash": true,
+  "power_schedules_unchanged": false,
+  "first_attempt": "display off/on only, not a true sleep",
+  "native": {
+    "native_new_bytes": 16,
+    "native_modified_bytes": 36,
+    "rename_old_results": 0,
+    "rename_new_results": 1,
+    "delete_results": 0,
+    "db_fixture_rows_remaining": 0,
+    "code_results": 300,
+    "scope": "native window + actual FSEvents after real short system sleep; no claim of a full-minute sleep"
+  },
+  "role_endpoints": [
+    {
+      "role": "gui",
+      "rss_before_bytes": 152109056,
+      "rss_after_bytes": 138133504,
+      "footprint_before_bytes": 62030880,
+      "footprint_after_bytes": 45335584
+    },
+    {
+      "role": "serve",
+      "rss_before_bytes": 1645363200,
+      "rss_after_bytes": 1645428736,
+      "footprint_before_bytes": 1393100528,
+      "footprint_after_bytes": 1393149704
+    },
+    {
+      "role": "watch",
+      "rss_before_bytes": 24150016,
+      "rss_after_bytes": 24215552,
+      "footprint_before_bytes": 10027560,
+      "footprint_after_bytes": 10093144
+    }
+  ],
+  "notes": [
+    "Actual sleep transition verified; system woke early, not a full-minute suspension.",
+    "Endpoints include normal user activity and diagnostics. No across-sleep CPU interval or performance A/B is inferred.",
+    "OS-owned wake schedule text changed across sleep; no schedule was set, cancelled or overwritten by this task."
+  ],
+  "power_schedule_mutation_by_agent": false
+}

@@ -1,0 +1,18 @@
+{
+  "observer_tests": {
+    "status": "PASS",
+    "count": 25,
+    "scope": "fake clocks/processes and test-owned SQLite; no 48h stability claim"
+  },
+  "python_syntax": "PASS",
+  "production_swift_compile": "PASS_WITH_MACEVERY_TESTING",
+  "tiny_swift_cases": 7,
+  "large_swift_cases": 7,
+  "large_backend_cases": 4,
+  "production_src_and_macos_diff": "EMPTY",
+  "source_ancestor_of_origin_main": true,
+  "remote_main_before_commit": "d7b6073544eb123f140f1da398f7dc98587b487b",
+  "installed_app_rebuilt_or_replaced": false,
+  "remote_ci": "NOT_RUN",
+  "formal_QA": "NOT_RUN"
+}

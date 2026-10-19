@@ -1,0 +1,366 @@
+{
+  "status": "PASS",
+  "scope": "isolated frozen-binary early HTTP backend checks; GUI publication NOT_RUN",
+  "gui_publish_validation": "NOT_RUN",
+  "binary_sha256": "422e776c583ff9769c613c5f915f1b5c4e993da4085fa434042b81bd82a710ee",
+  "snapshot_sha256": "68bd22081af1eb5ec9164037407cb6c9c13349a7f8e460fa9aa682b3286b5b29",
+  "query_sha256": "5694d08a2e53ffcae0c3103e5ad6f6076abd960eb1f8a56577040bc1028f702b",
+  "superseded_query_sha256": "b79606fb3afea5bd1609ed40b622142f1c98125abcfe89a76a661b0e8e343910",
+  "limit": 300,
+  "expect_count": 300,
+  "allow_unobserved_loading": false,
+  "cases": [
+    {
+      "case": "reference",
+      "status": "PASS",
+      "scope": "isolated frozen-binary early HTTP backend checks; GUI publication NOT_RUN",
+      "metrics": {
+        "ready_wall_ms": 15127.350667000002,
+        "ready_cpu_ms": 4870.996083,
+        "ready_rss_bytes": 1158168576,
+        "ready_footprint_bytes": 1154238144,
+        "scenario_wall_ms": 15327.306958000001,
+        "scenario_cpu_ms": 5069.918208,
+        "scenario_rss_bytes": 1594343424,
+        "scenario_footprint_bytes": 1590380224,
+        "lifetime_cpu_ms": 5472.072,
+        "lifetime_peak_rss_bytes": 1594474496,
+        "sampled_peak_rss_bytes": 1594474496,
+        "sampled_peak_footprint_bytes": 1590511296
+      },
+      "gui_publish_validation": "NOT_RUN",
+      "records": 7226486,
+      "result_count": 300,
+      "ordered_json_sha256": "7990d334f2dc6cf72625d0474027ccd331e2d988d15a0e2840dec3918e47ce50",
+      "cleanup": {
+        "pid": 28960,
+        "method": "SIGTERM",
+        "returncode": -15,
+        "process_group_gone": true,
+        "port_closed": true
+      },
+      "http_workers_gone": true,
+      "requests": [
+        {
+          "label": "strict-ready",
+          "status": 200,
+          "connection_attempts": 1,
+          "sent_before_loaded_log": true,
+          "sent_to_finish_ms": 15120.831209000002,
+          "crossed_gui_15s": true,
+          "cancel_requested": false,
+          "observed_503": false,
+          "complete_200": true
+        },
+        {
+          "label": "post-ready-code",
+          "status": 200,
+          "connection_attempts": 1,
+          "sent_before_loaded_log": false,
+          "sent_to_finish_ms": 199.4592080000004,
+          "crossed_gui_15s": false,
+          "cancel_requested": false,
+          "observed_503": false,
+          "complete_200": true,
+          "count": 300,
+          "ordered_json_sha256": "7990d334f2dc6cf72625d0474027ccd331e2d988d15a0e2840dec3918e47ce50"
+        },
+        {
+          "label": "warmed-oracle-0",
+          "status": 200,
+          "connection_attempts": 1,
+          "sent_before_loaded_log": false,
+          "sent_to_finish_ms": 147.65012500000196,
+          "crossed_gui_15s": false,
+          "cancel_requested": false,
+          "observed_503": false,
+          "complete_200": true,
+          "count": 300,
+          "ordered_json_sha256": "7990d334f2dc6cf72625d0474027ccd331e2d988d15a0e2840dec3918e47ce50"
+        },
+        {
+          "label": "warmed-oracle-1",
+          "status": 200,
+          "connection_attempts": 1,
+          "sent_before_loaded_log": false,
+          "sent_to_finish_ms": 236.47129200000094,
+          "crossed_gui_15s": false,
+          "cancel_requested": false,
+          "observed_503": false,
+          "complete_200": true,
+          "count": 300,
+          "ordered_json_sha256": "811a787c56b22c93e7347cc4bab02cac39bf90adcf61601ffa46eeca8daeac36"
+        }
+      ],
+      "raw_reference": "raw/reference/raw.local.json"
+    },
+    {
+      "case": "hold",
+      "status": "PASS",
+      "scope": "isolated frozen-binary early HTTP backend checks; GUI publication NOT_RUN",
+      "metrics": {
+        "ready_wall_ms": 14781.855334000003,
+        "ready_cpu_ms": 4894.843374,
+        "ready_rss_bytes": 1159004160,
+        "ready_footprint_bytes": 1155024552,
+        "scenario_wall_ms": 14970.703125000004,
+        "scenario_cpu_ms": 5083.046083,
+        "scenario_rss_bytes": 1594408960,
+        "scenario_footprint_bytes": 1590429352,
+        "lifetime_cpu_ms": 5138.673,
+        "lifetime_peak_rss_bytes": 1594441728,
+        "sampled_peak_rss_bytes": 1594408960,
+        "sampled_peak_footprint_bytes": 1590429352
+      },
+      "gui_publish_validation": "NOT_RUN",
+      "loading_overlap_observed": true,
+      "loading_overlap_until_receipt_ms": 14956.254707999999,
+      "records": 7226486,
+      "result_count": 300,
+      "ordered_json_sha256": "7990d334f2dc6cf72625d0474027ccd331e2d988d15a0e2840dec3918e47ce50",
+      "cleanup": {
+        "pid": 29391,
+        "method": "SIGTERM",
+        "returncode": -15,
+        "process_group_gone": true,
+        "port_closed": true
+      },
+      "http_workers_gone": true,
+      "requests": [
+        {
+          "label": "early-code",
+          "status": 200,
+          "connection_attempts": 2,
+          "sent_before_loaded_log": true,
+          "sent_to_finish_ms": 14956.498082999997,
+          "crossed_gui_15s": false,
+          "cancel_requested": false,
+          "observed_503": false,
+          "complete_200": true,
+          "count": 300,
+          "ordered_json_sha256": "7990d334f2dc6cf72625d0474027ccd331e2d988d15a0e2840dec3918e47ce50"
+        },
+        {
+          "label": "strict-ready",
+          "status": 200,
+          "connection_attempts": 1,
+          "sent_before_loaded_log": true,
+          "sent_to_finish_ms": 14767.442334000001,
+          "crossed_gui_15s": false,
+          "cancel_requested": false,
+          "observed_503": false,
+          "complete_200": true
+        }
+      ],
+      "raw_reference": "raw/hold/raw.local.json"
+    },
+    {
+      "case": "clear",
+      "status": "PASS",
+      "scope": "isolated frozen-binary early HTTP backend checks; GUI publication NOT_RUN",
+      "metrics": {
+        "ready_wall_ms": 14716.283125000004,
+        "ready_cpu_ms": 4677.561375,
+        "ready_rss_bytes": 1158971392,
+        "ready_footprint_bytes": 1155008192,
+        "scenario_wall_ms": 14930.000666000005,
+        "scenario_cpu_ms": 5102.926541,
+        "scenario_rss_bytes": 1594507264,
+        "scenario_footprint_bytes": 1590544064,
+        "lifetime_cpu_ms": 5117.277,
+        "lifetime_peak_rss_bytes": 1594572800,
+        "sampled_peak_rss_bytes": 1594507264,
+        "sampled_peak_footprint_bytes": 1590544064
+      },
+      "gui_publish_validation": "NOT_RUN",
+      "loading_overlap_observed": true,
+      "loading_overlap_until_receipt_ms": 14701.056209,
+      "records": 7226486,
+      "result_count": 300,
+      "ordered_json_sha256": "7990d334f2dc6cf72625d0474027ccd331e2d988d15a0e2840dec3918e47ce50",
+      "cleanup": {
+        "pid": 29471,
+        "method": "SIGTERM",
+        "returncode": -15,
+        "process_group_gone": true,
+        "port_closed": true
+      },
+      "http_workers_gone": true,
+      "requests": [
+        {
+          "label": "early-code",
+          "error_type": "RemoteDisconnected",
+          "connection_attempts": 2,
+          "sent_before_loaded_log": true,
+          "sent_to_finish_ms": 55.33666699999884,
+          "crossed_gui_15s": false,
+          "cancel_requested": true,
+          "observed_503": false,
+          "complete_200": false
+        },
+        {
+          "label": "strict-ready",
+          "status": 200,
+          "connection_attempts": 1,
+          "sent_before_loaded_log": true,
+          "sent_to_finish_ms": 14700.711250000004,
+          "crossed_gui_15s": false,
+          "cancel_requested": false,
+          "observed_503": false,
+          "complete_200": true
+        },
+        {
+          "label": "post-ready-code",
+          "status": 200,
+          "connection_attempts": 1,
+          "sent_before_loaded_log": false,
+          "sent_to_finish_ms": 213.35362500000343,
+          "crossed_gui_15s": false,
+          "cancel_requested": false,
+          "observed_503": false,
+          "complete_200": true,
+          "count": 300,
+          "ordered_json_sha256": "7990d334f2dc6cf72625d0474027ccd331e2d988d15a0e2840dec3918e47ce50"
+        }
+      ],
+      "raw_reference": "raw/clear/raw.local.json"
+    },
+    {
+      "case": "rapid",
+      "status": "PASS",
+      "scope": "isolated frozen-binary early HTTP backend checks; GUI publication NOT_RUN",
+      "metrics": {
+        "ready_wall_ms": 13767.209917000002,
+        "ready_cpu_ms": 4728.695166,
+        "ready_rss_bytes": 1158529024,
+        "ready_footprint_bytes": 1154565824,
+        "scenario_wall_ms": 14372.986417000007,
+        "scenario_cpu_ms": 5295.814833,
+        "scenario_rss_bytes": 1594572800,
+        "scenario_footprint_bytes": 1590593192,
+        "lifetime_cpu_ms": 5315.818,
+        "lifetime_peak_rss_bytes": 1594605568,
+        "sampled_peak_rss_bytes": 1594572800,
+        "sampled_peak_footprint_bytes": 1590593192
+      },
+      "gui_publish_validation": "NOT_RUN",
+      "loading_overlap_observed": true,
+      "loading_overlap_until_receipt_ms": 13753.903917000003,
+      "records": 7226486,
+      "result_count": 300,
+      "ordered_json_sha256": "7990d334f2dc6cf72625d0474027ccd331e2d988d15a0e2840dec3918e47ce50",
+      "cleanup": {
+        "pid": 29645,
+        "method": "SIGTERM",
+        "returncode": -15,
+        "process_group_gone": true,
+        "port_closed": true
+      },
+      "http_workers_gone": true,
+      "requests": [
+        {
+          "label": "early-code",
+          "error_type": "RemoteDisconnected",
+          "connection_attempts": 2,
+          "sent_before_loaded_log": true,
+          "sent_to_finish_ms": 54.12041700000003,
+          "crossed_gui_15s": false,
+          "cancel_requested": true,
+          "observed_503": false,
+          "complete_200": false
+        },
+        {
+          "label": "strict-ready",
+          "status": 200,
+          "connection_attempts": 1,
+          "sent_before_loaded_log": true,
+          "sent_to_finish_ms": 13753.635209000002,
+          "crossed_gui_15s": false,
+          "cancel_requested": false,
+          "observed_503": false,
+          "complete_200": true
+        },
+        {
+          "label": "superseded-middle",
+          "error_type": "RemoteDisconnected",
+          "connection_attempts": 1,
+          "sent_before_loaded_log": true,
+          "sent_to_finish_ms": 55.26037499999603,
+          "crossed_gui_15s": false,
+          "cancel_requested": true,
+          "observed_503": false,
+          "complete_200": false
+        },
+        {
+          "label": "latest-code",
+          "status": 503,
+          "connection_attempts": 1,
+          "sent_before_loaded_log": true,
+          "sent_to_finish_ms": 13643.635665999995,
+          "crossed_gui_15s": false,
+          "cancel_requested": false,
+          "observed_503": true,
+          "complete_200": false
+        },
+        {
+          "label": "latest-code-retry-1",
+          "status": 503,
+          "connection_attempts": 1,
+          "sent_before_loaded_log": false,
+          "sent_to_finish_ms": 0.19362499999431293,
+          "crossed_gui_15s": false,
+          "cancel_requested": false,
+          "observed_503": true,
+          "complete_200": false
+        },
+        {
+          "label": "latest-code-retry-2",
+          "status": 200,
+          "connection_attempts": 1,
+          "sent_before_loaded_log": false,
+          "sent_to_finish_ms": 151.6280419999987,
+          "crossed_gui_15s": false,
+          "cancel_requested": false,
+          "observed_503": false,
+          "complete_200": true,
+          "count": 300,
+          "ordered_json_sha256": "7990d334f2dc6cf72625d0474027ccd331e2d988d15a0e2840dec3918e47ce50"
+        }
+      ],
+      "raw_reference": "raw/rapid/raw.local.json"
+    }
+  ],
+  "helper_sha256": {
+    "check_startup_early.py": "86286b273972e8c5525586b28d64a687c6a78dcde5678760e323ae78f9db49ed",
+    "check_startup_round6.py": "f8492fcbe0370274ac59fc67a6505c21d1ef548fd6629c82795d215aff312dad",
+    "check_service_round1.py": "5d9af62ce3ffe35350a4bea384310179fd83a83392ea4b2b18a4cd6117d4a08b",
+    "check_service_round2.py": "41e09df119b34b0a84832e759a1068c09eb88bb82f7cb21ec02ef0bb2cac2e59"
+  },
+  "notes": [
+    "Backend only: no GUI result publication, debounce, CLI fallback or system sleep is tested.",
+    "A closed connection may still cause server work; cancellation does not imply zero server CPU.",
+    "A bounded no-request tail is observed; complete draining of disconnected server work is not asserted.",
+    "No HTTP response is distinct from an actual observed 503; the client waits beyond the GUI 15s threshold.",
+    "Early send precedes the observed load-log receipt; timing includes controller/scheduling effects.",
+    "Scenario CPU excludes extra reference oracle requests; wait4 lifetime CPU includes every actual request.",
+    "Reference lifetime includes additional oracle preparation and is not an equal-workload performance baseline.",
+    "CPU markers are process cumulative, not isolated per-request CPU under concurrency.",
+    "RSS/footprint sampling can miss peaks; process lifetime HWM comes from wait4.",
+    "Only summary.json is publishable; manifest/raw retain private paths and complete results."
+  ],
+  "warmed_oracles": {
+    "5694d08a2e53ffcae0c3103e5ad6f6076abd960eb1f8a56577040bc1028f702b": {
+      "count": 300,
+      "ordered_json_sha256": "7990d334f2dc6cf72625d0474027ccd331e2d988d15a0e2840dec3918e47ce50"
+    },
+    "b79606fb3afea5bd1609ed40b622142f1c98125abcfe89a76a661b0e8e343910": {
+      "count": 300,
+      "ordered_json_sha256": "811a787c56b22c93e7347cc4bab02cac39bf90adcf61601ffa46eeca8daeac36"
+    }
+  },
+  "ordered_results_match": true,
+  "loading_path_acceptance": "PASS",
+  "temporary_copies_removed": true,
+  "source_unchanged": true,
+  "binary_unchanged": true
+}

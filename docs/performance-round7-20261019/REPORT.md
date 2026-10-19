@@ -19,7 +19,7 @@ Debug/Release 各 **129 项单测**、**3 项 bootstrap CLI 集成**、**420 次
 
 bootstrap 验证空/非空记录 × 空/非空 roots 四格、旧库迁移/重开 schema 稳定、配置顺序、时间缺失/非法文本/i64 极值、WAL 同快照，以及 SQL/损坏错误不伪空、失败事务释放和嵌套 BEGIN 不动调用者事务。CLI 检查精确 JSON/转义和非法参数不打开数据库，原 status 计数 schema 保留。
 
-最终 GUI 新旧回归全部通过：strict ready 前不统计，固定 60 秒预算及模式重启不延长，启动失败/退出/超时 fallback，显式 Refresh、延迟精确计数、四格/单次首次索引，以及旧 bootstrap/full status 晚于重建完成返回的 generation guard。GUI 检查使用私有 fake CLI 和 URLProtocol，不代表真实窗口/本地服务交互；本机验收另列 PENDING。证据见[检查与最终 GUI 回执](evidence/checks.json)。
+最终 GUI 新旧回归全部通过：strict ready 前不统计，固定 60 秒预算及模式重启不延长，启动失败/退出/超时 fallback，显式 Refresh、延迟精确计数、四格/单次首次索引，以及旧 bootstrap/full status 晚于重建完成返回的 generation guard。GUI 检查使用私有 fake CLI 和 URLProtocol，不代表真实窗口/本地服务交互；本机验收见本文后续安装记录。证据见[检查与最终 GUI 回执](evidence/checks.json)。
 
 ## 容量、查询与内存
 

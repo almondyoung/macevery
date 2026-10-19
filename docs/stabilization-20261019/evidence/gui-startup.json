@@ -1,0 +1,259 @@
+{
+  "status": "PASS",
+  "scope": "production Swift model + isolated real CLI/HTTP; no native App/window/TCC/watch acceptance",
+  "model_source_commit": "8096e0a9c61cacd3402cd3017e95fc60ddb2c0f3",
+  "model_source_sha256": "fad3a3053ffc88136a33466d096249d278b5fda2238d54205eba36724316a328",
+  "harness_source_sha256": "d8e434c9e14dff4006ddcb5a7101e272d0406c6006b84913c57918c98ab2090e",
+  "runner_sha256": "ffc6978cd9898c0f962ed9434f0e0188166e567089ab7db0bbe5dc4892bfb030",
+  "binary_sha256": "422e776c583ff9769c613c5f915f1b5c4e993da4085fa434042b81bd82a710ee",
+  "harness_sha256": "5a97e6c9c70d8c2878e9f91ed69935db7a9118d9cad3cd0e444bd9fa61fde552",
+  "cases": [
+    {
+      "count": 300,
+      "name": "cold_immediate_code",
+      "oracle_route": "http-memory",
+      "status": "PASS",
+      "wall_seconds": 14.26871095833485
+    },
+    {
+      "name": "clear_inflight",
+      "stale_publications": 0,
+      "status": "PASS"
+    },
+    {
+      "name": "rapid_latest_only",
+      "stale_publications": 0,
+      "status": "PASS"
+    },
+    {
+      "count": 300,
+      "name": "warm_code",
+      "oracle_route": "http-memory",
+      "status": "PASS"
+    },
+    {
+      "cancelled": false,
+      "count": 300,
+      "name": "transport_timeout_cli_success",
+      "oracle_route": "cli-sqlite",
+      "owned_child_pid": 34776,
+      "status": "PASS",
+      "transport_wait_seconds": 15.066919000004418
+    },
+    {
+      "cancelled": true,
+      "count": 0,
+      "name": "transport_timeout_cli_cancel",
+      "oracle_route": "cli-sqlite",
+      "owned_child_pid": 35126,
+      "status": "PASS",
+      "transport_wait_seconds": 15.063438083336223
+    },
+    {
+      "name": "final_clear",
+      "status": "PASS"
+    }
+  ],
+  "cleanup": {
+    "harness": {
+      "returncode": 0,
+      "lifetime_peak_rss_bytes": 38535168,
+      "user_cpu_seconds": 1.232134,
+      "system_cpu_seconds": 0.589525,
+      "pid": 34606,
+      "method": "already_exited",
+      "process_group_gone": true,
+      "port_closed": true
+    },
+    "wrappers": [
+      {
+        "pgid": 34607,
+        "method": "already_gone",
+        "group_gone": true
+      },
+      {
+        "pgid": 34656,
+        "method": "already_gone",
+        "group_gone": true
+      },
+      {
+        "pgid": 34775,
+        "method": "already_gone",
+        "group_gone": true
+      },
+      {
+        "pgid": 35125,
+        "method": "already_gone",
+        "group_gone": true
+      }
+    ],
+    "service": {
+      "returncode": -15,
+      "lifetime_peak_rss_bytes": 1594671104,
+      "user_cpu_seconds": 3.534048,
+      "system_cpu_seconds": 1.7675509999999999,
+      "pid": 34605,
+      "method": "SIGTERM",
+      "process_group_gone": true,
+      "port_closed": true
+    }
+  },
+  "oracle": {
+    "fields": [
+      "basename",
+      "kind",
+      "mtime",
+      "path",
+      "score",
+      "size"
+    ],
+    "cli_sqlite": {
+      "count": 300,
+      "ordered_full_json_sha256": "2f175018eb6a599de71ea6e61b5add0bd9fcc56a375fbdbaeddf0fd41e1355a0",
+      "cleanup": {
+        "returncode": 0,
+        "lifetime_peak_rss_bytes": 33161216,
+        "user_cpu_seconds": 0.018470999999999998,
+        "system_cpu_seconds": 0.018496,
+        "pid": 34366,
+        "method": "already_exited",
+        "process_group_gone": true,
+        "port_closed": true
+      },
+      "score_min": 24,
+      "score_max": 399
+    },
+    "http_memory": {
+      "count": 300,
+      "ordered_full_json_sha256": "7990d334f2dc6cf72625d0474027ccd331e2d988d15a0e2840dec3918e47ce50",
+      "cleanup": {
+        "returncode": -15,
+        "lifetime_peak_rss_bytes": 1594425344,
+        "user_cpu_seconds": 2.526842,
+        "system_cpu_seconds": 1.741833,
+        "pid": 34515,
+        "method": "SIGTERM",
+        "process_group_gone": true,
+        "port_closed": true
+      },
+      "score_min": 19,
+      "score_max": 167,
+      "strict_ready_status": {
+        "backend": "memory",
+        "records": 7226486,
+        "content_revision": 0
+      }
+    },
+    "intersection": {
+      "common_paths": 9,
+      "common_records_equal": true,
+      "ordered_results_equal": false
+    },
+    "nohit_count": 0,
+    "nohit_cleanup": {
+      "returncode": 0,
+      "lifetime_peak_rss_bytes": 15990784,
+      "user_cpu_seconds": 2.6962099999999998,
+      "system_cpu_seconds": 4.034096,
+      "pid": 34375,
+      "method": "already_exited",
+      "process_group_gone": true,
+      "port_closed": true
+    },
+    "boundary": "Frozen CLI ranks a capped 24000 SQLite candidates at limit300; Fastest HTTP ranks the complete packed index. Cross-backend top300 equality is not asserted. Both independent ordered six-field oracles use the same frozen binary/DB. Oracle service is closed before cold service starts."
+  },
+  "cold_loading": {
+    "first_forward_precedes_loaded_at_whole_second": true,
+    "allow_already_ready": false,
+    "boundary": "Positive proof uses conservative loaded_at whole seconds; a fast small fixture may finish before the harness starts."
+  },
+  "http_full_field_comparisons": [
+    {
+      "id": 1,
+      "count": 300,
+      "ordered_full_json_sha256": "7990d334f2dc6cf72625d0474027ccd331e2d988d15a0e2840dec3918e47ce50"
+    },
+    {
+      "id": 10,
+      "count": 300,
+      "ordered_full_json_sha256": "7990d334f2dc6cf72625d0474027ccd331e2d988d15a0e2840dec3918e47ce50"
+    }
+  ],
+  "cold_route": {
+    "cli_fallback_child_pids": [],
+    "http_statuses": [
+      200
+    ],
+    "boundary": "A cold query can legitimately exercise the unchanged CLI fallback; its CPU is retained separately, not hidden as service-only startup."
+  },
+  "cli_children": [
+    {
+      "child_pid": 34608,
+      "role": "bootstrap",
+      "phase": "initial",
+      "returncode": 0,
+      "cancelled": false,
+      "user_cpu_seconds": 0.002,
+      "system_cpu_seconds": 0.00171,
+      "lifetime_peak_rss_bytes": 7028736
+    },
+    {
+      "child_pid": 34658,
+      "role": "status",
+      "phase": "initial",
+      "returncode": 0,
+      "cancelled": false,
+      "user_cpu_seconds": 0.138402,
+      "system_cpu_seconds": 0.11479199999999999,
+      "lifetime_peak_rss_bytes": 15941632
+    },
+    {
+      "child_pid": 34776,
+      "role": "search",
+      "phase": "transport_timeout_cli_success",
+      "returncode": 0,
+      "cancelled": false,
+      "user_cpu_seconds": 0.020211,
+      "system_cpu_seconds": 0.007507,
+      "lifetime_peak_rss_bytes": 32980992
+    },
+    {
+      "child_pid": 35126,
+      "role": "search",
+      "phase": "transport_timeout_cli_cancel",
+      "returncode": -15,
+      "cancelled": true,
+      "user_cpu_seconds": 0.000233,
+      "system_cpu_seconds": 0.000848,
+      "lifetime_peak_rss_bytes": 688128
+    }
+  ],
+  "wrapper_cpu": [
+    {
+      "wrapper_pid": 34607,
+      "user_cpu_seconds": 0.015002999999999999,
+      "system_cpu_seconds": 0.008029999999999999,
+      "lifetime_peak_rss_bytes": 12976128
+    },
+    {
+      "wrapper_pid": 34656,
+      "user_cpu_seconds": 0.016371999999999998,
+      "system_cpu_seconds": 0.009108,
+      "lifetime_peak_rss_bytes": 12976128
+    },
+    {
+      "wrapper_pid": 34775,
+      "user_cpu_seconds": 0.024218999999999997,
+      "system_cpu_seconds": 0.012274,
+      "lifetime_peak_rss_bytes": 12926976
+    },
+    {
+      "wrapper_pid": 35125,
+      "user_cpu_seconds": 0.02537,
+      "system_cpu_seconds": 0.014084,
+      "lifetime_peak_rss_bytes": 13058048
+    }
+  ],
+  "frozen_inputs_unchanged": true,
+  "cleanup_complete": true
+}

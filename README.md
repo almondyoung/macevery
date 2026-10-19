@@ -175,6 +175,9 @@ Search service backends:
 
 The GUI defaults to `memory` because MacEvery is optimized for fast local use.
 Switch to Low Memory in Settings to query SQLite with less resident index memory.
+SQLite and CLI searches rank a bounded candidate set, while Fastest and Balanced
+rank the full in-memory index. Broad queries can therefore return different top
+results when the GUI falls back to CLI search or uses Low Memory mode.
 The service's `actual_index_bytes` reports allocated index capacity, not process RSS.
 Status polling and watcher checkpoints do not reload the index; committed file
 changes are loaded lazily from one consistent database snapshot on the next search.

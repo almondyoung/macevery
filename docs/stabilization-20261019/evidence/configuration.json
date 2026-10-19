@@ -1,0 +1,9 @@
+{
+  "database_id_same_as_r7": true,
+  "roots_same_as_r7": true,
+  "excludes_same_as_r7": true,
+  "roots_sha256": "e73d791d9ac3e8fc296467cbac9a31255b256162091d319ade59975bdeb7464e",
+  "excludes_sha256": "a55f3352531407a4b91495c6ef93302841467830d2b84f1572eaf9237bfb2a53",
+  "revision": 2998714,
+  "journal_floor": 2981888
+}

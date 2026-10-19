@@ -1,0 +1,34 @@
+{
+  "note": "20s point after controlled clean restart, query cleared. Ordinary user work remains. Not idle A/B or long-term stability proof.",
+  "same_process_start_identities": true,
+  "same_power_uuid": true,
+  "roles": [
+    {
+      "role": "gui",
+      "pid": 36166,
+      "wall_seconds": 20.071141708,
+      "cpu_seconds": 0.01167125,
+      "average_cpu_percent_one_core": 0.05814940759123855,
+      "end_rss_bytes": 149585920,
+      "end_footprint_bytes": 61195320
+    },
+    {
+      "role": "serve",
+      "pid": 36172,
+      "wall_seconds": 20.071144667,
+      "cpu_seconds": 0.000165542,
+      "average_cpu_percent_one_core": 0.0008247760790254086,
+      "end_rss_bytes": 1648066560,
+      "end_footprint_bytes": 1395738280
+    },
+    {
+      "role": "watch",
+      "pid": 36173,
+      "wall_seconds": 20.071149167,
+      "cpu_seconds": 0.004806542,
+      "average_cpu_percent_one_core": 0.02394751770318503,
+      "end_rss_bytes": 20348928,
+      "end_footprint_bytes": 6259264
+    }
+  ]
+}

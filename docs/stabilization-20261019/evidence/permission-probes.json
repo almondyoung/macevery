@@ -1,0 +1,34 @@
+{
+  "probes": [
+    {
+      "list_error": {
+        "code": 257,
+        "underlying": 1,
+        "domain": "NSCocoaErrorDomain"
+      },
+      "probe": "Library/Mail",
+      "stat_ok": true,
+      "list_ok": false
+    },
+    {
+      "list_error": {
+        "code": 257,
+        "underlying": 1,
+        "domain": "NSCocoaErrorDomain"
+      },
+      "probe": "Library/Messages",
+      "stat_ok": true,
+      "list_ok": false
+    },
+    {
+      "probe": "Pictures/Photos Library.photoslibrary",
+      "stat_ok": true,
+      "list_ok": true
+    }
+  ],
+  "bundle": "com.almondyoung.macevery",
+  "uid": 501,
+  "same_home_sources": true,
+  "scope": "actual running GUI via temporary LLDB attach/expression/detach; no App file or authorization change",
+  "historical_unknown_cause": "UNCONFIRMED: no error code retained by detector"
+}

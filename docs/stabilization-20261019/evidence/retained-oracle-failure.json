@@ -1,0 +1,19 @@
+{
+  "status": "RETAINED_TEST_ORACLE_FAILURE",
+  "failure": "Cold immediate query differs from ordered GUI-field oracle",
+  "reason": "Incorrect test assumption: SQLite CLI candidate pool and memory HTTP full-index TopK use distinct existing semantics",
+  "cleanup_complete": true,
+  "cli_count": 300,
+  "http_count": 300,
+  "path_intersection": 9,
+  "shared_records_all_fields_equal": true,
+  "cli_score_range": [
+    24,
+    399
+  ],
+  "http_score_range": [
+    19,
+    167
+  ],
+  "production_source_changed": false
+}

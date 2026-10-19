@@ -1,0 +1,19 @@
+{
+  "installed_binary_hashes_unchanged": {
+    "MacEveryApp": true,
+    "macevery": true
+  },
+  "signature_deep_strict": true,
+  "production_diff_empty": true,
+  "app_processes": {
+    "gui": 36166,
+    "serve": 36172,
+    "watch": 36173
+  },
+  "native_restart_fixture": {
+    "new_bytes": 19,
+    "deleted_results": 0,
+    "db_absent": true
+  },
+  "controlled_restart_clears_diagnostic_state": true
+}
