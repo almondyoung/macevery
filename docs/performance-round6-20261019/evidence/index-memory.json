@@ -1,0 +1,40 @@
+{
+  "baseline": {
+    "record_capacity_bytes": 407371776,
+    "metadata_capacity_bytes": 176194432,
+    "string_capacity_bytes": 889192448,
+    "extension_capacity_bytes": 38014,
+    "container_bytes": 150128,
+    "prefix_string_bytes": 51758742,
+    "prefix_entry_capacity_bytes": 8388608,
+    "prefix_lookup_capacity_bytes": 4194304,
+    "records": 7226486,
+    "total_capacity_bytes": 1537288452,
+    "string_used_bytes": 885010642,
+    "prefix_entries": 468666,
+    "prefix_owned_capacity_bytes": 64341654,
+    "narrow_metadata_blocks": 111,
+    "wide_metadata_blocks": 0,
+    "live_metadata_escapes": 157914,
+    "sum_matches_total": true
+  },
+  "candidate": {
+    "record_capacity_bytes": 407371776,
+    "metadata_capacity_bytes": 176194432,
+    "string_capacity_bytes": 889192448,
+    "extension_capacity_bytes": 38014,
+    "container_bytes": 150128,
+    "prefix_string_bytes": 51758742,
+    "prefix_entry_capacity_bytes": 8388608,
+    "prefix_lookup_capacity_bytes": 4194304,
+    "records": 7226486,
+    "total_capacity_bytes": 1537288452,
+    "string_used_bytes": 885010642,
+    "prefix_entries": 468666,
+    "prefix_owned_capacity_bytes": 64341654,
+    "narrow_metadata_blocks": 111,
+    "wide_metadata_blocks": 0,
+    "live_metadata_escapes": 157914,
+    "sum_matches_total": true
+  }
+}

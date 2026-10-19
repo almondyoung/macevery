@@ -542,8 +542,6 @@ fn index_too_large() -> MacEveryError {
 
 struct RowText<'a> {
     lowered: Cow<'a, str>,
-    parents: [Option<usize>; 4],
-    required: usize,
 }
 
 impl<'a> RowText<'a> {
@@ -554,20 +552,36 @@ impl<'a> RowText<'a> {
             .filter(|value| !value.is_empty())
             .map(Cow::Borrowed)
             .unwrap_or_else(|| Cow::Owned(record.path.to_lowercase()));
-        Self::with_lowered(record, lowered, 0)
-    }
-
-    fn with_lowered(
-        record: &DbRecordRef<'a>,
-        lowered: Cow<'a, str>,
-        prefix_len: usize,
-    ) -> Result<Self> {
         let fields = [
             lowered.as_ref(),
-            &record.path[prefix_len..],
+            record.path,
             record.basename,
             record.basename_lower,
         ];
+        // A sum below the representation limit also bounds every individual
+        // field and any suffix-reused layout. Only unusually large input needs
+        // the previous exact raw-layout validation before delta preflight ends.
+        if raw_layout_needs_exact_check(fields.map(str::len)) {
+            RowLayout::new(&fields)?;
+        }
+        Ok(Self { lowered })
+    }
+}
+
+fn raw_layout_needs_exact_check(lengths: [usize; 4]) -> bool {
+    lengths
+        .into_iter()
+        .try_fold(0usize, usize::checked_add)
+        .is_none_or(|total| total > u32::MAX as usize)
+}
+
+struct RowLayout {
+    parents: [Option<usize>; 4],
+    required: usize,
+}
+
+impl RowLayout {
+    fn new(fields: &[&str; 4]) -> Result<Self> {
         let mut parents = [None; 4];
         let mut required = 0usize;
         for (i, value) in fields.iter().enumerate() {
@@ -582,17 +596,16 @@ impl<'a> RowText<'a> {
             }
         }
         Slice::checked(0, required)?;
-        Ok(Self {
-            lowered,
-            parents,
-            required,
-        })
+        Ok(Self { parents, required })
     }
 }
 
 struct IndexBuilder {
     index: CompactIndex,
     extension_ids: HashMap<Box<str>, u32>,
+    // An immutable dictionary ID, not a borrowed SQLite row or arena pointer.
+    // It is discarded after load and does not alter the retained pool budget.
+    last_prefix: Option<u32>,
 }
 
 impl IndexBuilder {
@@ -605,6 +618,7 @@ impl IndexBuilder {
                 ..CompactIndex::default()
             },
             extension_ids: HashMap::new(),
+            last_prefix: None,
         }
     }
     fn push(&mut self, record: DbRecordRef<'_>) -> Result<()> {
@@ -612,8 +626,15 @@ impl IndexBuilder {
         let ext = self
             .index
             .intern_extension(record.ext_lower, Some(&mut self.extension_ids))?;
-        let packed = self.index.pack_record(&record, &text, ext)?;
-        self.index.append(packed, metadata_input(&record))
+        let packed = self
+            .index
+            .pack_record(&record, &text, ext, self.last_prefix)?;
+        let prefix = packed.prefix;
+        self.index.append(packed, metadata_input(&record))?;
+        if prefix != NO_PREFIX {
+            self.last_prefix = Some(prefix);
+        }
+        Ok(())
     }
 }
 
@@ -775,7 +796,7 @@ impl CompactIndex {
                 let borrowed = borrow_record(record);
                 let ext = self.intern_extension(borrowed.ext_lower, None)?;
                 if let Some(text) = plan.text {
-                    let packed = self.pack_record(&borrowed, &text, ext)?;
+                    let packed = self.pack_record(&borrowed, &text, ext, None)?;
                     if let Some(slot) = plan.slot {
                         self.update_metadata(slot, &borrowed)?;
                         *self.record_at_mut(slot) = packed;
@@ -859,6 +880,7 @@ impl CompactIndex {
         record: &DbRecordRef<'_>,
         text: &RowText<'_>,
         ext: u32,
+        prefix_hint: Option<u32>,
     ) -> Result<CompactRecord> {
         let prefix = if record.path != text.lowered.as_ref() {
             match record
@@ -867,25 +889,35 @@ impl CompactIndex {
                 .map(|offset| offset + 1)
                 .filter(|length| *length >= MIN_PREFIX_BYTES)
             {
-                Some(length) => self
-                    .prefixes
-                    .intern(&record.path[..length])?
-                    .unwrap_or(NO_PREFIX),
+                Some(length) => {
+                    let parent = &record.path[..length];
+                    // Adjacent loaded siblings often share a parent. Full byte
+                    // equality is mandatory; a stale/different hint falls back
+                    // to the original hash lookup and bounded admission policy.
+                    match prefix_hint.filter(|id| {
+                        self.prefixes
+                            .values
+                            .get(*id as usize)
+                            .is_some_and(|prefix| prefix.as_ref() == parent)
+                    }) {
+                        Some(id) => id,
+                        None => self.prefixes.intern(parent)?.unwrap_or(NO_PREFIX),
+                    }
+                }
                 None => NO_PREFIX,
             }
         } else {
             NO_PREFIX
         };
         let prefix_len = self.prefixes.get(prefix).len();
-        let layout =
-            RowText::with_lowered(record, Cow::Borrowed(text.lowered.as_ref()), prefix_len)?;
-        let arena = self.reserve_row(layout.required)?;
         let fields = [
-            layout.lowered.as_ref(),
+            text.lowered.as_ref(),
             &record.path[prefix_len..],
             record.basename,
             record.basename_lower,
         ];
+        let layout = RowLayout::new(&fields)?;
+        let arena = self.reserve_row(layout.required)?;
         let mut slices = [Slice::default(); 4];
         for (i, value) in fields.iter().enumerate() {
             slices[i] = if let Some(parent) = layout.parents[i] {
@@ -2251,6 +2283,86 @@ mod tests {
         );
         assert_eq!(index.memory_breakdown(), before);
         assert!(index.prefixes.values.is_empty());
+    }
+
+    #[test]
+    fn raw_layout_upper_bound_keeps_exact_checked32_fallback_boundaries() {
+        let maximum = u32::MAX as usize;
+        assert!(!raw_layout_needs_exact_check([0, 0, 0, 0]));
+        assert!(!raw_layout_needs_exact_check([maximum, 0, 0, 0]));
+        assert!(!raw_layout_needs_exact_check([maximum - 3, 1, 1, 1]));
+        assert!(raw_layout_needs_exact_check([maximum, 1, 0, 0]));
+        assert!(raw_layout_needs_exact_check([
+            maximum, maximum, maximum, maximum
+        ]));
+        assert!(raw_layout_needs_exact_check([usize::MAX, 1, 0, 0]));
+        // Suffix aliasing can make a raw sum exceed its physical requirement;
+        // the rare branch must keep the exact layout, rather than reject solely
+        // on its upper bound. Check those alias rules without a multi-GiB fixture.
+        let fields = ["/original/report", "/original/report", "report", ""];
+        let layout = RowLayout::new(&fields).unwrap();
+        assert_eq!(layout.required, fields[0].len());
+        assert_eq!(layout.parents, [None, Some(0), Some(0), Some(0)]);
+    }
+
+    #[test]
+    fn builder_prefix_hint_preserves_exact_storage_and_full_result_semantics() {
+        let mut records = (0..96)
+            .map(|i| {
+                let mut record = FileRecord::new(
+                    format!("/Original Long Parent/Σ-{}/report-{i}.txt", i / 12),
+                    FileKind::File,
+                    i,
+                );
+                record.id = i + 1;
+                if i % 9 == 0 {
+                    record.path = record.path.to_lowercase();
+                    record.path_lower = record.path.clone();
+                }
+                if i % 11 == 0 {
+                    record.path_lower.clear();
+                }
+                if i % 13 == 0 {
+                    record.basename = format!("independent basename-📷-{i}");
+                    record.basename_lower = record.basename.to_lowercase();
+                }
+                if i % 17 == 0 {
+                    record.path_lower = format!("/custom/lower/{i}");
+                }
+                record
+            })
+            .collect::<Vec<_>>();
+        let mut hinted = IndexBuilder::new(256, 7);
+        let mut uncached = IndexBuilder::new(256, 7);
+        for (index, record) in records.iter().enumerate() {
+            // A different valid ID and an invalid ID must never override exact
+            // parent-byte comparison; both fall back to the existing lookup.
+            if index % 7 == 0 {
+                hinted.last_prefix = Some(NO_PREFIX);
+            } else if index % 5 == 0 {
+                hinted.last_prefix = Some(0);
+            }
+            uncached.last_prefix = None;
+            push_record(&mut hinted, record);
+            push_record(&mut uncached, record);
+        }
+        let hinted = hinted.index;
+        let ordinary = uncached.index;
+        assert_eq!(hinted.memory_breakdown(), ordinary.memory_breakdown());
+        assert_eq!(hinted.arenas, ordinary.arenas);
+        assert_eq!(hinted.prefixes.values, ordinary.prefixes.values);
+        assert_eq!(
+            hinted.prefixes.capacity_bytes(),
+            ordinary.prefixes.capacity_bytes()
+        );
+        assert_eq!(size_of::<CompactRecord>(), 56);
+        for record in &mut records {
+            if record.path_lower.is_empty() {
+                record.path_lower = record.path.to_lowercase();
+            }
+        }
+        assert_delta_matches(&hinted, &records);
+        assert_delta_matches(&ordinary, &records);
     }
 
     fn unique_temp_dir(prefix: &str) -> std::path::PathBuf {

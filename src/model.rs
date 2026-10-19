@@ -22,6 +22,16 @@ impl FileKind {
     }
 
     pub fn parse(value: &str) -> Option<Self> {
+        // Stored rows normally use these exact canonical values. Keep the
+        // existing Unicode/alias parser for every other spelling.
+        match value {
+            "file" => return Some(Self::File),
+            "dir" => return Some(Self::Directory),
+            "symlink" => return Some(Self::Symlink),
+            "app" => return Some(Self::App),
+            "other" => return Some(Self::Other),
+            _ => {}
+        }
         match value.to_lowercase().as_str() {
             "file" => Some(Self::File),
             "dir" | "dirs" | "directory" | "directories" | "folder" | "folders" => {
@@ -32,6 +42,94 @@ impl FileKind {
             "other" => Some(Self::Other),
             _ => None,
         }
+    }
+}
+
+#[cfg(test)]
+mod file_kind_tests {
+    use super::FileKind;
+
+    fn previous_parse(value: &str) -> Option<FileKind> {
+        match value.to_lowercase().as_str() {
+            "file" => Some(FileKind::File),
+            "dir" | "dirs" | "directory" | "directories" | "folder" | "folders" => {
+                Some(FileKind::Directory)
+            }
+            "symlink" | "link" => Some(FileKind::Symlink),
+            "app" => Some(FileKind::App),
+            "other" => Some(FileKind::Other),
+            _ => None,
+        }
+    }
+
+    #[test]
+    fn canonical_fast_path_preserves_all_alias_case_variants() {
+        for alias in [
+            "file",
+            "dir",
+            "dirs",
+            "directory",
+            "directories",
+            "folder",
+            "folders",
+            "symlink",
+            "link",
+            "app",
+            "other",
+        ] {
+            for mask in 0..(1usize << alias.len()) {
+                let variant = alias
+                    .bytes()
+                    .enumerate()
+                    .map(|(index, byte)| {
+                        if mask & (1 << index) != 0 {
+                            byte.to_ascii_uppercase() as char
+                        } else {
+                            byte as char
+                        }
+                    })
+                    .collect::<String>();
+                assert_eq!(
+                    FileKind::parse(&variant),
+                    previous_parse(&variant),
+                    "{variant:?}"
+                );
+            }
+        }
+        for kind in [
+            FileKind::File,
+            FileKind::Directory,
+            FileKind::Symlink,
+            FileKind::App,
+            FileKind::Other,
+        ] {
+            assert_eq!(FileKind::parse(kind.as_str()), Some(kind));
+        }
+    }
+
+    #[test]
+    fn noncanonical_unicode_unknown_and_nul_keep_previous_parse_semantics() {
+        for value in [
+            "linK",
+            "LINK",
+            "sYmLiNK",
+            "fİle",
+            "FİLE",
+            "目录",
+            "ΟΣ",
+            "ſymlink",
+            "",
+            " file",
+            "file ",
+            "file\0",
+            "\0file",
+            "unknown",
+        ] {
+            assert_eq!(FileKind::parse(value), previous_parse(value), "{value:?}");
+        }
+        assert_eq!(FileKind::parse("linK"), Some(FileKind::Symlink));
+        let unknown = "未知İΣ".repeat(2048);
+        assert_eq!(FileKind::parse(&unknown), previous_parse(&unknown));
     }
 }
 

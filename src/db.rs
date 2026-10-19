@@ -908,9 +908,16 @@ impl Database {
             stats.last_indexed_at = stmt.column_text(0).and_then(|value| value.parse().ok());
         }
 
-        stats.roots = self.string_list("SELECT path FROM roots ORDER BY path;")?;
-        stats.excludes = self.string_list("SELECT pattern FROM excludes ORDER BY pattern;")?;
+        (stats.roots, stats.excludes) = self.roots_and_excludes()?;
         Ok(stats)
+    }
+
+    /// Read watch configuration without scanning or counting indexed files.
+    pub fn roots_and_excludes(&self) -> Result<(Vec<String>, Vec<String>)> {
+        Ok((
+            self.string_list("SELECT path FROM roots ORDER BY path;")?,
+            self.string_list("SELECT pattern FROM excludes ORDER BY pattern;")?,
+        ))
     }
 
     fn string_list(&self, sql: &str) -> Result<Vec<String>> {
@@ -1539,6 +1546,51 @@ mod content_revision_tests {
         let missing = fixture.0.join("absent/index.sqlite");
         assert!(Database::open_read_only(missing.clone()).is_err());
         assert!(!missing.parent().unwrap().exists());
+    }
+
+    #[test]
+    fn lightweight_watch_configuration_matches_stats_order_and_content() {
+        let fixture = Fixture::new("watch-config");
+        let db = Database::open(fixture.database()).unwrap();
+        assert_eq!(db.roots_and_excludes().unwrap(), (vec![], vec![]));
+        db.set_roots(&["/资料/Σ".into(), "/z".into(), "/A".into(), "/z".into()])
+            .unwrap();
+        db.set_excludes(&[
+            "缓存".into(),
+            "node_modules".into(),
+            ".git".into(),
+            ".git".into(),
+        ])
+        .unwrap();
+        db.upsert_file(&record("/A/Report.txt", 7)).unwrap();
+        let before = db.content_stamp().unwrap();
+        let expected = db.stats().unwrap();
+        let (roots, excludes) = db.roots_and_excludes().unwrap();
+        assert_eq!(roots, expected.roots);
+        assert_eq!(excludes, expected.excludes);
+        assert_eq!(roots, ["/A", "/z", "/资料/Σ"]);
+        assert_eq!(excludes, [".git", "node_modules", "缓存"]);
+        assert_eq!(db.content_stamp().unwrap(), before);
+    }
+
+    #[test]
+    fn lightweight_watch_configuration_does_not_query_the_files_table() {
+        let fixture = Fixture::new("watch-config-no-files");
+        let db = Database::open(fixture.database()).unwrap();
+        db.set_roots(&["/Only/Configuration".into()]).unwrap();
+        db.set_excludes(&[".git".into()]).unwrap();
+        // Removing files in this isolated empty DB makes any accidental stats
+        // or file-count dependency fail deterministically, without timing tests.
+        db.conn.execute_batch("DROP TABLE files;").unwrap();
+        let reader = Database::open_read_only(fixture.database()).unwrap();
+        assert_eq!(
+            reader.roots_and_excludes().unwrap(),
+            (
+                vec!["/Only/Configuration".to_string()],
+                vec![".git".to_string()]
+            )
+        );
+        assert!(reader.stats().is_err());
     }
 }
 

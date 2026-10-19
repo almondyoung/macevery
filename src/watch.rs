@@ -280,24 +280,20 @@ mod macos_impl {
         process_lifetime::exit_when_parent_dies_if_requested();
 
         let db = Database::open(db_path.clone())?;
-        let stats = db.stats()?;
+        let (roots, excludes) = db.roots_and_excludes()?;
         let stored_event_id = db
             .get_meta(META_LAST_EVENT_ID)?
             .and_then(|value| value.parse::<FSEventStreamEventId>().ok());
         drop(db);
 
-        if stats.roots.is_empty() {
+        if roots.is_empty() {
             return Err(MacEveryError::Cli(
                 "no indexed roots found; run `macevery index --rebuild PATHS...` first".to_string(),
             ));
         }
 
-        let roots = stats
-            .roots
-            .into_iter()
-            .map(PathBuf::from)
-            .collect::<Vec<_>>();
-        let excludes = runtime_excludes(stats.excludes, &db_path);
+        let roots = roots.into_iter().map(PathBuf::from).collect::<Vec<_>>();
+        let excludes = runtime_excludes(excludes, &db_path);
 
         let current_system_id = unsafe { FSEventsGetCurrentEventId() };
         let decision = resolve_since_when(stored_event_id, current_system_id);

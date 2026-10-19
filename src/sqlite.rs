@@ -268,9 +268,8 @@ impl Statement<'_> {
     }
 
     pub fn column_str(&self, index: i32) -> Option<&str> {
-        if unsafe { sqlite3_column_type(self.raw, index) } == SQLITE_NULL {
-            return None;
-        }
+        // SQLite maps SQL NULL to a null text pointer. Request UTF-8 first,
+        // then its byte length, preserving empty strings and embedded NULs.
         let ptr = unsafe { sqlite3_column_text(self.raw, index) };
         if ptr.is_null() {
             return None;
@@ -314,5 +313,148 @@ unsafe fn errmsg(db: *mut sqlite3) -> String {
         "unknown SQLite error".to_string()
     } else {
         CStr::from_ptr(ptr).to_string_lossy().to_string()
+    }
+}
+
+#[cfg(test)]
+mod column_tests {
+    use super::*;
+    use std::path::PathBuf;
+    use std::sync::atomic::{AtomicU64, Ordering};
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    struct Fixture(PathBuf);
+
+    impl Fixture {
+        fn new() -> Self {
+            static NEXT: AtomicU64 = AtomicU64::new(0);
+            let nanos = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos();
+            let directory = std::env::temp_dir().join(format!(
+                "macevery-sqlite-columns-{}-{nanos}-{}",
+                std::process::id(),
+                NEXT.fetch_add(1, Ordering::Relaxed)
+            ));
+            std::fs::create_dir_all(&directory).unwrap();
+            Self(directory)
+        }
+
+        fn database(&self) -> PathBuf {
+            self.0.join("columns.sqlite")
+        }
+    }
+
+    impl Drop for Fixture {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+
+    // Freeze the previous implementation so SQLite coercion and malformed-text
+    // behavior are compared independently of the new pointer-first helper.
+    fn previous_column_str<'a>(statement: &'a Statement<'_>, index: i32) -> Option<&'a str> {
+        if unsafe { sqlite3_column_type(statement.raw, index) } == SQLITE_NULL {
+            return None;
+        }
+        let pointer = unsafe { sqlite3_column_text(statement.raw, index) };
+        if pointer.is_null() {
+            return None;
+        }
+        let length = unsafe { sqlite3_column_bytes(statement.raw, index) };
+        if length < 0 {
+            return None;
+        }
+        let bytes = unsafe { slice::from_raw_parts(pointer, length as usize) };
+        str::from_utf8(bytes).ok()
+    }
+
+    #[test]
+    fn pointer_first_text_matches_previous_null_empty_nul_blob_and_numeric_reads() {
+        let fixture = Fixture::new();
+        let connection = Connection::open(&fixture.database()).unwrap();
+        for expression in [
+            "NULL",
+            "''",
+            "'报告-ΟΣ-İ'",
+            "'a'||char(0)||'b'",
+            "CAST(x'80ff' AS TEXT)",
+            "x''",
+            "x'616263'",
+            "x'610062'",
+            "x'80ff'",
+            "zeroblob(0)",
+            "123",
+            "-9223372036854775808",
+            "9223372036854775807",
+            "1.25",
+            "'00042'",
+            "'not-a-number'",
+        ] {
+            let sql = format!("SELECT {expression};");
+            let mut current = connection.prepare(&sql).unwrap();
+            let mut previous = connection.prepare(&sql).unwrap();
+            assert!(matches!(current.step().unwrap(), Step::Row));
+            assert!(matches!(previous.step().unwrap(), Step::Row));
+            let expected = previous_column_str(&previous, 0);
+            assert_eq!(current.column_str(0), expected, "{expression}");
+            assert_eq!(
+                current.column_text(0).as_deref(),
+                expected,
+                "owned {expression}"
+            );
+        }
+        let mut statement = connection
+            .prepare("SELECT NULL,'','a'||char(0)||'b',CAST(x'80ff' AS TEXT),x'616263',123;")
+            .unwrap();
+        assert!(matches!(statement.step().unwrap(), Step::Row));
+        assert_eq!(statement.column_str(0), None);
+        assert_eq!(statement.column_str(1), Some(""));
+        assert_eq!(statement.column_str(2), Some("a\0b"));
+        assert_eq!(statement.column_str(3), None);
+        assert_eq!(statement.column_str(4), Some("abc"));
+        assert_eq!(statement.column_str(5), Some("123"));
+    }
+
+    #[test]
+    fn integer_reads_keep_strict_existing_type_and_parse_semantics() {
+        let fixture = Fixture::new();
+        let connection = Connection::open(&fixture.database()).unwrap();
+        for (expression, expected) in [
+            ("NULL", None),
+            ("-9223372036854775808", Some(i64::MIN)),
+            ("9223372036854775807", Some(i64::MAX)),
+            ("0", Some(0)),
+            ("'00042'", Some(42)),
+            ("'+42'", Some(42)),
+            ("'-42'", Some(-42)),
+            ("' 42'", None),
+            ("'42 '", None),
+            ("'42.0'", None),
+            ("42.0", None),
+            ("x'3432'", None),
+            ("'9223372036854775808'", None),
+            ("'42suffix'", None),
+            ("'42'||char(0)", None),
+            ("CAST(x'80ff' AS TEXT)", None),
+        ] {
+            let mut statement = connection
+                .prepare(&format!("SELECT {expression};"))
+                .unwrap();
+            assert!(matches!(statement.step().unwrap(), Step::Row));
+            assert_eq!(statement.column_i64(0), expected, "{expression}");
+        }
+    }
+
+    #[test]
+    fn text_binding_still_rejects_nul_but_accepts_empty_text() {
+        let fixture = Fixture::new();
+        let connection = Connection::open(&fixture.database()).unwrap();
+        let mut statement = connection.prepare("SELECT ?1;").unwrap();
+        assert!(statement.bind_text(1, Some("a\0b")).is_err());
+        statement.bind_text(1, Some("")).unwrap();
+        assert!(matches!(statement.step().unwrap(), Step::Row));
+        assert_eq!(statement.column_str(0), Some(""));
     }
 }

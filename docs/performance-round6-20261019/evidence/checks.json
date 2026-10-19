@@ -1,0 +1,94 @@
+{
+  "status": "PASS",
+  "unit_tests_each_debug_release": 123,
+  "integration": [
+    "420 committed transaction full-field/order oracle",
+    "directed prefix and delta oracle"
+  ],
+  "commands": {
+    "debug": {
+      "exit_code": 0,
+      "wall_seconds": 5.122297417,
+      "log": "debug.log",
+      "command": [
+        "cargo",
+        "test",
+        "--offline"
+      ]
+    },
+    "release": {
+      "exit_code": 0,
+      "wall_seconds": 13.561458124999998,
+      "log": "release.log",
+      "command": [
+        "cargo",
+        "test",
+        "--release",
+        "--offline"
+      ]
+    },
+    "clippy": {
+      "exit_code": 0,
+      "wall_seconds": 0.7807672920000002,
+      "log": "clippy.log",
+      "command": [
+        "cargo",
+        "clippy",
+        "--offline",
+        "--all-targets",
+        "--",
+        "-D",
+        "warnings"
+      ]
+    },
+    "format": {
+      "exit_code": 0,
+      "wall_seconds": 0.11453649999999982,
+      "log": "format.log",
+      "command": [
+        "cargo",
+        "fmt",
+        "--check"
+      ]
+    },
+    "release-build": {
+      "exit_code": 0,
+      "wall_seconds": 0.05567495900000097,
+      "log": "release-build.log",
+      "command": [
+        "cargo",
+        "build",
+        "--release",
+        "--offline"
+      ]
+    },
+    "gui-build": {
+      "exit_code": 0,
+      "wall_seconds": 4.651114041,
+      "log": "gui-build.log",
+      "command": [
+        "swiftc",
+        "-O",
+        "-parse-as-library",
+        "-D",
+        "MACEVERY_TESTING",
+        "-module-cache-path",
+        ".build/macevery-swift-module-cache",
+        "macos/MacEveryApp.swift",
+        "tests/macos/GUIRegressionChecks.swift",
+        "-o",
+        "/Users/yangtao/pine/code/macevery/.build/performance-round6-20261019/gui-regression"
+      ]
+    },
+    "gui-regression": {
+      "exit_code": 0,
+      "wall_seconds": 11.800270750000003,
+      "log": "gui-regression.log",
+      "command": [
+        "/Users/yangtao/pine/code/macevery/.build/performance-round6-20261019/gui-regression"
+      ]
+    }
+  },
+  "independent_review": "compact and row decoding/config changes cross-reviewed; startup CPU timebase also checked against existing wait4 receipt",
+  "startup_time_filter_guard": "plain/quoted/escaped aliases rejected; default code accepted"
+}

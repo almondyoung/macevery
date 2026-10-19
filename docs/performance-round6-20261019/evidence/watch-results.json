@@ -1,0 +1,98 @@
+[
+  {
+    "rows_seeded": 300000,
+    "elapsed_s": 8.738482917,
+    "cpu_s": 0.018167,
+    "peak_rss_bytes": 11747328,
+    "cpu_percent": 0.2078964984260322,
+    "checks": [
+      "create",
+      "modify",
+      "rename",
+      "directory create",
+      "directory rename",
+      "directory delete",
+      "file delete",
+      "excluded directory write storm",
+      "update after excluded events"
+    ],
+    "final_rows": [
+      [
+        ".",
+        "dir",
+        null
+      ],
+      [
+        "after-noise.txt",
+        "file",
+        2
+      ]
+    ],
+    "stress_elapsed_s": 5.7917577080000004,
+    "label": "baseline"
+  },
+  {
+    "rows_seeded": 300000,
+    "elapsed_s": 8.807585208,
+    "cpu_s": 0.011616999999999999,
+    "peak_rss_bytes": 8224768,
+    "cpu_percent": 0.13189767371706135,
+    "checks": [
+      "create",
+      "modify",
+      "rename",
+      "directory create",
+      "directory rename",
+      "directory delete",
+      "file delete",
+      "excluded directory write storm",
+      "update after excluded events"
+    ],
+    "final_rows": [
+      [
+        ".",
+        "dir",
+        null
+      ],
+      [
+        "after-noise.txt",
+        "file",
+        2
+      ]
+    ],
+    "stress_elapsed_s": 5.819431375000001,
+    "label": "candidate"
+  },
+  {
+    "rows_seeded": 300000,
+    "elapsed_s": 8.765853167,
+    "cpu_s": 0.020087999999999998,
+    "peak_rss_bytes": 11763712,
+    "cpu_percent": 0.22916194941096485,
+    "checks": [
+      "create",
+      "modify",
+      "rename",
+      "directory create",
+      "directory rename",
+      "directory delete",
+      "file delete",
+      "excluded directory write storm",
+      "update after excluded events"
+    ],
+    "final_rows": [
+      [
+        ".",
+        "dir",
+        null
+      ],
+      [
+        "after-noise.txt",
+        "file",
+        2
+      ]
+    ],
+    "stress_elapsed_s": 5.785078374999998,
+    "label": "baseline-repeat"
+  }
+]
