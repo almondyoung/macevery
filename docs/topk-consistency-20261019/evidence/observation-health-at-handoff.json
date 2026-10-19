@@ -1,0 +1,24 @@
+{
+  "status": "RUNNING",
+  "checked_at_utc": "2026-10-19T11:53:05.341366+00:00",
+  "source_commit": "a4418a717811d036017efc028d02e036e9be97a4",
+  "worker_live_pid_start_boot_match": true,
+  "settled_uuid_and_exact_executable_argv_verified": true,
+  "both_uuids_match_actual_macho_lc_uuid": true,
+  "initial_launcher_uuid_differs": true,
+  "initial_strict_uuid_and_launcher_path_assertions_rejected": true,
+  "initial_receipt_preserved": true,
+  "settled_receipt_saved": true,
+  "one_collector_session_all_samples": true,
+  "window_restarted": false,
+  "app_fingerprint_match": true,
+  "database_pin_match": true,
+  "samples": 8,
+  "latest_sample_age_seconds": 42.264672,
+  "window_finished": false,
+  "elapsed_endpoint_seconds": 420.021056041,
+  "barrier_counts": {
+    "initial_endpoint": 1
+  },
+  "note": "Initial Python launcher and final Python.app runtime LC_UUIDs independently verified. Same PID/start cookie/boot, exact owned command, one continuous collector session and fresh samples. No worker restart, state reset, query, full-table count or observation-tool change."
+}

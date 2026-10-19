@@ -1,0 +1,26 @@
+{
+  "status": "RUNNING",
+  "source_commit": "a4418a717811d036017efc028d02e036e9be97a4",
+  "build_label": "0.1.3-ga4418a7",
+  "start_utc": "2026-10-19T11:45:23.084488+00:00",
+  "deadline_utc": "2026-10-20T11:45:23.084488+00:00",
+  "timezone": "Asia/Shanghai",
+  "hours": 24,
+  "interval_seconds": 60,
+  "worker_identity_verified_at_launch": true,
+  "first_sample_database_pin": "match",
+  "samples_at_initial_export": 1,
+  "window_finished": false,
+  "heartbeat": {
+    "id": "macevery-48",
+    "name": "MacEvery Top300修复版24小时观察",
+    "status": "ACTIVE",
+    "policy": "quiet unless meaningful anomaly, completion, or user action required"
+  },
+  "old_48h_window_retained": true,
+  "old_samples_not_joined": true,
+  "old_collector_stopped": true,
+  "old_frozen_app_retained": true,
+  "observation_tool_sha256": "781564a67a55defaa9778357e3f45b1adc5dd40a02f689922963ce01cb3caefe",
+  "note": "Running only; no 24-hour coverage, stability or leak PASS is asserted."
+}

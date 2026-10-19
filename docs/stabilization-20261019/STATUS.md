@@ -31,9 +31,9 @@
 - state绝对目录：`/Users/yangtao/pine/code/macevery/.build/stabilization-20261019-8096e0a/observation-48h`。
 - collector：PID35412，启动cookie3482448139589，实际boot/start身份另见 `launch.local.json`；仅PID不足以证明仍存活。
 - 观察工具SHA：`781564a67a55defaa9778357e3f45b1adc5dd40a02f689922963ce01cb3caefe`。不要在窗口内修改或重启工具，不另起第二个writer，不静默延长截止。
-- heartbeat：`macevery-48`，PAUSED；collector核对启动身份后已受控SIGTERM退出。新任务见[TopK一致性状态](../topk-consistency-20261019/STATUS.md)。
+- heartbeat：`macevery-48`在封存时PAUSED，后复用为Top300修复版新24小时ACTIVE（不再跟进旧窗口）；collector核对启动身份后已受控SIGTERM退出。新任务见[TopK一致性状态](../topk-consistency-20261019/STATUS.md)。
 - 窗口初始诊断进程21972/21975/21976随后正常退出，以清除临时LLDB驻留；重开固定App为36166/36172/36173，重新验证新建/删除及查询清空，用此进程段分析后续资源趋势。保留该受控重启和原生验收/启动预热，不当作自发故障，不把诊断段与新身份端点拼接CPU。
-- 最终任务：核对实际样本与有效覆盖、逐身份/每小时RSS和footprint平台/趋势、CPU有效区间、睡眠/缺口/重启；更新报告和本周登记，提交推送并回读SHA，完成后暂停本heartbeat。到期本身不能视为PASS。
+- 旧窗口已封存，不再运行或补足原48小时，也不按原计划结束时间暂停已复用的heartbeat。后续只按TopK修复任务的新24小时状态核对实际覆盖和趋势，原始结束流程保留在历史提交中。
 
 ## 证据与后续
 

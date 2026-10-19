@@ -8568,7 +8568,7 @@
     ],
     "final_rows_equal": true,
     "metrics": {
-      "cpu_s": {
+      "cpu_ms": {
         "baseline": {
           "n": 2,
           "median": 12.350999999999999,
@@ -8591,7 +8591,7 @@
         "candidate_minus_baseline": -0.47499999999999964,
         "candidate_change_pct": -3.845842441907532
       },
-      "elapsed_s": {
+      "wall_ms": {
         "baseline": {
           "n": 2,
           "median": 8695.596625000002,
@@ -8614,7 +8614,7 @@
         "candidate_minus_baseline": 28.6281659999986,
         "candidate_change_pct": 0.3292260121368962
       },
-      "stress_elapsed_s": {
+      "stress_wall_ms": {
         "baseline": {
           "n": 2,
           "median": 5762.019291999998,
@@ -8662,9 +8662,9 @@
       }
     },
     "units": {
-      "cpu_s": "reported values converted to milliseconds",
-      "elapsed_s": "reported values converted to milliseconds",
-      "stress_elapsed_s": "reported values converted to milliseconds",
+      "cpu_ms": "milliseconds",
+      "wall_ms": "milliseconds",
+      "stress_wall_ms": "milliseconds",
       "peak_rss_bytes": "bytes"
     },
     "limitation": "One synthetic A/B/A block lasting about 9 seconds per process; CPU is only about 12 milliseconds per process. This checks event handling and gross resource changes, not long-term idle CPU."

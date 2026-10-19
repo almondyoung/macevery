@@ -59,7 +59,7 @@ HTTP/CLI分别按实际路由校验完整六字段与顺序，warm明确禁止CL
 
 为清除临时LLDB诊断驻留影响，在窗口开始数分钟后正常退出并重新打开同一个固定App；保留原始记录，按新启动身份分段，前一诊断进程段不用于长期内存趋势结论。新进程的启动/受控原生验收及最初预热期也需与后续普通使用分开，不能把这次受控重启当作自发崩溃或泄漏恢复。
 
-历史独立collector为PID35412，启动cookie/boot身份保存在本机state，现已退出；heartbeat `macevery-48` 已PAUSED。观察未完成，后续以[TopK修复任务](../topk-consistency-20261019/STATUS.md)为准。
+历史独立collector为PID35412，启动cookie/boot身份保存在本机state，现已退出；heartbeat `macevery-48` 封存时已PAUSED，后复用为Top300修复版独立24小时ACTIVE；旧collector及state仍封存。观察未完成，后续以[TopK修复任务](../topk-consistency-20261019/STATUS.md)为准。
 
 干净重启后新GUI/serve/watch为36166/36172/36173。临时文件新建19字节可搜到，删除后窗口0结果且只读SQL无残留，见[固定App最终回执](evidence/final-app.json)；没有再次附加调试器。查询清空后的约20秒[点采样](evidence/final-point.json)：GUI/serve/watch平均CPU分别0.05815%/0.00082%/0.02395%（单核口径），末RSS分别约142.7MiB/1.535GiB/19.4MiB，总计约1.693GiB、0.08292%单核。保留其它应用与用户后台工作，不能与前轮不同工作量样本组成受控A/B，也不能据此提前声称长稳或无泄漏；本轮没有生产优化改动。
 

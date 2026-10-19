@@ -1,0 +1,34 @@
+{
+  "note": "20s point for TopK acceptance, query state is separately recorded. Ordinary user work remains. Not idle A/B or long-term stability proof.",
+  "same_process_start_identities": true,
+  "same_power_uuid": true,
+  "roles": [
+    {
+      "role": "gui",
+      "pid": 7521,
+      "wall_seconds": 20.06751,
+      "cpu_seconds": 0.014153167,
+      "average_cpu_percent_one_core": 0.07052776851736962,
+      "end_rss_bytes": 168558592,
+      "end_footprint_bytes": 78693456
+    },
+    {
+      "role": "serve",
+      "pid": 8415,
+      "wall_seconds": 20.067528041,
+      "cpu_seconds": 0.000170792,
+      "average_cpu_percent_one_core": 0.0008510863901675113,
+      "end_rss_bytes": 1622507520,
+      "end_footprint_bytes": 1618544296
+    },
+    {
+      "role": "watch",
+      "pid": 7528,
+      "wall_seconds": 20.067550334,
+      "cpu_seconds": 0.005129417,
+      "average_cpu_percent_one_core": 0.025560753129440738,
+      "end_rss_bytes": 20643840,
+      "end_footprint_bytes": 6554176
+    }
+  ]
+}

@@ -1,0 +1,86 @@
+{
+  "scope": "Ordinary-use 20-second endpoints, not same-input idle A/B or leak proof. GUI exercised modes and icons before the final point; live DB continued ordinary file changes. Cause of footprint difference is not established.",
+  "roles": {
+    "gui": {
+      "end_rss_bytes": {
+        "baseline": 139542528,
+        "candidate": 168558592,
+        "change_percent": 20.79370670423859
+      },
+      "end_footprint_bytes": {
+        "baseline": 44827680,
+        "candidate": 78693456,
+        "change_percent": 75.54657301024723
+      },
+      "average_cpu_percent_one_core": {
+        "baseline": 0.08362955409513849,
+        "candidate": 0.07052776851736962,
+        "change_percent": -15.666453946249714
+      }
+    },
+    "serve": {
+      "end_rss_bytes": {
+        "baseline": 1648033792,
+        "candidate": 1622507520,
+        "change_percent": -1.5488925120292651
+      },
+      "end_footprint_bytes": {
+        "baseline": 1395738280,
+        "candidate": 1618544296,
+        "change_percent": 15.96330910978525
+      },
+      "average_cpu_percent_one_core": {
+        "baseline": 0.0008791095385247007,
+        "candidate": 0.0008510863901675113,
+        "change_percent": -3.1876742463990526
+      }
+    },
+    "watch": {
+      "end_rss_bytes": {
+        "baseline": 22151168,
+        "candidate": 20643840,
+        "change_percent": -6.804733727810652
+      },
+      "end_footprint_bytes": {
+        "baseline": 7127640,
+        "candidate": 6554176,
+        "change_percent": -8.045636423837344
+      },
+      "average_cpu_percent_one_core": {
+        "baseline": 0.03210959663411877,
+        "candidate": 0.025560753129440738,
+        "change_percent": -20.3952842488199
+      }
+    }
+  },
+  "totals": {
+    "end_rss_bytes": {
+      "baseline": 1809727488,
+      "candidate": 1811709952,
+      "absolute_change": 1982464,
+      "change_percent": 0.10954489077197316
+    },
+    "end_footprint_bytes": {
+      "baseline": 1447693600,
+      "candidate": 1703791928,
+      "absolute_change": 256098328,
+      "change_percent": 17.690091881320736
+    },
+    "average_cpu_percent_one_core": {
+      "baseline": 0.11661826026778196,
+      "candidate": 0.09693960803697788,
+      "absolute_change": -0.01967865223080409,
+      "change_percent": -16.87441759602436
+    }
+  },
+  "controlled_memory_mechanism": {
+    "baseline": {
+      "peak_sampled_footprint_bytes": 1591527080,
+      "peak_sampled_rss_bytes": 1595523072
+    },
+    "candidate": {
+      "peak_sampled_footprint_bytes": 1590986456,
+      "peak_sampled_rss_bytes": 1594949632
+    }
+  }
+}

@@ -1,0 +1,60 @@
+{
+  "status": "PASS",
+  "source_commit": "a4418a717811d036017efc028d02e036e9be97a4",
+  "build_label": "0.1.3-ga4418a7",
+  "native_evidence": "CUA accessibility observations and read-only DB exact-path checks",
+  "fastest_code_results": 300,
+  "low_memory_code_results": 300,
+  "native_full_array_equality_asserted": false,
+  "full_array_gate": "separate frozen-snapshot six-field ordered differential suite",
+  "file_checks": {
+    "create": {
+      "database_pass": true,
+      "wait_seconds": 0.421667042,
+      "kind_size_mtime": [
+        "file",
+        18,
+        1792410038
+      ],
+      "at_unix": 1792410039.3526149
+    },
+    "modify": {
+      "database_pass": true,
+      "wait_seconds": 0.213880125,
+      "kind_size_mtime": [
+        "file",
+        35,
+        1792410060
+      ],
+      "at_unix": 1792410060.897291
+    },
+    "rename": {
+      "database_pass": true,
+      "wait_seconds": 0.41958675,
+      "kind_size_mtime": [
+        "file",
+        35,
+        1792410060
+      ],
+      "at_unix": 1792410098.96961
+    },
+    "delete": {
+      "database_pass": true,
+      "wait_seconds": 0.313793666,
+      "kind_size_mtime": null,
+      "at_unix": 1792410115.578541
+    }
+  },
+  "fixture_cleaned": true,
+  "low_memory_actual_backend": "sqlite",
+  "final_actual_backend": "memory",
+  "gui_watch_identities_unchanged_across_mode_switch": true,
+  "final_mode": "Fastest",
+  "final_query": "No Query",
+  "shortcut": "Command-Shift-Space",
+  "roots_excludes_unchanged": true,
+  "database_id_unchanged": true,
+  "permissions_before_and_final": "Limited",
+  "os_permissions_changed": false,
+  "note": "Window footer can retain previous query status after clearing; No Query result area was empty. First Fastest restore click did not apply; fresh AX read and retry confirmed Fastest=1 before closing settings."
+}
