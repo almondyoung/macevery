@@ -1,15 +1,20 @@
 use crate::db::{Database, DbRecordRef, FileChange};
 use crate::error::{MacEveryError, Result};
 use crate::model::{FileKind, FileRecord, SearchOptions, SearchResult};
-use crate::search::{effective_limit, PreparedQuery, TopHits};
+use crate::search::{effective_limit, PathView, PreparedQuery, TopHits};
 use std::borrow::Cow;
+use std::collections::hash_map::RandomState;
 use std::collections::HashMap;
+use std::hash::BuildHasher;
 use std::mem::size_of;
 
 const ARENA_BYTES: usize = 64 * 1024 * 1024;
 const RECORDS_PER_BLOCK: usize = 64 * 1024;
 const INITIAL_ARENA_BYTES: usize = 64 * 1024;
 const NO_EXTENSION: u32 = u32::MAX;
+const NO_PREFIX: u32 = u32::MAX;
+const PREFIX_POOL_BYTES: usize = 64 * 1024 * 1024;
+const MIN_PREFIX_BYTES: usize = 16;
 const TOMBSTONE: u8 = 1 << 7;
 const MAX_DEAD_STRING_BYTES: usize = 32 * 1024 * 1024;
 const MAX_EXTENSION_GROWTH_BYTES: usize = 4 * 1024 * 1024;
@@ -38,6 +43,10 @@ pub struct IndexMemoryBreakdown {
     pub string_used_bytes: usize,
     pub extension_capacity_bytes: usize,
     pub container_bytes: usize,
+    pub prefix_string_bytes: usize,
+    pub prefix_entry_capacity_bytes: usize,
+    pub prefix_lookup_capacity_bytes: usize,
+    pub prefix_entries: usize,
     pub narrow_metadata_blocks: usize,
     pub wide_metadata_blocks: usize,
     pub live_metadata_escapes: usize,
@@ -49,6 +58,7 @@ pub struct CompactIndex {
     records: Vec<Vec<CompactRecord>>,
     metadata: Vec<MetadataBlock>,
     extensions: Vec<Box<str>>,
+    prefixes: PrefixPool,
     len: usize,
     physical_len: usize,
     records_per_block: usize,
@@ -64,6 +74,7 @@ impl Default for CompactIndex {
             records: Vec::new(),
             metadata: Vec::new(),
             extensions: Vec::new(),
+            prefixes: PrefixPool::new(PREFIX_POOL_BYTES),
             len: 0,
             physical_len: 0,
             records_per_block: RECORDS_PER_BLOCK,
@@ -86,6 +97,7 @@ struct CompactRecord {
     basename_lower: Slice,
     arena: u32,
     ext: u32,
+    prefix: u32,
     kind: FileKind,
     present: u8,
 }
@@ -93,19 +105,6 @@ struct CompactRecord {
 impl CompactRecord {
     fn is_live(&self) -> bool {
         self.present & TOMBSTONE == 0
-    }
-    fn string_bytes(&self) -> usize {
-        [
-            self.path,
-            self.path_lower,
-            self.basename,
-            self.basename_lower,
-        ]
-        .iter()
-        .map(|slice| slice.start as usize + slice.len as usize)
-        .max()
-        .unwrap()
-            - self.path.start as usize
     }
     fn update_metadata(&mut self, record: &DbRecordRef<'_>, ext: u32) {
         self.id = record.id;
@@ -127,6 +126,146 @@ impl CompactRecord {
             }
         }
     }
+}
+
+struct PrefixPool {
+    values: Vec<Box<str>>,
+    slots: Vec<u32>,
+    hasher: RandomState,
+    string_bytes: usize,
+    limit: usize,
+}
+
+impl PrefixPool {
+    fn new(limit: usize) -> Self {
+        Self {
+            values: Vec::new(),
+            slots: Vec::new(),
+            hasher: RandomState::new(),
+            string_bytes: 0,
+            limit,
+        }
+    }
+    fn capacity_bytes(&self) -> usize {
+        self.string_bytes
+            + self.values.capacity() * size_of::<Box<str>>()
+            + self.slots.capacity() * size_of::<u32>()
+    }
+    fn get(&self, id: u32) -> &str {
+        if id == NO_PREFIX {
+            ""
+        } else {
+            &self.values[id as usize]
+        }
+    }
+    fn lookup(&self, value: &str, hash: u64) -> Option<u32> {
+        if self.slots.is_empty() {
+            return None;
+        }
+        let mut slot = hash as usize & (self.slots.len() - 1);
+        for _ in 0..self.slots.len() {
+            let id = self.slots[slot];
+            if id == NO_PREFIX {
+                return None;
+            }
+            if self.values[id as usize].as_ref() == value {
+                return Some(id);
+            }
+            slot = (slot + 1) & (self.slots.len() - 1);
+        }
+        None
+    }
+    fn insert_slot(slots: &mut [u32], id: u32, hash: u64) {
+        let mut slot = hash as usize & (slots.len() - 1);
+        while slots[slot] != NO_PREFIX {
+            slot = (slot + 1) & (slots.len() - 1);
+        }
+        slots[slot] = id;
+    }
+    fn intern(&mut self, value: &str) -> Result<Option<u32>> {
+        let hash = self.hasher.hash_one(value);
+        if let Some(id) = self.lookup(value, hash) {
+            return Ok(Some(id));
+        }
+        let Some(new_len) = self
+            .values
+            .len()
+            .checked_add(1)
+            .filter(|len| *len < NO_PREFIX as usize)
+        else {
+            return Ok(None);
+        };
+        let Some(payload) = self.string_bytes.checked_add(value.len()) else {
+            return Ok(None);
+        };
+        let value_capacity = if new_len > self.values.capacity() {
+            self.values.capacity().saturating_mul(2).max(16)
+        } else {
+            self.values.capacity()
+        };
+        let slots_len = if new_len > self.slots.len() / 2 {
+            self.slots.len().saturating_mul(2).max(32)
+        } else {
+            self.slots.len()
+        };
+        let fits = |entries: usize, slots: usize| {
+            payload
+                .saturating_add(entries.saturating_mul(size_of::<Box<str>>()))
+                .saturating_add(slots.saturating_mul(size_of::<u32>()))
+                .saturating_add(size_of::<Self>())
+                <= self.limit
+        };
+        if !fits(value_capacity, slots_len.max(self.slots.capacity())) {
+            return Ok(None);
+        }
+        let mut grown_values = None;
+        if value_capacity > self.values.capacity() {
+            let mut values = Vec::new();
+            values
+                .try_reserve_exact(value_capacity)
+                .map_err(prefix_allocation)?;
+            grown_values = Some(values);
+        }
+        let mut grown_slots = None;
+        if slots_len > self.slots.len() {
+            let mut slots = Vec::new();
+            slots
+                .try_reserve_exact(slots_len)
+                .map_err(prefix_allocation)?;
+            slots.resize(slots_len, NO_PREFIX);
+            grown_slots = Some(slots);
+        }
+        let actual_values = grown_values
+            .as_ref()
+            .map_or(self.values.capacity(), Vec::capacity);
+        let actual_slots = grown_slots
+            .as_ref()
+            .map_or(self.slots.capacity(), Vec::capacity);
+        // Check actual allocation capacities before moving any existing state.
+        if !fits(actual_values, actual_slots) {
+            return Ok(None);
+        }
+        if let Some(mut values) = grown_values {
+            values.append(&mut self.values);
+            self.values = values;
+        }
+        if let Some(mut slots) = grown_slots {
+            for (id, value) in self.values.iter().enumerate() {
+                Self::insert_slot(&mut slots, id as u32, self.hasher.hash_one(value.as_ref()));
+            }
+            self.slots = slots;
+        }
+        let id = self.values.len() as u32;
+        self.values.push(value.into());
+        Self::insert_slot(&mut self.slots, id, hash);
+        self.string_bytes = payload;
+        debug_assert!(self.capacity_bytes() + size_of::<Self>() <= self.limit);
+        Ok(Some(id))
+    }
+}
+
+fn prefix_allocation(error: std::collections::TryReserveError) -> MacEveryError {
+    MacEveryError::Cli(format!("cannot allocate packed path prefix: {error}"))
 }
 
 type MetadataValues = [i64; METADATA_FIELDS];
@@ -415,9 +554,17 @@ impl<'a> RowText<'a> {
             .filter(|value| !value.is_empty())
             .map(Cow::Borrowed)
             .unwrap_or_else(|| Cow::Owned(record.path.to_lowercase()));
+        Self::with_lowered(record, lowered, 0)
+    }
+
+    fn with_lowered(
+        record: &DbRecordRef<'a>,
+        lowered: Cow<'a, str>,
+        prefix_len: usize,
+    ) -> Result<Self> {
         let fields = [
-            record.path,
             lowered.as_ref(),
+            &record.path[prefix_len..],
             record.basename,
             record.basename_lower,
         ];
@@ -558,12 +705,12 @@ impl CompactIndex {
                         fragmentation.dead_records -= 1;
                         next_len = next_len.checked_add(1).ok_or_else(index_too_large)?;
                         if unchanged {
-                            fragmentation.dead_string_bytes -= old.string_bytes();
+                            fragmentation.dead_string_bytes -= self.row_string_bytes(old);
                         }
                     } else if !unchanged {
                         fragmentation.dead_string_bytes = fragmentation
                             .dead_string_bytes
-                            .checked_add(old.string_bytes())
+                            .checked_add(self.row_string_bytes(old))
                             .ok_or_else(index_too_large)?;
                     }
                 } else {
@@ -588,7 +735,7 @@ impl CompactIndex {
                     fragmentation.dead_records += 1;
                     fragmentation.dead_string_bytes = fragmentation
                         .dead_string_bytes
-                        .checked_add(old.string_bytes())
+                        .checked_add(self.row_string_bytes(old))
                         .ok_or_else(index_too_large)?;
                     next_len -= 1;
                 }
@@ -655,7 +802,7 @@ impl CompactIndex {
         record: &DbRecordRef<'_>,
         text: &RowText<'_>,
     ) -> bool {
-        self.get(old, old.path) == record.path
+        self.path_view(old) == PathView::from(record.path)
             && self.get(old, old.path_lower) == text.lowered
             && self.get(old, old.basename) == record.basename
             && self.get(old, old.basename_lower) == record.basename_lower
@@ -713,16 +860,35 @@ impl CompactIndex {
         text: &RowText<'_>,
         ext: u32,
     ) -> Result<CompactRecord> {
-        let arena = self.reserve_row(text.required)?;
+        let prefix = if record.path != text.lowered.as_ref() {
+            match record
+                .path
+                .rfind('/')
+                .map(|offset| offset + 1)
+                .filter(|length| *length >= MIN_PREFIX_BYTES)
+            {
+                Some(length) => self
+                    .prefixes
+                    .intern(&record.path[..length])?
+                    .unwrap_or(NO_PREFIX),
+                None => NO_PREFIX,
+            }
+        } else {
+            NO_PREFIX
+        };
+        let prefix_len = self.prefixes.get(prefix).len();
+        let layout =
+            RowText::with_lowered(record, Cow::Borrowed(text.lowered.as_ref()), prefix_len)?;
+        let arena = self.reserve_row(layout.required)?;
         let fields = [
-            record.path,
-            text.lowered.as_ref(),
+            layout.lowered.as_ref(),
+            &record.path[prefix_len..],
             record.basename,
             record.basename_lower,
         ];
         let mut slices = [Slice::default(); 4];
         for (i, value) in fields.iter().enumerate() {
-            slices[i] = if let Some(parent) = text.parents[i] {
+            slices[i] = if let Some(parent) = layout.parents[i] {
                 Slice::checked(
                     slices[parent].start as usize + fields[parent].len() - value.len(),
                     value.len(),
@@ -735,12 +901,16 @@ impl CompactIndex {
         }
         let mut packed = CompactRecord {
             id: record.id,
-            path: slices[0],
-            path_lower: slices[1],
+            path: Slice {
+                start: slices[1].start,
+                len: u32::try_from(record.path.len()).map_err(|_| index_too_large())?,
+            },
+            path_lower: slices[0],
             basename: slices[2],
             basename_lower: slices[3],
             arena: u32::try_from(arena).map_err(|_| index_too_large())?,
             ext,
+            prefix,
             kind: record.kind.clone(),
             present: 0,
         };
@@ -817,6 +987,9 @@ impl CompactIndex {
             usage.string_capacity_bytes,
             usage.extension_capacity_bytes,
             usage.container_bytes,
+            usage.prefix_string_bytes,
+            usage.prefix_entry_capacity_bytes,
+            usage.prefix_lookup_capacity_bytes,
         ]
         .into_iter()
         .fold(0u64, |sum, bytes| sum.saturating_add(bytes as u64))
@@ -838,6 +1011,10 @@ impl CompactIndex {
             string_capacity_bytes: self.arenas.iter().map(String::capacity).sum(),
             string_used_bytes: self.arenas.iter().map(String::len).sum(),
             extension_capacity_bytes: self.extensions.iter().map(|ext| ext.len()).sum(),
+            prefix_string_bytes: self.prefixes.string_bytes,
+            prefix_entry_capacity_bytes: self.prefixes.values.capacity() * size_of::<Box<str>>(),
+            prefix_lookup_capacity_bytes: self.prefixes.slots.capacity() * size_of::<u32>(),
+            prefix_entries: self.prefixes.values.len(),
             container_bytes: size_of::<Self>()
                 + self.arenas.capacity() * size_of::<String>()
                 + self.records.capacity() * size_of::<Vec<CompactRecord>>()
@@ -904,7 +1081,12 @@ impl CompactIndex {
             if let Some(score) = query.rank_lowered(path, basename, record.path.len as usize, mtime)
             {
                 hits.consider(index, score, mtime, record.path.len as usize, || {
-                    get(record.path)
+                    let prefix = self.prefixes.get(record.prefix);
+                    let suffix = get(Slice {
+                        start: record.path.start,
+                        len: record.path.len - prefix.len() as u32,
+                    });
+                    PathView::new(prefix, suffix)
                 });
             }
         }
@@ -933,6 +1115,51 @@ impl CompactIndex {
     fn ext(&self, record: &CompactRecord) -> Option<&str> {
         (record.ext != NO_EXTENSION).then(|| self.extensions[record.ext as usize].as_ref())
     }
+    fn path_parts<'a>(&'a self, record: &'a CompactRecord) -> (&'a str, &'a str) {
+        let prefix = self.prefixes.get(record.prefix);
+        let suffix = self.get(
+            record,
+            Slice {
+                start: record.path.start,
+                len: record.path.len - prefix.len() as u32,
+            },
+        );
+        (prefix, suffix)
+    }
+    fn path_view<'a>(&'a self, record: &'a CompactRecord) -> PathView<'a> {
+        let (prefix, suffix) = self.path_parts(record);
+        PathView::new(prefix, suffix)
+    }
+    fn row_string_bytes(&self, record: &CompactRecord) -> usize {
+        let path = Slice {
+            start: record.path.start,
+            len: record.path.len - self.prefixes.get(record.prefix).len() as u32,
+        };
+        let slices = [
+            path,
+            record.path_lower,
+            record.basename,
+            record.basename_lower,
+        ];
+        let start = slices
+            .iter()
+            .map(|slice| slice.start as usize)
+            .min()
+            .unwrap();
+        let end = slices
+            .iter()
+            .map(|slice| slice.start as usize + slice.len as usize)
+            .max()
+            .unwrap();
+        end - start
+    }
+    fn original_path(&self, record: &CompactRecord) -> String {
+        let (prefix, suffix) = self.path_parts(record);
+        let mut path = String::with_capacity(record.path.len as usize);
+        path.push_str(prefix);
+        path.push_str(suffix);
+        path
+    }
     fn optional_metadata(&self, index: usize, record: &CompactRecord, field: usize) -> Option<i64> {
         (record.present & (1 << field) != 0).then(|| {
             self.metadata[index / self.records_per_block]
@@ -943,7 +1170,7 @@ impl CompactIndex {
         let record = self.record_at(index);
         FileRecord {
             id: record.id,
-            path: self.get(record, record.path).into(),
+            path: self.original_path(record),
             path_lower: self.get(record, record.path_lower).into(),
             basename: self.get(record, record.basename).into(),
             basename_lower: self.get(record, record.basename_lower).into(),
@@ -1797,12 +2024,233 @@ mod tests {
             + before.metadata_capacity_bytes
             + before.string_capacity_bytes
             + before.extension_capacity_bytes
-            + before.container_bytes;
+            + before.container_bytes
+            + before.prefix_string_bytes
+            + before.prefix_entry_capacity_bytes
+            + before.prefix_lookup_capacity_bytes;
         assert_eq!(index.memory_usage_bytes(), accounted as u64);
         assert_eq!(
             before.record_capacity_bytes + before.metadata_capacity_bytes,
             RECORDS_PER_BLOCK * 80
         );
+    }
+
+    #[test]
+    fn prefix_pool_has_a_hard_actual_capacity_limit_and_keeps_old_entries_readable() {
+        let mut pool = PrefixPool::new(4096);
+        let first = "/Shared/Original/Directory/";
+        let id = pool.intern(first).unwrap().unwrap();
+        let mut admitted = 1;
+        for i in 0..1000 {
+            let before = (pool.values.len(), pool.capacity_bytes());
+            let next = format!("/Unique/Original/Directory/{i}/");
+            match pool.intern(&next).unwrap() {
+                Some(index) => {
+                    admitted += 1;
+                    assert_eq!(pool.get(index), next);
+                }
+                None => assert_eq!((pool.values.len(), pool.capacity_bytes()), before),
+            }
+            assert!(pool.capacity_bytes() + size_of::<PrefixPool>() <= pool.limit);
+            assert_eq!(pool.intern(first).unwrap(), Some(id));
+        }
+        assert!(admitted > 1 && admitted < 1000);
+        assert_eq!(pool.get(id), first);
+        let mut zero = PrefixPool::new(0);
+        assert_eq!(zero.intern(first).unwrap(), None);
+        assert_eq!(zero.capacity_bytes(), 0);
+    }
+
+    #[test]
+    fn prefix_table_resolves_collisions_and_preserves_ids_through_growth() {
+        let mut pool = PrefixPool::new(64 * 1024);
+        let collision_group = (0..10_000)
+            .map(|i| format!("/Original/Collision/{i}/"))
+            .filter(|value| pool.hasher.hash_one(value.as_str()) & 31 == 0)
+            .take(40)
+            .collect::<Vec<_>>();
+        assert_eq!(collision_group.len(), 40);
+        for (id, value) in collision_group.iter().enumerate() {
+            assert_eq!(pool.intern(value).unwrap(), Some(id as u32));
+        }
+        assert!(pool.slots.len() > 32);
+        for (id, value) in collision_group.iter().enumerate() {
+            assert_eq!(pool.intern(value).unwrap(), Some(id as u32));
+            assert_eq!(pool.get(id as u32), value);
+        }
+        assert_eq!(pool.values.len(), 40);
+    }
+
+    #[test]
+    fn compressed_originals_keep_full_fields_and_only_own_their_row_bytes() {
+        let prefix = "/Shared/Long Directory/Σ/";
+        let mut records = ["CODE.txt", "report.txt", "Other", "", "报告📷"]
+            .into_iter()
+            .enumerate()
+            .map(|(id, name)| {
+                let mut record = FileRecord::new(format!("{prefix}{name}"), FileKind::File, 999);
+                record.id = id as i64 + 1;
+                record.mtime = Some(99);
+                record
+            })
+            .collect::<Vec<_>>();
+        // This basename is longer than the physical original suffix and cannot
+        // borrow bytes from the separately interned prefix.
+        records[2].basename = records[2].path.clone();
+        records[2].basename_lower = "/unrelated/custom-lowercase".into();
+        let mut lower = FileRecord::new(
+            "/all/lower/directory/report.txt".into(),
+            FileKind::File,
+            999,
+        );
+        lower.id = 6;
+        records.push(lower);
+        let mut custom = FileRecord::new(
+            "/Unrelated/Original/Directory/ΟΣ".into(),
+            FileKind::Other,
+            -1,
+        );
+        custom.id = 7;
+        custom.path_lower = "/entirely-different/ς/报告".into();
+        custom.basename = "a very long independent basename 📷/Σ".into();
+        custom.basename_lower = "arbitrary-Σ".into();
+        records.push(custom);
+        let mut index = from_records(&records);
+        assert_eq!(size_of::<CompactRecord>(), 56);
+        assert_eq!(index.record_at(5).prefix, NO_PREFIX);
+        assert_eq!(
+            index.record_at(5).path.start,
+            index.record_at(5).path_lower.start
+        );
+        assert_eq!(index.record_at(0).prefix, index.record_at(1).prefix);
+        assert_eq!(index.path_parts(index.record_at(0)), (prefix, "CODE.txt"));
+        assert_eq!(index.path_parts(index.record_at(3)), (prefix, ""));
+        let initial_strings = index.arenas.iter().map(String::len).sum::<usize>();
+        assert_eq!(
+            (0..records.len())
+                .map(|id| index.row_string_bytes(index.record_at(id)))
+                .sum::<usize>(),
+            initial_strings
+        );
+        assert_delta_matches(&index, &records);
+        let owned = index.row_string_bytes(index.record_at(0));
+        let pool = index.prefixes.capacity_bytes();
+        let first = records.remove(0);
+        index
+            .apply_changes(&[FileChange {
+                id: 1,
+                record: None,
+            }])
+            .unwrap();
+        assert_eq!(index.fragmentation.dead_string_bytes, owned);
+        assert_eq!(index.prefixes.capacity_bytes(), pool);
+        assert_delta_matches(&index, &records);
+        index
+            .apply_changes(&[FileChange {
+                id: 1,
+                record: Some(first.clone()),
+            }])
+            .unwrap();
+        records.insert(0, first);
+        assert_eq!(index.fragmentation.dead_string_bytes, 0);
+        assert_eq!(index.prefixes.capacity_bytes(), pool);
+        assert_eq!(
+            index.arenas.iter().map(String::len).sum::<usize>(),
+            initial_strings
+        );
+        assert_delta_matches(&index, &records);
+        records[0].path = "/New/Long Original/Directory/report.pdf".into();
+        records[0].path_lower = records[0].path.to_lowercase();
+        index
+            .apply_changes(&[FileChange {
+                id: 1,
+                record: Some(records[0].clone()),
+            }])
+            .unwrap();
+        assert_eq!(index.fragmentation.dead_string_bytes, owned);
+        assert_delta_matches(&index, &records);
+    }
+
+    #[test]
+    fn prefix_budget_exhaustion_uses_raw_rows_without_losing_shared_or_lower_paths() {
+        let mut builder = IndexBuilder::new(128, 3);
+        builder.index.prefixes = PrefixPool::new(1536);
+        let mut records = Vec::new();
+        for i in 0..60 {
+            let mut record = FileRecord::new(
+                format!("/Unique/Original/Directory/{i}/report.txt"),
+                FileKind::File,
+                1,
+            );
+            record.id = i + 1;
+            push_record(&mut builder, &record);
+            records.push(record);
+        }
+        let mut index = builder.index;
+        let compressed = index
+            .iter_records()
+            .filter(|row| row.prefix != NO_PREFIX)
+            .count();
+        assert!(compressed > 0 && compressed < records.len());
+        assert!(index.prefixes.capacity_bytes() + size_of::<PrefixPool>() <= 1536);
+        let old_prefix = index.record_at(0).prefix;
+        let last_index = records.len() - 1;
+        records[last_index].path = records[0].path.clone();
+        records[last_index].path_lower = records[0].path_lower.clone();
+        let last = records.last().unwrap().clone();
+        index
+            .apply_changes(&[FileChange {
+                id: last.id,
+                record: Some(last),
+            }])
+            .unwrap();
+        assert_eq!(index.record_at(records.len() - 1).prefix, old_prefix);
+        assert_delta_matches(&index, &records);
+    }
+
+    #[test]
+    fn prefix_admission_occurs_only_after_clean_fallback_preflight() {
+        let mut record = FileRecord::new("/all/lower/directory/report".into(), FileKind::File, 1);
+        record.id = 10;
+        let mut index = from_records(std::slice::from_ref(&record));
+        let before = index.memory_breakdown();
+        record.path = "/New/Long Original/Directory/report".into();
+        record.path_lower = record.path.to_lowercase();
+        let mut lower_id = record.clone();
+        lower_id.id = 1;
+        assert_eq!(
+            index
+                .apply_changes(&[
+                    FileChange {
+                        id: 1,
+                        record: Some(lower_id)
+                    },
+                    FileChange {
+                        id: 10,
+                        record: Some(record.clone())
+                    },
+                ])
+                .unwrap(),
+            ApplyOutcome::NeedsFullReload("new non-monotonic record ID")
+        );
+        assert_eq!(
+            index
+                .apply_changes_with_limits(
+                    &[FileChange {
+                        id: 10,
+                        record: Some(record)
+                    }],
+                    DeltaLimits {
+                        dead_strings: 0,
+                        dead_records: 1024,
+                        extension_growth: 1024
+                    }
+                )
+                .unwrap(),
+            ApplyOutcome::NeedsFullReload("packed dead string budget exceeded")
+        );
+        assert_eq!(index.memory_breakdown(), before);
+        assert!(index.prefixes.values.is_empty());
     }
 
     fn unique_temp_dir(prefix: &str) -> std::path::PathBuf {

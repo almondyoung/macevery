@@ -119,12 +119,81 @@ pub(crate) struct ScoredIndex {
     pub(crate) score: i64,
 }
 
+/// A complete original path with an optional shared prefix. Comparison is on
+/// concatenated bytes, independent of where either path is split.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct PathView<'a> {
+    prefix: &'a [u8],
+    suffix: &'a [u8],
+}
+
+impl<'a> PathView<'a> {
+    pub(crate) fn new(prefix: &'a str, suffix: &'a str) -> Self {
+        Self {
+            prefix: prefix.as_bytes(),
+            suffix: suffix.as_bytes(),
+        }
+    }
+    fn len(&self) -> usize {
+        self.prefix.len() + self.suffix.len()
+    }
+}
+impl<'a> From<&'a str> for PathView<'a> {
+    fn from(path: &'a str) -> Self {
+        Self::new("", path)
+    }
+}
+impl Ord for PathView<'_> {
+    fn cmp(&self, other: &Self) -> Ordering {
+        // Shared dictionary entries (and raw paths with an empty prefix) can
+        // compare their contiguous suffix directly without rereading a prefix.
+        if self.prefix.as_ptr() == other.prefix.as_ptr() && self.prefix.len() == other.prefix.len()
+        {
+            return self.suffix.cmp(other.suffix);
+        }
+        let left = [self.prefix, self.suffix];
+        let right = [other.prefix, other.suffix];
+        let (mut l, mut r, mut lo, mut ro) = (0, 0, 0, 0);
+        loop {
+            while l < 2 && lo == left[l].len() {
+                l += 1;
+                lo = 0;
+            }
+            while r < 2 && ro == right[r].len() {
+                r += 1;
+                ro = 0;
+            }
+            if l == 2 || r == 2 {
+                return (r == 2).cmp(&(l == 2));
+            }
+            let length = (left[l].len() - lo).min(right[r].len() - ro);
+            let order = left[l][lo..lo + length].cmp(&right[r][ro..ro + length]);
+            if order != Ordering::Equal {
+                return order;
+            }
+            lo += length;
+            ro += length;
+        }
+    }
+}
+impl PartialOrd for PathView<'_> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+impl PartialEq for PathView<'_> {
+    fn eq(&self, other: &Self) -> bool {
+        self.cmp(other) == Ordering::Equal
+    }
+}
+impl Eq for PathView<'_> {}
+
 #[derive(Eq, PartialEq)]
 struct RankedHit<'a> {
     index: usize,
     score: i64,
     mtime: Option<i64>,
-    path: &'a str,
+    path: PathView<'a>,
 }
 
 impl Ord for RankedHit<'_> {
@@ -133,7 +202,7 @@ impl Ord for RankedHit<'_> {
             .cmp(&other.score)
             .then_with(|| other.mtime.cmp(&self.mtime))
             .then_with(|| self.path.len().cmp(&other.path.len()))
-            .then_with(|| self.path.cmp(other.path))
+            .then_with(|| self.path.cmp(&other.path))
             // The previous stable sort retained input order for equal keys.
             .then_with(|| self.index.cmp(&other.index))
     }
@@ -164,7 +233,7 @@ impl<'a> TopHits<'a> {
         score: i64,
         mtime: Option<i64>,
         path_len: usize,
-        path: impl FnOnce() -> &'a str,
+        path: impl FnOnce() -> PathView<'a>,
     ) {
         if self.limit == 0 {
             return;
@@ -215,7 +284,7 @@ pub(crate) fn top_hits<'a>(
     for (index, record) in records {
         if let Some(score) = query.rank(&record) {
             hits.consider(index, score, record.mtime, record.path.len(), || {
-                record.path
+                record.path.into()
             });
         }
     }
@@ -1224,9 +1293,84 @@ mod tests {
     }
 
     #[test]
+    fn path_views_compare_concatenated_bytes_at_every_split_including_inside_utf8() {
+        let paths = [
+            "",
+            "/",
+            "/ABC/zxxx",
+            "/ABC/x/aa",
+            "/ABC/",
+            "/ABC/x",
+            "报告/Σ/📷",
+            "报告/Σ/📷a",
+            "a\0b",
+            "a\0a",
+        ];
+        for left in paths {
+            for right in paths {
+                for l in 0..=left.len() {
+                    for r in 0..=right.len() {
+                        let view = PathView {
+                            prefix: &left.as_bytes()[..l],
+                            suffix: &left.as_bytes()[l..],
+                        };
+                        let other = PathView {
+                            prefix: &right.as_bytes()[..r],
+                            suffix: &right.as_bytes()[r..],
+                        };
+                        assert_eq!(
+                            view.cmp(&other),
+                            left.cmp(right),
+                            "{left:?}@{l} / {right:?}@{r}"
+                        );
+                        assert_eq!(view == other, left == right);
+                        assert_eq!(view.len(), left.len());
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn split_path_heap_uses_full_byte_order_and_stable_index_ties() {
+        let paths = [
+            "/ABC/zxxx",
+            "/ABC/x/aa",
+            "/ABC/xaaa",
+            "/ABC/x/aa",
+            "/ABC/aaaa",
+            "/ABC/x/ab",
+        ];
+        let splits = [5, 7, 0, 5, 9, 0];
+        for limit in [1, 2, 3, 6, usize::MAX] {
+            let mut hits = TopHits::new(limit);
+            for (index, path) in paths.iter().enumerate() {
+                let (prefix, suffix) = path.split_at(splits[index]);
+                hits.consider(index, 1, Some(99), path.len(), || {
+                    PathView::new(prefix, suffix)
+                });
+            }
+            let actual = hits
+                .finish()
+                .into_iter()
+                .map(|hit| hit.index)
+                .collect::<Vec<_>>();
+            let mut expected = (0..paths.len()).collect::<Vec<_>>();
+            expected.sort_by(|left, right| {
+                paths[*left]
+                    .len()
+                    .cmp(&paths[*right].len())
+                    .then_with(|| paths[*left].cmp(paths[*right]))
+            });
+            expected.truncate(limit);
+            assert_eq!(actual, expected);
+        }
+    }
+
+    #[test]
     fn lazy_hit_path_is_only_read_for_candidates_with_a_competitive_prefix() {
         let mut hits = TopHits::new(1);
-        hits.consider(0, 1, Some(100), 4, || "same");
+        hits.consider(0, 1, Some(100), 4, || "same".into());
         hits.consider(1, 2, Some(100), 4, || {
             panic!("worse score should not read path")
         });
@@ -1236,7 +1380,7 @@ mod tests {
         hits.consider(1, 1, Some(100), 5, || {
             panic!("longer path should not read path")
         });
-        hits.consider(2, 1, Some(100), 4, || "same");
+        hits.consider(2, 1, Some(100), 4, || "same".into());
         assert_eq!(hits.finish()[0].index, 0);
     }
 

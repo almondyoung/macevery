@@ -1,0 +1,101 @@
+[
+  {
+    "rows_seeded": 300000,
+    "elapsed_s": 8.730244916,
+    "cpu_s": 0.021449,
+    "peak_rss_bytes": 11730944,
+    "cpu_percent": 0.24568611999292503,
+    "checks": [
+      "create",
+      "modify",
+      "rename",
+      "directory create",
+      "directory rename",
+      "directory delete",
+      "file delete",
+      "excluded directory write storm",
+      "update after excluded events"
+    ],
+    "final_rows": [
+      [
+        ".",
+        "dir",
+        null
+      ],
+      [
+        "after-noise.txt",
+        "file",
+        2
+      ]
+    ],
+    "stress_elapsed_s": 5.793831792,
+    "label": "baseline",
+    "binary_role": "baseline"
+  },
+  {
+    "rows_seeded": 300000,
+    "elapsed_s": 8.746471625,
+    "cpu_s": 0.024973,
+    "peak_rss_bytes": 11730944,
+    "cpu_percent": 0.2855208485284488,
+    "checks": [
+      "create",
+      "modify",
+      "rename",
+      "directory create",
+      "directory rename",
+      "directory delete",
+      "file delete",
+      "excluded directory write storm",
+      "update after excluded events"
+    ],
+    "final_rows": [
+      [
+        ".",
+        "dir",
+        null
+      ],
+      [
+        "after-noise.txt",
+        "file",
+        2
+      ]
+    ],
+    "stress_elapsed_s": 5.8100157920000015,
+    "label": "candidate",
+    "binary_role": "candidate"
+  },
+  {
+    "rows_seeded": 300000,
+    "elapsed_s": 8.769967082999997,
+    "cpu_s": 0.025588,
+    "peak_rss_bytes": 11730944,
+    "cpu_percent": 0.2917684839387898,
+    "checks": [
+      "create",
+      "modify",
+      "rename",
+      "directory create",
+      "directory rename",
+      "directory delete",
+      "file delete",
+      "excluded directory write storm",
+      "update after excluded events"
+    ],
+    "final_rows": [
+      [
+        ".",
+        "dir",
+        null
+      ],
+      [
+        "after-noise.txt",
+        "file",
+        2
+      ]
+    ],
+    "stress_elapsed_s": 5.818295416999998,
+    "label": "baseline-repeat",
+    "binary_role": "baseline"
+  }
+]

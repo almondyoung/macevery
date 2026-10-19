@@ -1,0 +1,20 @@
+{
+  "debug_release": "114 lib tests + 420-transaction integration + directed prefix integration, both profiles PASS",
+  "strict_clippy": "all-targets -D warnings PASS",
+  "format_python": "PASS after diagnostic-only rustfmt and isolated pycache adaptation",
+  "gui": "PASS",
+  "gui_command": [
+    "swiftc",
+    "-O",
+    "-parse-as-library",
+    "-D",
+    "MACEVERY_TESTING",
+    "-module-cache-path",
+    ".build/macevery-swift-module-cache",
+    "macos/MacEveryApp.swift",
+    "tests/macos/GUIRegressionChecks.swift"
+  ],
+  "gui_log_sha256": "ef57123517dee80ccef3f0b4a059423fe72bff20d2e25f0286f41d014f957cb9",
+  "raw_checks": "checks.json + checks-final.json; original setup/format failures retained",
+  "independent_reviews": "production code, arithmetic, performance gates and HTTP mechanism PASS"
+}

@@ -1,0 +1,30 @@
+{
+  "full_ordered_digests_match": true,
+  "checks": [
+    {
+      "gate": "fresh_code",
+      "paired_change_pct": -11.886555140756139,
+      "max_allowed_pct": 5,
+      "pass": true
+    },
+    {
+      "gate": "hot_code",
+      "paired_change_pct": 1.7707767691881982,
+      "max_allowed_pct": 5,
+      "pass": true
+    },
+    {
+      "gate": "short_group",
+      "paired_change_pct": -0.41567908232956197,
+      "max_allowed_pct": 5,
+      "pass": true
+    }
+  ],
+  "repeated_over_10pct_and_5ms": [],
+  "pass": true,
+  "notes": [
+    "Preset gates in STATUS; all samples retained.",
+    "Positive hot code and per-term deltas remain in summaries.",
+    "Comparisons use same group/query position, limit300 and fixed timestamp."
+  ]
+}
