@@ -1,10 +1,10 @@
 # MacEvery监听恢复、写入与GUI资源优化
 
-更新：2026-10-20，r4，Asia/Shanghai。Owner：当前聊天。
+更新：2026-10-20，r5，Asia/Shanghai。Owner：当前聊天。本机限定COMPLETE；最终文档远端闭合以本节规定的精确回读凭据为准。
 
 ## 目标与范围
 
-- 本机code/benchmark/review；仓库macevery，分支main，受测基线源码a4418a717811d036017efc028d02e036e9be97a4，当前App0.1.3-ga4418a7继续运行。
+- 本机code/benchmark/review；仓库macevery，分支main，受测基线源码a4418a717811d036017efc028d02e036e9be97a4；本轮已安装clean App0.1.3-g29b6140，源码29b6140575cdd69c965732b943dccda77e8b586e。
 - 用户授权：先封存24小时及完整异常，再清理过期临时库；按顺序补有界触发日志、缩小不必要的监听重扫、减少写放大，同时排查GUI footprint。正确性和资源/短词门禁通过后可替换App、提交推送。
 - 允许：watch/scanner/db与最小Swift修复及有针对性的测试/工具/文档；新独立证据目录 `.build/watch-recovery-20261020`。
 - 禁止：直接SQL改真实files、改roots/excludes/快捷键/TCC、删冻结App/真实回滚/原始观察、用候选截断或延长15秒预算换速度、覆盖失败或自动拼接/重开观察。
@@ -19,20 +19,23 @@
 - 清理后原始/封存raw、当前App/真实DB、冻结/回滚及旧67点再次核对保持。新轮基线App、源码archive及cached rlib已独立冻结于 `.build/watch-recovery-20261020/baseline`。
 - 清理记录已提交推送：main `2c3ed5de81758f12c8f9c89fd080f122ec496426`，精确远端回读一致。清理脚本及旧观察器均不得重复运行。
 - 新轮正式基线：干净源码archive与a4418a7的Rust源码树相同，独立release library已构建并记录SHA；真实索引以只读事务备份成新独立快照，quick_check及内容身份通过。旧cached rlib未作为正式基线。
-- 实现/验收IN_PROGRESS：watch/scanner、db、Swift分工独立，root统一运行。Rust新增真实deferred-FK COMMIT失败回滚验证已通过；debug 170单元+8集成通过，release/Clippy/fmt另存私有日志。完整fixture和真实快照六view×24阶段的Top300/更新门禁通过，未延长15秒预算。
+- 实现/本机验收COMPLETE：watch/scanner、db、Swift分工独立，root统一运行。Rust新增真实deferred-FK COMMIT失败回滚验证已通过；最新debug/release均172单元+8集成通过，Clippy/fmt通过。完整fixture和真实快照六view×24阶段的Top300/更新门禁通过，未延长15秒预算。
 - 独立review两项恢复反例已修正并验证：Must与HistoryDone组合保留局部恢复；relative/alias/无字面交集的未知scope保守恢复全根。最新debug/release均172单元+8集成通过，Clippy/fmt通过。GUI完整回归与资源正确性v4通过，私有还原旧finish的真实pipe负例明确FAIL；测试autoreleasepool失败原件保留。
 - 历史失败保留：首次TopK隔离HTTP受sandbox拒绝（授权执行重跑PASS）；首次新Swift测试类型推导编译失败；一次optimize_cli并行临时目录时间戳碰撞已加进程内序号后全量重跑PASS。这些与产品搜索结果失败区分。
 - A/B/A已完成并独立复核：36次scope/logging小树、100k upsert、657次真实短词、6进程GUI资源；最后冻结CLI真实六view×24阶段再验PASS。code/短词聚合CPU及内存门禁通过，首轮wall尖峰、日志/普通FSEvents及GUI model局部CPU增加均保留，见[本轮报告](REPORT.md)。不宣称所有项都下降或历史footprint原因已解。
-- 待闭合：固定本地源码提交、生产Swift真实15秒超时/取消、远端主干包含性/精确回读、clean候选App、App-only替换（真实索引不维护/替换）、原生搜索/更新与最终普通资源点、验收文档推送。当前App未替换，MacEvery窗口本轮已只读确认可访问，未改查询。
+- 源码已提交推送：29b6140575cdd69c965732b943dccda77e8b586e，远端main精确回读一致。生产Swift真实隔离7项PASS，超时后CLI成功/取消两用例的传输等待分别15.0725659167/15.0701857917秒，CLI耗时另计；完整六字段Top300顺序一致，过期回填0。
+- 安装PASS：clean App0.1.3-g29b6140签名及normalized CLI与精确已测候选匹配，已App-only替换；原App改名保留且inode保持，真实DB inode/database_id/roots/excludes保持。独立5,034,500,096字节原索引备份、旧冻结App与回滚保留，未整理/替换真实索引。
+- 安全失败保留：普通RO备份quick_check无法打开文件的日志保留；仅关闭且无sidecar的静态备份immutable复核PASS，never live。第一次缺有效backup receipt的替换安全拒绝，第二次核验齐全后替换PASS。
+- 原生PASS：Fastest/code300、Low Memory/code300后恢复Fastest；真实fixture create22B/modify53B/rename/delete的文件系统→DB收敛等待约0.41645/0.52438/0.21508/0.21211秒，可见结果1/1/1/0，已清fixture及DB记录并恢复原查询、模式、快捷键和偏好。原生仅可见行/footer300，非全部300条AX全字段或逐帧UI延迟基准；完整比较属于隔离层。Limited→Unknown标签变化保留，未改TCC、不等同已证明权限丢失。
+- 最终runtime PASS：身份/start/UUID/boot、App指纹、配置、偏好、fixture全清及33份原始/封存raw重哈希闭合；Low Memory→Fastest使serve按设计更换身份，GUI/watch保持。日志54条（17 filter/14 start/14 complete/9 checkpoint）、40,085字节/0600/单条≤2KiB，无明文home或marker、I/O failure最大0；不是洪峰长稳验证。
+- 普通约20秒资源点已保存：GUI CPU0.00212456→0%、RSS142.609→153.266MiB、footprint66.423→66.282MiB；serve CPU0.00112436→0.00080630%、RSS1551.844→1547.781MiB、footprint1503.111→1543.955MiB（+40.844MiB/+2.717%）；watch CPU0.0284911→0.0191643%、RSS23.656→8.219MiB、footprint11.001→3.250MiB。使用历史/模式切换/寿命不同，不能归因或宣称整体内存下降，见[报告r2](REPORT.md)及[最终验收摘要](evidence/final-acceptance.json)。
+- 最终文档随本次提交保存；远端闭合凭据为私有 `.build/watch-recovery-20261020/closeout-push-readback.local.json`，必须记录包含本次文档的本地HEAD与远端main精确SHA相同且工作区干净。该凭据缺失或不匹配时，不得视作推送完成。App保持源码29b6140，不随docs HEAD变化重建。
 
 ## 下一步
 
-1. 前窗口封存、文档推送及过期库清理已完成，不重复。
-2. 实现/隔离资源主门禁已完成；只继续上述待闭合项，保留所有负例与失败，不重复旧观察器/清理。
-3. 冻结新轮可追溯基线和最小隔离DB。先有界日志：容量/频率/轮转、隐私、不自写循环，记录来源/原始flags/ID/范围/重试/完成失败；再修恢复范围，单独MustScanSubDirs限子树，真正丢事件/回绕/根变化和组合flags保留必要恢复，排除过滤不可吞恢复。
-4. 减少可避免写入与prepare成本；公开indexed_at及stale cleanup兼容必须明确，不能删触发条件伪造低revision。GUI排查区分源码风险、可控重现和普通使用观测，不凭RSS推断footprint释放。
-5. 先三路径完整有序Top300/更新与真实FSEvents、恢复、不完整扫描、重试/rollback/checkpoint/外部写/journal gap/清理保真，再同输入同物理布局A/B/A，code与短词CPU门槛+5%、RSS/footprint无实质增长，真实15秒超时/取消、Rust/Swift必要检查与独立review。
-6. 验证通过后源码clean提交推送/远端主干包含性回读，构建标识清晰的已测App，核对签名/payload/配置/权限/进程身份，保留原件替换，原生搜索和文件增改名删验收、最终资源回读，提交推送记录并回读精确SHA。锁屏只阻断原生门禁，继续隔离工作并请求解锁，不能跳过门禁。
+1. 查验上述最终文档精确回读凭据；闭合后暂停同ID heartbeat，保留证据、不归档聊天、不重建已测App。若凭据缺失，仅续办提交/推送/回读，不重复安装或负载。
+2. 保留前窗口异常/睡眠缺口、清理归档、原件/回滚、受控比较及全部失败。已完成的清理、旧观察器和安装动作不重复运行。
+3. 不自动创建新观察、不拼接或延长旧窗口；剩余长期洪峰/无界队列、历史GUI台阶与权限标签原因继续如实列为边界，不把本机限定完成扩展成长期稳定或无泄漏PASS。
 
 ## 不重复
 

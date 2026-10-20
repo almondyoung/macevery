@@ -1,0 +1,272 @@
+{
+  "schema": 1,
+  "status": "COMPLETE_BOUNDED_LOCAL_ACCEPTANCE",
+  "date": "2026-10-20",
+  "source_commit": "29b6140575cdd69c965732b943dccda77e8b586e",
+  "build_label": "0.1.3-g29b6140",
+  "source_pushed_exact_remote_readback_before_build": true,
+  "daily_development_build_not_formal_release_or_company_QA": true,
+  "app": {
+    "build_label": "0.1.3-g29b6140",
+    "bundle_id": "com.almondyoung.macevery",
+    "cli_sha256": "cc08bdc30f63a1f1511ae73787c10c285d8cb7c12b40217030ddfdb226cf32f0",
+    "gui_sha256": "9ed79923cc04f58a98866fa2170d6a1e9364382de2b4a7700e9c0a454096b485",
+    "plist_sha256": "44339123679967781cf7bdea1c30e334d195f859aef4122a86cad7638789fb5d",
+    "signature_deep_strict": true,
+    "source_commit": "29b6140575cdd69c965732b943dccda77e8b586e"
+  },
+  "tested_unsigned_cli_sha256": "3d639c16f5ad51b6eeb6aa57beb1d9f7a641c7746fa3ffac9bba3cf1ee9ec1bd",
+  "normalized_app_and_tested_cli_payload_sha256": "83949366dc06a4f3302a1e9c3737cbbfc4c97d95f983644612f99a8cce6a6164",
+  "app_only_replacement": true,
+  "live_db_not_replaced_optimized_or_direct_SQL_written": true,
+  "db_inode_identity_config_preserved": true,
+  "original_app_inode_and_live_index_rollback_preserved": true,
+  "old_frozen_versions_and_both_raw_observation_copies_preserved": true,
+  "raw_files_rehashed_in_original_and_seal": 33,
+  "runtime_three_role_parent_cookie_boot_macho_uuid_checks_passed": true,
+  "serve_identity_boundary": "Intentional Low Memory to Fastest native-mode acceptance; GUI/watch remained same identities",
+  "isolated_production_swift_real_http_cli": {
+    "status": "PASS",
+    "cases": [
+      {
+        "count": 300,
+        "name": "cold_immediate_code",
+        "oracle_route": "http-memory",
+        "status": "PASS",
+        "wall_seconds": 2.2922397916554473
+      },
+      {
+        "name": "clear_inflight",
+        "stale_publications": 0,
+        "status": "PASS"
+      },
+      {
+        "name": "rapid_latest_only",
+        "stale_publications": 0,
+        "status": "PASS"
+      },
+      {
+        "count": 300,
+        "name": "warm_code",
+        "oracle_route": "http-memory",
+        "status": "PASS"
+      },
+      {
+        "cancelled": false,
+        "count": 300,
+        "name": "transport_timeout_cli_success",
+        "oracle_route": "cli-sqlite",
+        "status": "PASS",
+        "transport_wait_seconds": 15.072565916663734
+      },
+      {
+        "cancelled": true,
+        "count": 0,
+        "name": "transport_timeout_cli_cancel",
+        "oracle_route": "cli-sqlite",
+        "status": "PASS",
+        "transport_wait_seconds": 15.070185791671975
+      },
+      {
+        "name": "final_clear",
+        "status": "PASS"
+      }
+    ],
+    "exact_topk_gate_passed": true,
+    "oracle_fields": [
+      "basename",
+      "kind",
+      "mtime",
+      "path",
+      "score",
+      "size"
+    ],
+    "oracle_intersection": {
+      "common_paths": 300,
+      "common_records_equal": true,
+      "ordered_results_equal": true
+    },
+    "frozen_inputs_unchanged": true,
+    "all_owned_process_groups_and_ports_closed": true,
+    "scope": "Isolated model/process integration, separated from native acceptance and cold-disk performance"
+  },
+  "native_acceptance": {
+    "method": "CUA native accessibility inspection; same installed App; screenshots/AX tool history retained in this chat",
+    "receipts": [
+      {
+        "step": "fastest_code",
+        "receipt_captured_utc": "2026-10-20T13:07:36.540Z",
+        "count": 300,
+        "mode": "Fastest",
+        "visible_rows_checked": true
+      },
+      {
+        "step": "low_memory_code",
+        "receipt_captured_utc": "2026-10-20T13:08:27.658Z",
+        "count": 300,
+        "mode": "Low Memory"
+      },
+      {
+        "step": "create",
+        "receipt_captured_utc": "2026-10-20T13:09:14.986Z",
+        "count": 1,
+        "size_bytes": 22,
+        "name_role": "original_fixture"
+      },
+      {
+        "step": "modify",
+        "receipt_captured_utc": "2026-10-20T13:09:29.490Z",
+        "count": 1,
+        "size_bytes": 53,
+        "name_role": "original_fixture"
+      },
+      {
+        "step": "rename",
+        "receipt_captured_utc": "2026-10-20T13:09:48.102Z",
+        "count": 1,
+        "size_bytes": 53,
+        "name_role": "renamed_fixture",
+        "old_path_absent": true
+      },
+      {
+        "step": "delete",
+        "receipt_captured_utc": "2026-10-20T13:10:33.128Z",
+        "count": 0,
+        "visible": "No Results"
+      }
+    ],
+    "receipt_time_boundary": "Receipt capture time, not exact filesystem event time; DB convergence times recorded separately",
+    "restored": {
+      "original_private_query": true,
+      "mode": "Fastest",
+      "shortcut_unchanged": true,
+      "roots_excludes_unchanged": true
+    },
+    "permissions": {
+      "before_label": "Limited",
+      "after_label": "Unknown",
+      "read_only_check_after": "Unknown",
+      "tcc_or_system_permissions_changed": false
+    },
+    "fixture_cleaned_and_exact_live_db_paths_absent": true,
+    "boundary": "Native footer and visible virtualized rows accepted; complete ordered 300 six-field equality is established by isolated production Swift/CLI/HTTP and six-view tests, not all 300 native AX rows"
+  },
+  "filesystem_to_live_db_wait_seconds": {
+    "create": 0.4164525,
+    "modify": 0.524380709,
+    "rename": 0.215084167,
+    "delete": 0.21211258400000002
+  },
+  "ordinary_20_second_points": {
+    "before": {
+      "utc_interval": [
+        "2026-10-20T12:57:50.186935+00:00",
+        "2026-10-20T12:58:10.405497+00:00"
+      ],
+      "same_boot_power_role_identities_within_point": true,
+      "roles": [
+        {
+          "average_cpu_percent_one_core": 0.002124564143505386,
+          "cpu_seconds": 0.00042775,
+          "end_footprint_bytes": 69649488,
+          "end_rss_bytes": 149536768,
+          "role": "gui",
+          "wall_seconds": 20.133541334
+        },
+        {
+          "average_cpu_percent_one_core": 0.0011243582049958554,
+          "cpu_seconds": 0.000226374,
+          "end_footprint_bytes": 1576126120,
+          "end_rss_bytes": 1627226112,
+          "role": "serve",
+          "wall_seconds": 20.13361925
+        },
+        {
+          "average_cpu_percent_one_core": 0.028491089190425242,
+          "cpu_seconds": 0.005736292,
+          "end_footprint_bytes": 11534984,
+          "end_rss_bytes": 24805376,
+          "role": "watch",
+          "wall_seconds": 20.133635332999997
+        }
+      ]
+    },
+    "after": {
+      "utc_interval": [
+        "2026-10-20T13:14:11.513784+00:00",
+        "2026-10-20T13:14:31.661226+00:00"
+      ],
+      "same_boot_power_role_identities_within_point": true,
+      "roles": [
+        {
+          "average_cpu_percent_one_core": 0.0,
+          "cpu_seconds": 0.0,
+          "end_footprint_bytes": 69502056,
+          "end_rss_bytes": 160710656,
+          "role": "gui",
+          "wall_seconds": 20.070902083
+        },
+        {
+          "average_cpu_percent_one_core": 0.0008063002947446292,
+          "cpu_seconds": 0.000161832,
+          "end_footprint_bytes": 1618953920,
+          "end_rss_bytes": 1622966272,
+          "role": "serve",
+          "wall_seconds": 20.070933999999998
+        },
+        {
+          "average_cpu_percent_one_core": 0.019164320671434403,
+          "cpu_seconds": 0.003846459,
+          "end_footprint_bytes": 3408352,
+          "end_rss_bytes": 8617984,
+          "role": "watch",
+          "wall_seconds": 20.070938417
+        }
+      ]
+    }
+  },
+  "ordinary_point_boundaries": [
+    "Before/after App lifetimes, user use, caches and mode-switch history differ; these are ordinary points, not controlled A/B/A or leak proof",
+    "GUI RSS increased while footprint was near flat; do not collapse memory metrics",
+    "serve footprint increased 40.843773 MiB (2.717283 percent) despite RSS falling; retain this difference without claiming causality or overall memory reduction",
+    "Earlier TopK installation ordinary footprint increase 17.690092 percent remains unexplained independently",
+    "Historical GUI footprint staircases and worst-case event backlog remain unresolved; controlled harness improvements do not prove a unique historical cause"
+  ],
+  "diagnostic_snapshot": {
+    "file_count": 1,
+    "files": [
+      {
+        "bytes": 40085,
+        "mode": 384,
+        "sha256": "62b0cab7165ff8f2110250364e6a868fed2d0f1fa987ec15b25c7a01f6a67223",
+        "records": 54
+      }
+    ],
+    "kinds": {
+      "checkpoint_complete": 9,
+      "filter_summary": 17,
+      "scan_complete": 14,
+      "scan_start": 14
+    },
+    "max_io_failures": 0,
+    "file_limit_bytes": 262144,
+    "record_limit_bytes": 2048,
+    "observed_plaintext_home_and_fixture_marker_absent": true,
+    "scope": "bounded metadata/content snapshot, not a long-storm or no-loop stability proof"
+  },
+  "retained_installation_failures": [
+    {
+      "step": "static backup ordinary read-only quick_check",
+      "result": "OperationalError unable to open database file",
+      "resolution": "Original closed static no-sidecar backup retained; independent immutable-only verification passed with stable SHA, distinct inode and logical state; immutable never used on live DB"
+    },
+    {
+      "step": "premature App replacement",
+      "result": "Safely refused because verified backup receipt absent; no rename performed",
+      "resolution": "Separate retry only after closed backup verified, then App-only replacement passed"
+    }
+  ],
+  "new_observation_automatically_started": false,
+  "long_term_no_leak_or_continuous_24_hour_pass": false,
+  "final_acceptance_document_remote_readback": "Recorded in private closeout receipt after this evidence is committed; source identity above remains fixed"
+}

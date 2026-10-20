@@ -1,6 +1,6 @@
 {
   "schema": "macevery.watch-recovery-query-upsert-first-pass.v1",
-  "status": "TESTED_QUERY_AND_UPSERT_GATES_PASS_INSTALL_AND_NATIVE_PENDING",
+  "status": "ISOLATED_GATES_PASS_FINAL_LOCAL_ACCEPTANCE_RECORDED",
   "overall_installation_status": "PENDING",
   "native_acceptance_status": "PENDING",
   "scope": "Same-input isolated process comparisons on one macOS machine; no live App or live DB workload. First pass and targeted recheck are separate preserved experiments.",
@@ -1525,5 +1525,7 @@
     "DB/WAL size snapshots do not measure physical write bytes. APFS clones and repeated runs do not imply cold caches or independent physical storage.",
     "Two first-pass blocks, three targeted recheck blocks and one upsert block describe this machine and input; they are not a statistical proof or real FSEvents delivery test.",
     "GUI model-phase timing, native behavior, App installation and long-duration recovery are separate evidence and remain outside these query/upsert gates."
-  ]
+  ],
+  "status_at_original_isolated_measurement": "TESTED_QUERY_AND_UPSERT_GATES_PASS_INSTALL_AND_NATIVE_PENDING",
+  "final_acceptance_ref": "final-acceptance.json"
 }

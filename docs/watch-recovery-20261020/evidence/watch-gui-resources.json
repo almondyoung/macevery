@@ -1,5 +1,5 @@
 {
-  "status": "ISOLATED_GATES_PASS_INSTALL_NATIVE_PENDING",
+  "status": "ISOLATED_GATES_PASS_FINAL_LOCAL_ACCEPTANCE_RECORDED",
   "watch_recovery": {
     "passed": true,
     "input": {
@@ -3184,5 +3184,7 @@
         "phases": 24
       }
     ]
-  }
+  },
+  "status_at_original_isolated_measurement": "ISOLATED_GATES_PASS_INSTALL_NATIVE_PENDING",
+  "final_acceptance_ref": "final-acceptance.json"
 }
