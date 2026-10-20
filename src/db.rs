@@ -2,7 +2,7 @@ use crate::error::{MacEveryError, Result};
 use crate::model::{
     BootstrapStatus, FileKind, FileRecord, IndexStats, PathFilter, PathFilterMode, SearchOptions,
 };
-use crate::sqlite::{Connection, Step};
+use crate::sqlite::{Connection, Statement, Step};
 use std::collections::BTreeSet;
 use std::os::unix::fs::{DirBuilderExt, MetadataExt, PermissionsExt};
 use std::path::{Path, PathBuf};
@@ -15,6 +15,30 @@ const DELETE_STALE_PREFIX_SQL: &str = "DELETE FROM files
     WHERE indexed_at < ?1
       AND (path = ?2 COLLATE BINARY
            OR (path >= ?3 COLLATE BINARY AND path < ?4 COLLATE BINARY));";
+
+const FILE_UPSERT_SQL: &str = "INSERT INTO files (
+    path, path_lower, basename, basename_lower, ext_lower, kind, size, mtime, ctime,
+    dev, inode, indexed_at
+) SELECT ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12
+WHERE NOT EXISTS (
+    SELECT 1 FROM files WHERE path = ?1 COLLATE BINARY
+      AND indexed_at IS ?12
+      AND path_lower IS ?2 AND basename IS ?3 AND basename_lower IS ?4
+      AND ext_lower IS ?5 AND kind IS ?6 AND size IS ?7 AND mtime IS ?8
+      AND ctime IS ?9 AND dev IS ?10 AND inode IS ?11
+)
+ON CONFLICT(path) DO UPDATE SET
+    path_lower=excluded.path_lower,
+    basename=excluded.basename,
+    basename_lower=excluded.basename_lower,
+    ext_lower=excluded.ext_lower,
+    kind=excluded.kind,
+    size=excluded.size,
+    mtime=excluded.mtime,
+    ctime=excluded.ctime,
+    dev=excluded.dev,
+    inode=excluded.inode,
+    indexed_at=excluded.indexed_at;";
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct DatabaseFileIdentity {
@@ -65,6 +89,42 @@ pub struct Database {
     path: PathBuf,
     conn: Connection,
     identity: DatabaseFileIdentity,
+}
+
+/// Reuse one prepared statement across a caller-owned write transaction.
+/// Transaction boundaries and error rollback remain the caller's responsibility.
+pub struct FileUpsert<'db> {
+    conn: &'db Connection,
+    statement: Statement<'db>,
+}
+
+impl FileUpsert<'_> {
+    /// Return whether the outer files statement inserted or updated a row.
+    /// The input ID is intentionally ignored, preserving upsert_file's existing
+    /// path-keyed identity contract. A generation change is still a row change.
+    pub fn upsert(&mut self, record: &FileRecord) -> Result<bool> {
+        self.statement.reset()?;
+        self.statement.bind_text(1, Some(&record.path))?;
+        self.statement.bind_text(2, Some(&record.path_lower))?;
+        self.statement.bind_text(3, Some(&record.basename))?;
+        self.statement.bind_text(4, Some(&record.basename_lower))?;
+        self.statement.bind_text(5, record.ext_lower.as_deref())?;
+        self.statement.bind_text(6, Some(record.kind.as_str()))?;
+        self.statement.bind_i64(7, record.size)?;
+        self.statement.bind_i64(8, record.mtime)?;
+        self.statement.bind_i64(9, record.ctime)?;
+        self.statement.bind_i64(10, record.dev)?;
+        self.statement.bind_i64(11, record.inode)?;
+        self.statement.bind_i64(12, Some(record.indexed_at))?;
+        if let Err(error) = self.statement.step().and_then(expect_done) {
+            // sqlite3_reset resets the VM but can report its previous step
+            // error. Consume that report now, preserving the original error,
+            // so the first legal retry after caller rollback can bind normally.
+            let _ = self.statement.reset();
+            return Err(error);
+        }
+        Ok(self.conn.changes() != 0)
+    }
 }
 
 // The observer serializes its connection, and reconnects after atomic database
@@ -951,38 +1011,18 @@ impl Database {
         }
     }
 
+    pub fn prepare_file_upsert(&self) -> Result<FileUpsert<'_>> {
+        // Filter identical input before INSERT, not only in DO UPDATE: even a
+        // suppressed UPDATE would already have run the BEFORE INSERT scratch
+        // trigger. All persisted input fields, including indexed_at, participate.
+        Ok(FileUpsert {
+            conn: &self.conn,
+            statement: self.conn.prepare(FILE_UPSERT_SQL)?,
+        })
+    }
+
     pub fn upsert_file(&self, record: &FileRecord) -> Result<()> {
-        let mut stmt = self.conn.prepare(
-            "INSERT INTO files (
-                path, path_lower, basename, basename_lower, ext_lower, kind, size, mtime, ctime,
-                dev, inode, indexed_at
-             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)
-             ON CONFLICT(path) DO UPDATE SET
-                path_lower=excluded.path_lower,
-                basename=excluded.basename,
-                basename_lower=excluded.basename_lower,
-                ext_lower=excluded.ext_lower,
-                kind=excluded.kind,
-                size=excluded.size,
-                mtime=excluded.mtime,
-                ctime=excluded.ctime,
-                dev=excluded.dev,
-                inode=excluded.inode,
-                indexed_at=excluded.indexed_at;",
-        )?;
-        stmt.bind_text(1, Some(&record.path))?;
-        stmt.bind_text(2, Some(&record.path_lower))?;
-        stmt.bind_text(3, Some(&record.basename))?;
-        stmt.bind_text(4, Some(&record.basename_lower))?;
-        stmt.bind_text(5, record.ext_lower.as_deref())?;
-        stmt.bind_text(6, Some(record.kind.as_str()))?;
-        stmt.bind_i64(7, record.size)?;
-        stmt.bind_i64(8, record.mtime)?;
-        stmt.bind_i64(9, record.ctime)?;
-        stmt.bind_i64(10, record.dev)?;
-        stmt.bind_i64(11, record.inode)?;
-        stmt.bind_i64(12, Some(record.indexed_at))?;
-        expect_done(stmt.step()?)
+        self.prepare_file_upsert()?.upsert(record).map(|_| ())
     }
 
     pub fn delete_path_prefix(&self, path: &str) -> Result<()> {
@@ -2518,6 +2558,559 @@ mod content_revision_tests {
 
     fn record(path: &str, generation: i64) -> FileRecord {
         FileRecord::new(path.to_string(), FileKind::File, generation)
+    }
+
+    fn assert_upserted_columns(db: &Database, expected: &FileRecord) -> i64 {
+        // Inspect stored columns directly: all_records intentionally falls back
+        // from an empty path_lower, which would hide a binding regression here.
+        let mut stmt = db.conn.prepare("SELECT id,path,path_lower,basename,basename_lower,ext_lower,kind,size,mtime,ctime,dev,inode,indexed_at FROM files WHERE path=?1;").unwrap();
+        stmt.bind_text(1, Some(&expected.path)).unwrap();
+        assert!(matches!(stmt.step().unwrap(), Step::Row));
+        let id = stmt.column_i64(0).unwrap();
+        assert_eq!(stmt.column_text(1).as_deref(), Some(expected.path.as_str()));
+        assert_eq!(
+            stmt.column_text(2).as_deref(),
+            Some(expected.path_lower.as_str())
+        );
+        assert_eq!(
+            stmt.column_text(3).as_deref(),
+            Some(expected.basename.as_str())
+        );
+        assert_eq!(
+            stmt.column_text(4).as_deref(),
+            Some(expected.basename_lower.as_str())
+        );
+        assert_eq!(
+            stmt.column_text(5).as_deref(),
+            expected.ext_lower.as_deref()
+        );
+        assert_eq!(stmt.column_text(6).as_deref(), Some(expected.kind.as_str()));
+        assert_eq!(stmt.column_i64(7), expected.size);
+        assert_eq!(stmt.column_i64(8), expected.mtime);
+        assert_eq!(stmt.column_i64(9), expected.ctime);
+        assert_eq!(stmt.column_i64(10), expected.dev);
+        assert_eq!(stmt.column_i64(11), expected.inode);
+        assert_eq!(stmt.column_i64(12), Some(expected.indexed_at));
+        assert!(matches!(stmt.step().unwrap(), Step::Done));
+        id
+    }
+
+    #[test]
+    fn prepared_upsert_identical_input_has_zero_dml_including_trigger_scratch() {
+        let fixture = Fixture::new("prepared-upsert-noop");
+        let db = Database::open(fixture.database()).unwrap();
+        let mut value = record("/root/ΟΣ/İ-Code.'rs", i64::MIN);
+        value.basename = "independent original/长字段".repeat(128);
+        value.basename_lower = "independent lower/ος/σ/i\u{307}".into();
+        value.ext_lower = None;
+        value.size = Some(i64::MAX);
+        value.mtime = Some(i64::MIN);
+        value.ctime = Some(-1);
+        value.dev = Some(0);
+        value.inode = Some(i64::MAX);
+        db.begin().unwrap();
+        let mut upsert = db.prepare_file_upsert().unwrap();
+        assert!(upsert.upsert(&value).unwrap());
+        let id = assert_upserted_columns(&db, &value);
+        let before = db.content_stamp().unwrap();
+        let journal = scalar(&db, "SELECT COUNT(*) FROM macevery_file_changes;");
+        let scratch = scalar(
+            &db,
+            "SELECT journal_conflict_id IS NULL FROM macevery_content_state;",
+        );
+        for ignored_id in [0, id, i64::MIN, i64::MAX] {
+            value.id = ignored_id;
+            let total = scalar(&db, "SELECT total_changes();");
+            assert!(!upsert.upsert(&value).unwrap());
+            assert_eq!(db.conn.changes(), 0);
+            assert_eq!(scalar(&db, "SELECT total_changes();"), total);
+            assert_eq!(db.content_stamp().unwrap(), before);
+            assert_eq!(
+                scalar(&db, "SELECT COUNT(*) FROM macevery_file_changes;"),
+                journal
+            );
+            assert_eq!(
+                scalar(
+                    &db,
+                    "SELECT journal_conflict_id IS NULL FROM macevery_content_state;"
+                ),
+                scratch
+            );
+            assert_eq!(assert_upserted_columns(&db, &value), id);
+        }
+        drop(upsert);
+        db.commit().unwrap();
+        // The compatibility entry point shares the same zero-DML semantics.
+        let total = scalar(&db, "SELECT total_changes();");
+        db.upsert_file(&value).unwrap();
+        assert_eq!(scalar(&db, "SELECT total_changes();"), total);
+        assert_eq!(db.content_stamp().unwrap(), before);
+    }
+
+    #[test]
+    fn prepared_upsert_compares_every_persisted_value_and_null_distinction() {
+        let fixture = Fixture::new("prepared-upsert-columns");
+        let db = Database::open(fixture.database()).unwrap();
+        let base = record("/root/Base.RS", 7);
+        let mut cases = Vec::new();
+        macro_rules! changed {
+            ($field:ident, $value:expr) => {{
+                let mut value = base.clone();
+                value.$field = $value;
+                cases.push((stringify!($field), value));
+            }};
+        }
+        changed!(path_lower, String::new());
+        changed!(path_lower, "/independent/ος/i\u{307}/\u{10041}".into());
+        changed!(basename, String::new());
+        changed!(basename, "non-suffix/Σ/Name".repeat(128));
+        changed!(basename_lower, String::new());
+        changed!(basename_lower, "non-suffix/σ/lower".into());
+        changed!(ext_lower, None);
+        changed!(ext_lower, Some(String::new()));
+        changed!(ext_lower, Some("Σ/İ/\u{10041}".into()));
+        for kind in [
+            FileKind::Directory,
+            FileKind::Symlink,
+            FileKind::App,
+            FileKind::Other,
+        ] {
+            changed!(kind, kind);
+        }
+        for value in [i64::MIN, -1, 0, i64::MAX] {
+            changed!(size, Some(value));
+            changed!(mtime, Some(value));
+            changed!(ctime, Some(value));
+            changed!(dev, Some(value));
+            changed!(inode, Some(value));
+            changed!(indexed_at, value);
+        }
+        db.begin().unwrap();
+        let mut upsert = db.prepare_file_upsert().unwrap();
+        assert!(upsert.upsert(&base).unwrap());
+        let original_id = assert_upserted_columns(&db, &base);
+        for (field, value) in cases {
+            upsert.upsert(&base).unwrap();
+            let before = db.content_stamp().unwrap();
+            assert!(upsert.upsert(&value).unwrap(), "{field}");
+            assert_eq!(db.conn.changes(), 1, "{field}");
+            assert_eq!(assert_upserted_columns(&db, &value), original_id, "{field}");
+            assert_eq!(db.content_stamp().unwrap().revision, before.revision + 1);
+            let total = scalar(&db, "SELECT total_changes();");
+            assert!(!upsert.upsert(&value).unwrap(), "{field}");
+            assert_eq!(scalar(&db, "SELECT total_changes();"), total, "{field}");
+        }
+        // A distinct path must insert even if every other persisted value equals
+        // an existing row; comparing only payload columns would lose this row.
+        let mut other_path = base.clone();
+        other_path.path = "/root/base.rs".into();
+        assert!(upsert.upsert(&other_path).unwrap());
+        assert_ne!(assert_upserted_columns(&db, &other_path), original_id);
+        assert_eq!(scalar(&db, "SELECT COUNT(*) FROM files;"), 2);
+        drop(upsert);
+        db.commit().unwrap();
+    }
+
+    #[test]
+    fn prepared_upsert_alternating_bindings_clear_null_and_empty_values() {
+        let fixture = Fixture::new("prepared-upsert-bindings");
+        let db = Database::open(fixture.database()).unwrap();
+        let mut filled = record("/root/Filled.RS", i64::MAX);
+        filled.ext_lower = Some(String::new());
+        filled.size = Some(i64::MIN);
+        filled.mtime = Some(i64::MAX);
+        filled.ctime = Some(-1);
+        filled.dev = Some(0);
+        filled.inode = Some(i64::MAX);
+        let mut empty = record("", i64::MIN);
+        empty.path_lower.clear();
+        empty.basename.clear();
+        empty.basename_lower.clear();
+        empty.ext_lower = None;
+        let mut upsert = db.prepare_file_upsert().unwrap();
+        db.begin().unwrap();
+        let mut ids = [None, None];
+        for round in 0..16 {
+            for (index, value) in [&filled, &empty].into_iter().enumerate() {
+                let total = scalar(&db, "SELECT total_changes();");
+                assert_eq!(upsert.upsert(value).unwrap(), round == 0);
+                let id = assert_upserted_columns(&db, value);
+                if let Some(previous) = ids[index] {
+                    assert_eq!(id, previous);
+                    assert_eq!(scalar(&db, "SELECT total_changes();"), total);
+                }
+                ids[index] = Some(id);
+            }
+        }
+        // Repairing a legacy NULL lower path remains an observable write;
+        // NULL and the explicit lowered string must not compare as identical.
+        db.conn
+            .execute_batch("UPDATE files SET path_lower=NULL WHERE path='/root/Filled.RS';")
+            .unwrap();
+        let before = db.content_stamp().unwrap();
+        assert!(upsert.upsert(&filled).unwrap());
+        assert_eq!(db.content_stamp().unwrap().revision, before.revision + 1);
+        assert_upserted_columns(&db, &filled);
+        drop(upsert);
+        db.commit().unwrap();
+    }
+
+    #[test]
+    fn prepared_upsert_rollback_preserves_rows_journal_and_writer_reuse() {
+        let fixture = Fixture::new("prepared-upsert-rollback");
+        let db = Database::open(fixture.database()).unwrap();
+        let initial = record("/root/persisted", 10);
+        db.upsert_file(&initial).unwrap();
+        let rows = db.all_records().unwrap();
+        let before = db.content_stamp().unwrap();
+        let journal = scalar(&db, "SELECT COUNT(*) FROM macevery_file_changes;");
+        let mut upsert = db.prepare_file_upsert().unwrap();
+        db.begin().unwrap();
+        let mut changed = initial.clone();
+        changed.indexed_at = 11;
+        assert!(upsert.upsert(&changed).unwrap());
+        assert!(upsert.upsert(&record("/root/rolled-back", 11)).unwrap());
+        assert!(!db.conn.is_autocommit());
+        db.rollback().unwrap();
+        assert_eq!(db.all_records().unwrap(), rows);
+        assert_eq!(db.content_stamp().unwrap(), before);
+        assert_eq!(
+            scalar(&db, "SELECT COUNT(*) FROM macevery_file_changes;"),
+            journal
+        );
+        db.begin().unwrap();
+        let total = scalar(&db, "SELECT total_changes();");
+        assert!(!upsert.upsert(&initial).unwrap());
+        assert_eq!(scalar(&db, "SELECT total_changes();"), total);
+        changed.indexed_at = 12;
+        assert!(upsert.upsert(&changed).unwrap());
+        db.commit().unwrap();
+        assert_eq!(db.content_stamp().unwrap().revision, before.revision + 1);
+        db.begin_read().unwrap();
+        let FileChangeRead::Available { target, changes } =
+            db.file_changes_since(&before, 4096, 4096).unwrap()
+        else {
+            panic!("prepared upsert must preserve journal coverage");
+        };
+        db.commit().unwrap();
+        assert_eq!(target.revision, before.revision + 1);
+        assert_eq!(changes.len(), 1);
+        assert_eq!(changes[0].id, rows[0].id);
+        assert_eq!(changes[0].record.as_ref().unwrap().indexed_at, 12);
+    }
+
+    #[test]
+    fn prepared_upsert_rechecks_external_replace_and_preserves_signed_ids() {
+        let fixture = Fixture::new("prepared-upsert-external");
+        let db = Database::open(fixture.database()).unwrap();
+        let value = record("/root/replaced", 10);
+        let mut upsert = db.prepare_file_upsert().unwrap();
+        assert!(upsert.upsert(&value).unwrap());
+        let external = Connection::open_existing(&fixture.database()).unwrap();
+        for replacement_id in [i64::MIN, i64::MAX] {
+            let old_id = assert_upserted_columns(&db, &value);
+            let before = db.content_stamp().unwrap();
+            external.execute_batch(&format!("PRAGMA recursive_triggers=OFF; INSERT OR REPLACE INTO files(id,path,path_lower,basename,basename_lower,ext_lower,kind,size,mtime,ctime,dev,inode,indexed_at) SELECT {replacement_id},path,path_lower,basename,basename_lower,ext_lower,kind,size,mtime,ctime,dev,inode,indexed_at FROM files WHERE path='/root/replaced';")).unwrap();
+            let replaced = db.content_stamp().unwrap();
+            assert!(replaced.revision > before.revision);
+            let total = scalar(&db, "SELECT total_changes();");
+            assert!(!upsert.upsert(&value).unwrap());
+            assert_eq!(scalar(&db, "SELECT total_changes();"), total);
+            assert_eq!(assert_upserted_columns(&db, &value), replacement_id);
+            assert_eq!(db.content_stamp().unwrap(), replaced);
+            db.begin_read().unwrap();
+            let FileChangeRead::Available { changes, .. } =
+                db.file_changes_since(&before, 4096, 4096).unwrap()
+            else {
+                panic!("external OR REPLACE must keep both old/new identities");
+            };
+            db.commit().unwrap();
+            assert_eq!(changes.len(), 2);
+            assert!(changes
+                .iter()
+                .any(|change| change.id == old_id && change.record.is_none()));
+            assert!(changes.iter().any(|change| change.id == replacement_id
+                && change
+                    .record
+                    .as_ref()
+                    .is_some_and(|row| row.path == value.path)));
+        }
+        // A no-op deliberately does not touch the fixed conflict scratch cell.
+        // The next real INSERT must overwrite it instead of leaking an old ID.
+        let before = db.content_stamp().unwrap();
+        assert!(upsert
+            .upsert(&record("/root/fresh-after-replace", 11))
+            .unwrap());
+        db.begin_read().unwrap();
+        let FileChangeRead::Available { changes, .. } =
+            db.file_changes_since(&before, 4096, 4096).unwrap()
+        else {
+            panic!("fresh insert must keep journal coverage");
+        };
+        db.commit().unwrap();
+        assert_eq!(changes.len(), 1);
+        assert_eq!(
+            changes[0].record.as_ref().unwrap().path,
+            "/root/fresh-after-replace"
+        );
+    }
+
+    #[test]
+    fn prepared_upsert_fresh_generation_retains_stale_cleanup_and_revision_semantics() {
+        let fixture = Fixture::new("prepared-upsert-generation");
+        let db = Database::open(fixture.database()).unwrap();
+        db.upsert_file(&record("/root/kept", 10)).unwrap();
+        db.upsert_file(&record("/root/stale", 10)).unwrap();
+        let before = db.content_stamp().unwrap();
+        let mut upsert = db.prepare_file_upsert().unwrap();
+        db.begin().unwrap();
+        assert!(upsert.upsert(&record("/root/kept", 20)).unwrap());
+        assert_eq!(
+            db.delete_stale_under_roots(&[PathBuf::from("/root")], 20)
+                .unwrap(),
+            1
+        );
+        db.commit().unwrap();
+        assert_eq!(db.content_stamp().unwrap().revision, before.revision + 2);
+        let rows = db.all_records().unwrap();
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].path, "/root/kept");
+        assert_eq!(rows[0].indexed_at, 20);
+        db.begin_read().unwrap();
+        let FileChangeRead::Available { changes, .. } =
+            db.file_changes_since(&before, 4096, 4096).unwrap()
+        else {
+            panic!("generation update and stale deletion must remain observable");
+        };
+        db.commit().unwrap();
+        assert_eq!(changes.len(), 2);
+        assert_eq!(changes.iter().filter(|row| row.record.is_none()).count(), 1);
+        assert_eq!(
+            changes
+                .iter()
+                .filter_map(|row| row.record.clone())
+                .collect::<Vec<_>>(),
+            rows
+        );
+    }
+
+    #[test]
+    fn prepared_upsert_binding_error_can_be_rolled_back_without_stale_parameters() {
+        let fixture = Fixture::new("prepared-upsert-error");
+        let db = Database::open(fixture.database()).unwrap();
+        let value = record("/root/valid", 7);
+        let mut upsert = db.prepare_file_upsert().unwrap();
+        assert!(upsert.upsert(&value).unwrap());
+        let before = db.content_stamp().unwrap();
+        db.begin().unwrap();
+        let total = scalar(&db, "SELECT total_changes();");
+        let mut invalid = value.clone();
+        invalid.ext_lower = Some("invalid\0extension".into());
+        assert!(upsert.upsert(&invalid).is_err());
+        assert_eq!(scalar(&db, "SELECT total_changes();"), total);
+        assert_eq!(db.content_stamp().unwrap(), before);
+        db.rollback().unwrap();
+        assert!(!upsert.upsert(&value).unwrap());
+        assert_upserted_columns(&db, &value);
+    }
+
+    #[test]
+    fn prepared_upsert_step_error_preserves_original_error_and_first_retry_after_rollback() {
+        let fixture = Fixture::new("prepared-upsert-step-error");
+        let db = Database::open(fixture.database()).unwrap();
+        let mut value = record("/root/valid", 7);
+        let mut upsert = db.prepare_file_upsert().unwrap();
+        assert!(upsert.upsert(&value).unwrap());
+        let original_id = assert_upserted_columns(&db, &value);
+        db.conn
+            .execute_batch(
+                "CREATE TEMP TRIGGER prepared_upsert_abort_insert
+                 BEFORE INSERT ON files WHEN NEW.path='/root/blocked'
+                 BEGIN SELECT RAISE(ABORT,'injected prepared INSERT failure'); END;
+                 CREATE TEMP TRIGGER prepared_upsert_abort_update
+                 BEFORE UPDATE ON files WHEN NEW.indexed_at=99
+                 BEGIN SELECT RAISE(ABORT,'injected prepared UPDATE failure'); END;
+                 CREATE UNIQUE INDEX prepared_upsert_unique_basename ON files(basename);",
+            )
+            .unwrap();
+        let mut failed_update = value.clone();
+        failed_update.indexed_at = 99;
+        for (invalid, expected_error) in [
+            (
+                record("/root/blocked", 8),
+                "injected prepared INSERT failure",
+            ),
+            (failed_update, "injected prepared UPDATE failure"),
+            (record("/other/valid", 8), "UNIQUE constraint failed"),
+        ] {
+            let before = db.content_stamp().unwrap();
+            let journal = scalar(&db, "SELECT COUNT(*) FROM macevery_file_changes;");
+            db.begin().unwrap();
+            let error = upsert.upsert(&invalid).unwrap_err();
+            assert!(error.to_string().contains(expected_error), "{error}");
+            db.rollback().unwrap();
+            db.begin().unwrap();
+            value.indexed_at += 1;
+            // This must be the first subsequent upsert call, with no sacrificial
+            // reset/retry to clear a stale sqlite_step error from the old VM.
+            assert!(upsert.upsert(&value).unwrap());
+            db.commit().unwrap();
+            assert_eq!(assert_upserted_columns(&db, &value), original_id);
+            assert_eq!(scalar(&db, "SELECT COUNT(*) FROM files;"), 1);
+            assert_eq!(
+                scalar(&db, "SELECT COUNT(*) FROM macevery_file_changes;"),
+                journal + 1
+            );
+            assert_eq!(db.content_stamp().unwrap().revision, before.revision + 1);
+            db.begin_read().unwrap();
+            let FileChangeRead::Available { changes, .. } =
+                db.file_changes_since(&before, 4096, 4096).unwrap()
+            else {
+                panic!("failed statement rollback must not break journal coverage");
+            };
+            db.commit().unwrap();
+            assert_eq!(changes.len(), 1);
+            assert_eq!(changes[0].id, original_id);
+            assert_eq!(
+                changes[0].record.as_ref().unwrap().indexed_at,
+                value.indexed_at
+            );
+        }
+    }
+
+    #[test]
+    fn scanner_real_deferred_fk_commit_failure_rolls_back_all_state_and_retries_once() {
+        let fixture = Fixture::new("prepared-scanner-commit-failure");
+        let root = fixture.0.join("scan-root");
+        std::fs::create_dir(&root).unwrap();
+        let existing_path = root.join("existing.txt");
+        std::fs::write(&existing_path, b"before").unwrap();
+        let db = Database::open(fixture.database()).unwrap();
+        crate::scanner::refresh_path(&db, &root, &[]).unwrap();
+        db.set_meta("commit-failure-probe", "before").unwrap();
+        db.set_meta("watch_last_event_id", "123").unwrap();
+        db.set_meta("last_indexed_at", "456").unwrap();
+        assert_eq!(scalar(&db, "PRAGMA foreign_keys;"), 1);
+
+        let journal = || {
+            let mut stmt = db.conn.prepare("SELECT revision,old_id,new_id,conflict_id FROM macevery_file_changes ORDER BY revision;").unwrap();
+            let mut rows = Vec::new();
+            while let Step::Row = stmt.step().unwrap() {
+                rows.push([
+                    stmt.column_i64(0),
+                    stmt.column_i64(1),
+                    stmt.column_i64(2),
+                    stmt.column_i64(3),
+                ]);
+            }
+            rows
+        };
+        let metadata = || {
+            let mut stmt = db
+                .conn
+                .prepare("SELECT key,value FROM meta ORDER BY key;")
+                .unwrap();
+            let mut rows = Vec::new();
+            while let Step::Row = stmt.step().unwrap() {
+                rows.push((stmt.column_text(0).unwrap(), stmt.column_text(1).unwrap()));
+            }
+            rows
+        };
+        let before_rows = db.all_records().unwrap();
+        let before = db.content_stamp().unwrap();
+        let before_journal = journal();
+        let before_metadata = metadata();
+        db.conn
+            .execute_batch(
+                "CREATE TABLE commit_fault_parent(id INTEGER PRIMARY KEY);
+             CREATE TABLE commit_fault_child(
+                parent_id INTEGER NOT NULL REFERENCES commit_fault_parent(id)
+                DEFERRABLE INITIALLY DEFERRED
+             );
+             CREATE TRIGGER commit_fault_insert AFTER INSERT ON files BEGIN
+                INSERT INTO commit_fault_child VALUES(1);
+                UPDATE meta SET value='during-failed-scan' WHERE key='commit-failure-probe';
+             END;
+             CREATE TRIGGER commit_fault_update AFTER UPDATE ON files BEGIN
+                INSERT INTO commit_fault_child VALUES(1);
+                UPDATE meta SET value='during-failed-scan' WHERE key='commit-failure-probe';
+             END;",
+            )
+            .unwrap();
+
+        // Prove that the fault permits the real upsert step, then fails at
+        // COMMIT rather than simulating an error in a scanner callback.
+        db.begin().unwrap();
+        {
+            let mut upsert = db.prepare_file_upsert().unwrap();
+            let mut probe = before_rows[0].clone();
+            probe.indexed_at += 1;
+            assert!(upsert.upsert(&probe).unwrap());
+        }
+        assert_eq!(scalar(&db, "SELECT COUNT(*) FROM commit_fault_child;"), 1);
+        let commit_error = db.commit().unwrap_err();
+        assert!(commit_error
+            .to_string()
+            .contains("FOREIGN KEY constraint failed"));
+        assert!(!db.conn.is_autocommit());
+        db.rollback().unwrap();
+        assert_eq!(db.all_records().unwrap(), before_rows);
+        assert_eq!(db.content_stamp().unwrap(), before);
+        assert_eq!(journal(), before_journal);
+        assert_eq!(metadata(), before_metadata);
+
+        std::fs::write(&existing_path, b"after-change-longer").unwrap();
+        std::fs::write(root.join("created-after.txt"), b"new").unwrap();
+        let error = crate::scanner::refresh_path(&db, &root, &[]).unwrap_err();
+        assert!(error.to_string().contains("FOREIGN KEY constraint failed"));
+        // A failed SQLite COMMIT leaves its transaction active. The production
+        // scanner must roll it back, including IDs, triggers, control metadata,
+        // and every successfully stepped row in that recursive scan.
+        assert!(db.conn.is_autocommit());
+        assert_eq!(db.all_records().unwrap(), before_rows);
+        assert_eq!(db.content_stamp().unwrap(), before);
+        assert_eq!(journal(), before_journal);
+        assert_eq!(metadata(), before_metadata);
+        assert_eq!(scalar(&db, "SELECT COUNT(*) FROM commit_fault_child;"), 0);
+
+        db.conn
+            .execute_batch("DROP TRIGGER commit_fault_insert; DROP TRIGGER commit_fault_update;")
+            .unwrap();
+        let summary = crate::scanner::refresh_path(&db, &root, &[]).unwrap();
+        assert_eq!(summary.indexed, 3);
+        assert!(summary.warnings.is_empty());
+        assert!(db.conn.is_autocommit());
+        let rows = db.all_records().unwrap();
+        assert_eq!(rows.len(), 3);
+        for old in &before_rows {
+            assert_eq!(
+                rows.iter().find(|row| row.path == old.path).unwrap().id,
+                old.id
+            );
+        }
+        let updated = rows
+            .iter()
+            .find(|row| row.path == existing_path.to_string_lossy())
+            .unwrap();
+        assert_eq!(updated.size, Some(b"after-change-longer".len() as i64));
+        assert_eq!(db.content_stamp().unwrap().revision, before.revision + 3);
+        assert_eq!(journal().len(), before_journal.len() + 3);
+        assert_eq!(metadata(), before_metadata);
+        db.begin_read().unwrap();
+        let FileChangeRead::Available { target, changes } =
+            db.file_changes_since(&before, 4096, 4096).unwrap()
+        else {
+            panic!("retry after failed COMMIT must retain full delta coverage");
+        };
+        db.commit().unwrap();
+        assert_eq!(target.revision, before.revision + 3);
+        assert_eq!(
+            changes
+                .into_iter()
+                .filter_map(|change| change.record)
+                .collect::<Vec<_>>(),
+            rows
+        );
     }
 
     #[test]

@@ -1,4 +1,4 @@
-use crate::db::Database;
+use crate::db::{Database, FileUpsert};
 use crate::error::Result;
 use crate::model::{FileKind, FileRecord};
 use std::borrow::Cow;
@@ -18,6 +18,9 @@ pub struct IndexRequest {
 #[derive(Clone, Debug, Default)]
 pub struct IndexSummary {
     pub indexed: u64,
+    /// Outer files INSERT/UPDATE rows, including generation-only changes.
+    pub rows_written: u64,
+    pub unchanged: u64,
     pub deleted: u64,
     pub warnings: Vec<String>,
     pub retry_paths: Vec<PathBuf>,
@@ -42,9 +45,11 @@ pub fn index_paths(db: &Database, request: &IndexRequest) -> Result<IndexSummary
     db.begin()?;
     let result = (|| {
         let indexed_at = now_index_generation();
+        let mut upsert = db.prepare_file_upsert()?;
         for root in &request.roots {
-            scan_path(db, root, &matcher, indexed_at, &mut summary)?;
+            scan_path(&mut upsert, root, &matcher, indexed_at, &mut summary)?;
         }
+        drop(upsert);
         if !request.rebuild {
             cleanup_stale_if_complete(db, &request.roots, indexed_at, &mut summary)?;
         }
@@ -52,13 +57,7 @@ pub fn index_paths(db: &Database, request: &IndexRequest) -> Result<IndexSummary
         Ok(())
     })();
 
-    match result {
-        Ok(()) => db.commit()?,
-        Err(err) => {
-            let _ = db.rollback();
-            return Err(err);
-        }
-    }
+    finish_write(db, result)?;
 
     Ok(summary)
 }
@@ -95,26 +94,21 @@ pub fn refresh_path(db: &Database, path: &Path, excludes: &[String]) -> Result<I
             {
                 db.delete_path_prefix(&path_text)?;
             }
-            scan_path(db, path, &matcher, indexed_at, &mut summary)?;
+            let mut upsert = db.prepare_file_upsert()?;
+            scan_path(&mut upsert, path, &matcher, indexed_at, &mut summary)?;
+            drop(upsert);
             if should_cleanup_children {
                 cleanup_stale_if_complete(db, &[path.to_path_buf()], indexed_at, &mut summary)?;
             }
         } else {
-            match db.kind_for_path(&path_text)? {
-                Some(FileKind::Directory | FileKind::App) => db.delete_path_prefix(&path_text)?,
-                _ => db.delete_path_exact(&path_text)?,
-            }
+            // NotFound/NotADirectory proves this entire namespace is absent.
+            // Coalesced subtree events may arrive after its parent row vanished.
+            db.delete_path_prefix(&path_text)?;
         }
         Ok(())
     })();
 
-    match result {
-        Ok(()) => db.commit()?,
-        Err(err) => {
-            let _ = db.rollback();
-            return Err(err);
-        }
-    }
+    finish_write(db, result)?;
 
     Ok(summary)
 }
@@ -129,39 +123,44 @@ pub fn refresh_roots(
     db.begin()?;
     let result = (|| {
         let indexed_at = now_index_generation();
+        let mut upsert = db.prepare_file_upsert()?;
         for root in roots {
-            scan_path(db, root, &matcher, indexed_at, &mut summary)?;
+            scan_path(&mut upsert, root, &matcher, indexed_at, &mut summary)?;
         }
+        drop(upsert);
         cleanup_stale_if_complete(db, roots, indexed_at, &mut summary)?;
         db.set_meta("last_indexed_at", &now_epoch().to_string())?;
         Ok(())
     })();
 
-    match result {
-        Ok(()) => db.commit()?,
-        Err(err) => {
-            let _ = db.rollback();
-            return Err(err);
-        }
-    }
+    finish_write(db, result)?;
 
     Ok(summary)
 }
 
 const MAX_SCAN_DEPTH: u32 = 256;
 
+fn finish_write(db: &Database, result: Result<()>) -> Result<()> {
+    let result = result.and_then(|()| db.commit());
+    if result.is_err() {
+        // COMMIT failures can leave an active SQLite transaction too.
+        let _ = db.rollback();
+    }
+    result
+}
+
 fn scan_path(
-    db: &Database,
+    upsert: &mut FileUpsert<'_>,
     path: &Path,
     excludes: &ExcludeMatcher,
     indexed_at: i64,
     summary: &mut IndexSummary,
 ) -> Result<()> {
-    scan_path_inner(db, path, excludes, indexed_at, summary, 0)
+    scan_path_inner(upsert, path, excludes, indexed_at, summary, 0)
 }
 
 fn scan_path_inner(
-    db: &Database,
+    upsert: &mut FileUpsert<'_>,
     path: &Path,
     excludes: &ExcludeMatcher,
     indexed_at: i64,
@@ -203,7 +202,11 @@ fn scan_path_inner(
     record.ctime = Some(metadata.ctime());
     record.dev = Some(metadata.dev() as i64);
     record.inode = Some(metadata.ino() as i64);
-    db.upsert_file(&record)?;
+    if upsert.upsert(&record)? {
+        summary.rows_written += 1;
+    } else {
+        summary.unchanged += 1;
+    }
     summary.indexed += 1;
 
     if metadata.is_dir() && kind != FileKind::Symlink {
@@ -219,9 +222,14 @@ fn scan_path_inner(
         };
         for entry in entries {
             match entry {
-                Ok(entry) => {
-                    scan_path_inner(db, &entry.path(), excludes, indexed_at, summary, depth + 1)?
-                }
+                Ok(entry) => scan_path_inner(
+                    upsert,
+                    &entry.path(),
+                    excludes,
+                    indexed_at,
+                    summary,
+                    depth + 1,
+                )?,
                 Err(err) => {
                     summary.retry_paths.push(path.to_path_buf());
                     summary
@@ -672,6 +680,112 @@ mod tests {
         fs::write(&child, "restored").unwrap();
         assert!(refresh_path(&db, &path, &[]).unwrap().warnings.is_empty());
         assert_eq!(db.all_records().unwrap().len(), 2);
+        drop(db);
+        fs::remove_dir_all(temp).unwrap();
+    }
+
+    #[test]
+    fn missing_parent_row_still_cleans_deleted_descendants_only_in_that_namespace() {
+        use crate::model::FileRecord;
+        let temp = unique_temp_dir("macevery-missing-parent");
+        let gone = temp.join("root/gone");
+        let orphan = gone.join("old-child.txt");
+        let neighbor = temp.join("root/gone-neighbor/keep.txt");
+        let db = Database::open(temp.join("index.sqlite")).unwrap();
+        for path in [&orphan, &neighbor] {
+            db.upsert_file(&FileRecord::new(
+                path.to_string_lossy().into_owned(),
+                FileKind::File,
+                1,
+            ))
+            .unwrap();
+        }
+        let neighbor_before = db
+            .all_records()
+            .unwrap()
+            .into_iter()
+            .find(|record| record.path == neighbor.to_string_lossy())
+            .unwrap();
+        refresh_path(&db, &gone, &[]).unwrap();
+        assert_eq!(db.all_records().unwrap(), [neighbor_before]);
+        drop(db);
+        fs::remove_dir_all(temp).unwrap();
+    }
+
+    #[test]
+    fn one_transaction_writer_reuses_bindings_and_preserves_generation_writes() {
+        use super::{finish_write, scan_path, ExcludeMatcher, IndexSummary};
+        let temp = unique_temp_dir("macevery-scan-writer");
+        let root = temp.join("root");
+        fs::create_dir_all(&root).unwrap();
+        fs::write(root.join("one.txt"), "one").unwrap();
+        fs::write(root.join("two"), "longer").unwrap();
+        let db = Database::open(temp.join("index.sqlite")).unwrap();
+        let matcher = ExcludeMatcher::new(&[]);
+        let mut summary = IndexSummary::default();
+        let generation = super::now_index_generation();
+        db.begin().unwrap();
+        let mut writer = db.prepare_file_upsert().unwrap();
+        scan_path(&mut writer, &root, &matcher, generation, &mut summary).unwrap();
+        let first_stamp = db.content_stamp().unwrap();
+        scan_path(&mut writer, &root, &matcher, generation, &mut summary).unwrap();
+        assert_eq!(
+            db.content_stamp().unwrap(),
+            first_stamp,
+            "identical generation/fields really skip files writes"
+        );
+        assert_eq!(
+            (summary.indexed, summary.rows_written, summary.unchanged),
+            (6, 3, 3)
+        );
+        drop(writer);
+        finish_write(&db, Ok(())).unwrap();
+        let before = db.all_records().unwrap();
+        let summary = refresh_path(&db, &root, &[]).unwrap();
+        assert_eq!(
+            (summary.indexed, summary.rows_written, summary.unchanged),
+            (3, 3, 0)
+        );
+        assert_eq!(
+            db.content_stamp().unwrap().revision,
+            first_stamp.revision + 3
+        );
+        let after = db.all_records().unwrap();
+        for (before, after) in before.iter().zip(&after) {
+            assert_eq!(before.id, after.id);
+            assert!(after.indexed_at > before.indexed_at);
+            let mut expected = before.clone();
+            expected.indexed_at = after.indexed_at;
+            assert_eq!(&expected, after);
+        }
+        drop(db);
+        fs::remove_dir_all(temp).unwrap();
+    }
+
+    #[test]
+    fn scan_write_error_rolls_back_files_and_journal_and_releases_transaction() {
+        use super::finish_write;
+        use crate::error::MacEveryError;
+        use crate::model::FileRecord;
+        let temp = unique_temp_dir("macevery-scan-rollback");
+        let db = Database::open(temp.join("index.sqlite")).unwrap();
+        let before = db.content_stamp().unwrap();
+        db.begin().unwrap();
+        db.upsert_file(&FileRecord::new(
+            "/rollback/file".into(),
+            FileKind::File,
+            10,
+        ))
+        .unwrap();
+        assert!(finish_write(
+            &db,
+            Err(MacEveryError::Cli("injected scan write failure".into()))
+        )
+        .is_err());
+        assert_eq!(db.content_stamp().unwrap(), before);
+        assert!(db.all_records().unwrap().is_empty());
+        db.begin().unwrap();
+        db.rollback().unwrap();
         drop(db);
         fs::remove_dir_all(temp).unwrap();
     }

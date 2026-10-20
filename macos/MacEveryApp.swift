@@ -77,6 +77,211 @@ struct CommandOutput {
     let exitCode: Int32
 }
 
+// A single locked formatter pair avoids constructing Foundation formatters for
+// every SwiftUI row evaluation. Notifications also cover preference changes
+// (for example, a 12/24-hour toggle) that can preserve the locale identifier.
+struct DisplayFormattingEnvironment: Equatable {
+    let locale: Locale
+    let timeZone: TimeZone
+    let calendar: Calendar
+
+    static var current: DisplayFormattingEnvironment {
+        DisplayFormattingEnvironment(locale: .current, timeZone: .current, calendar: .current)
+    }
+}
+
+final class MacEveryDisplayFormatters: @unchecked Sendable {
+    static let shared = MacEveryDisplayFormatters()
+    private let lock = NSLock()
+    private let environment: () -> DisplayFormattingEnvironment
+    private var cachedEnvironment: DisplayFormattingEnvironment?
+    private var dateFormatter: DateFormatter?
+    private var countFormatter: NumberFormatter?
+    private var observers: [NSObjectProtocol] = []
+
+    init(environment: @escaping () -> DisplayFormattingEnvironment = { .current }) {
+        self.environment = environment
+        for name in [NSLocale.currentLocaleDidChangeNotification, Notification.Name.NSSystemTimeZoneDidChange] {
+            observers.append(NotificationCenter.default.addObserver(forName: name, object: nil, queue: nil) { [weak self] _ in
+                self?.invalidate()
+            })
+        }
+    }
+
+    private func invalidate() {
+        lock.lock()
+        cachedEnvironment = nil
+        dateFormatter = nil
+        countFormatter = nil
+        lock.unlock()
+    }
+
+    private func refreshEnvironment() -> DisplayFormattingEnvironment {
+        let current = environment()
+        if cachedEnvironment != current {
+            cachedEnvironment = current
+            dateFormatter = nil
+            countFormatter = nil
+        }
+        return current
+    }
+
+    func date(_ value: Int64?) -> String {
+        guard let value else { return "-" }
+        lock.lock()
+        defer { lock.unlock() }
+        let current = refreshEnvironment()
+        if dateFormatter == nil {
+            let formatter = DateFormatter()
+            formatter.locale = current.locale
+            formatter.calendar = current.calendar
+            formatter.timeZone = current.timeZone
+            formatter.dateStyle = .medium
+            formatter.timeStyle = .short
+            dateFormatter = formatter
+        }
+        return dateFormatter!.string(from: Date(timeIntervalSince1970: TimeInterval(value)))
+    }
+
+    func count(_ value: Int64) -> String {
+        lock.lock()
+        defer { lock.unlock() }
+        let current = refreshEnvironment()
+        if countFormatter == nil {
+            let formatter = NumberFormatter()
+            formatter.locale = current.locale
+            formatter.numberStyle = .decimal
+            countFormatter = formatter
+        }
+        return countFormatter!.string(from: NSNumber(value: value)) ?? "\(value)"
+    }
+
+    deinit {
+        for observer in observers { NotificationCenter.default.removeObserver(observer) }
+    }
+}
+
+// Only the latest bounded stderr chunk is useful in the one-line status bar.
+// A producer burst can retain one message and schedule at most one main-queue
+// delivery, rather than enqueueing a closure and String for every pipe read.
+final class WatchMessageRelay: @unchecked Sendable {
+    private let lock = NSLock()
+    private let byteLimit: Int
+    private let delay: TimeInterval
+    private let deliver: (String) -> Void
+    private let finished: (() -> Void)?
+    private var pending: String?
+    private var scheduled = false
+    private var active = true
+    private var inputEnded = false
+    private var finishRequested = false
+
+    init(byteLimit: Int = 4096, delay: TimeInterval = 0.1,
+         finished: (() -> Void)? = nil, deliver: @escaping (String) -> Void) {
+        self.byteLimit = max(1, byteLimit)
+        self.delay = max(0, delay)
+        self.finished = finished
+        self.deliver = deliver
+    }
+
+    private static func boundedTail(_ value: String, bytes: Int) -> String {
+        var scalars: [Unicode.Scalar] = []
+        var used = 0
+        for scalar in value.unicodeScalars.reversed() {
+            let value = scalar.value
+            let size = value < 0x80 ? 1 : value < 0x800 ? 2 : value < 0x10000 ? 3 : 4
+            guard used + size <= bytes else { break }
+            scalars.append(scalar)
+            used += size
+        }
+        var result = String.UnicodeScalarView()
+        for scalar in scalars.reversed() { result.append(scalar) }
+        return String(result)
+    }
+
+    func receive(_ data: Data) {
+        guard !data.isEmpty else { return }
+        // Decode only a bounded suffix; replacement decoding keeps a split UTF-8
+        // boundary from dropping an entire message. Bound it again because the
+        // replacement scalar can occupy more bytes than the original suffix.
+        let text = Self.boundedTail(
+            String(decoding: data.suffix(byteLimit), as: UTF8.self)
+                .trimmingCharacters(in: .whitespacesAndNewlines),
+            bytes: byteLimit)
+        guard !text.isEmpty else { return }
+        lock.lock()
+        guard active else { lock.unlock(); return }
+        pending = text
+        guard !scheduled else { lock.unlock(); return }
+        scheduled = true
+        lock.unlock()
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in self?.drain() }
+    }
+
+    private func drain() {
+        lock.lock()
+        guard active else {
+            pending = nil
+            scheduled = false
+            lock.unlock()
+            return
+        }
+        let text = pending
+        pending = nil
+        scheduled = false
+        lock.unlock()
+        if let text { deliver(text) }
+    }
+
+    // Process termination can precede the final readability callback. Keep the
+    // current source alive until its stderr has actually reached EOF.
+    func finishWhenInputEndsOnMain() {
+        precondition(Thread.isMainThread)
+        lock.lock()
+        finishRequested = true
+        let ready = active && inputEnded
+        lock.unlock()
+        if ready { finishOnMain() }
+    }
+
+    func inputDidEnd() {
+        lock.lock()
+        inputEnded = true
+        let ready = active && finishRequested
+        lock.unlock()
+        if ready {
+            DispatchQueue.main.async { [weak self] in self?.finishOnMain() }
+        }
+    }
+
+    // Old/replaced sources use invalidate() and never flush into a new source.
+    func finishOnMain() {
+        precondition(Thread.isMainThread)
+        lock.lock()
+        guard active else { lock.unlock(); return }
+        let text = pending
+        active = false
+        pending = nil
+        scheduled = false
+        lock.unlock()
+        if let text { deliver(text) }
+        finished?()
+    }
+
+    func invalidate() {
+        lock.lock()
+        active = false
+        pending = nil
+        lock.unlock()
+    }
+}
+
+private struct StatusRefreshRequest {
+    let id = UUID()
+    let generation: Int
+    let cancellation = CommandCancellation()
+}
+
 enum SearchPerformanceMode: String, CaseIterable, Identifiable {
     case automatic = "auto"
     case fastest = "memory"
@@ -642,6 +847,7 @@ final class SearchViewModel: ObservableObject {
     private var watchProcess: Process?
     private var watchStdout: Pipe?
     private var watchStderr: Pipe?
+    private var watchMessageRelay: WatchMessageRelay?
     private var searchServiceProcess: Process?
     private var searchServiceStdout: Pipe?
     private var searchServiceStderr: Pipe?
@@ -649,6 +855,8 @@ final class SearchViewModel: ObservableObject {
     private var hasAttemptedInitialIndex = false
     private var hasStartedBootstrap = false
     private var indexReadGeneration = 0
+    private var activeStatusRefresh: StatusRefreshRequest?
+    private var pendingStatusRefreshGeneration: Int?
     private var startupCountsGeneration: Int?
     private var startupCountsDeadline: TimeInterval?
     private var serviceStatusGeneration = 0
@@ -663,6 +871,11 @@ final class SearchViewModel: ObservableObject {
 #if MACEVERY_TESTING
     // Observe requests without starting a listener or watcher in model checks.
     var childStartObserverForTesting: ((String) -> Void)?
+    var watchStderrReadGateForTesting: (() -> Void)?
+    var watchTerminationObserverForTesting: (() -> Void)?
+    var watchProcessForTesting: Process? { watchProcess }
+    var watchStderrForTesting: Pipe? { watchStderr }
+    var watchMessageRelayForTesting: WatchMessageRelay? { watchMessageRelay }
 #endif
     private let authToken: String = {
         var bytes = [UInt8](repeating: 0, count: 24)
@@ -777,44 +990,78 @@ final class SearchViewModel: ObservableObject {
         startupCountsGeneration = nil
         startupCountsDeadline = nil
         let generation = indexReadGeneration
-        DispatchQueue.global(qos: .userInitiated).async {
-            let output: CommandOutput
-            do {
-                output = try self.cli.run(["status", "--json"])
-            } catch {
-                DispatchQueue.main.async {
-                    guard generation == self.indexReadGeneration else { return }
-                    self.message = "Status failed: \(error.localizedDescription)"
-                }
-                return
-            }
+        if let active = activeStatusRefresh {
+            // Keep one follow-up so a click made after the current SQLite
+            // snapshot was pinned can still obtain fresh counts.
+            pendingStatusRefreshGeneration = generation
+            if active.generation != generation { active.cancellation.cancel() }
+            return
+        }
+        startStatusRefresh(generation: generation)
+    }
 
-            DispatchQueue.main.async {
-                guard generation == self.indexReadGeneration else { return }
-                guard output.exitCode == 0 else {
-                    self.message = output.stderr.trimmingCharacters(in: .whitespacesAndNewlines)
-                    return
-                }
-                do {
-                    let data = Data(output.stdout.utf8)
-                    let status = try JSONDecoder().decode(IndexStatus.self, from: data)
-                    self.status = status
-                    guard !self.isIndexing else { return }
-                    self.applyIndexConfiguration(roots: status.roots, excludes: status.excludes)
-                    if self.startInitialIndexIfNeeded(hasRecords: status.total > 0, roots: status.roots) {
-                        return
-                    }
-                    self.message = "Indexed \(Self.formatCount(status.total)) entries"
-                    if status.total > 0 {
-                        self.startSearchServiceIfNeeded()
-                    }
-                    if !status.roots.isEmpty {
-                        self.startWatcherIfNeeded()
-                    }
-                } catch {
-                    self.message = "Status decode failed: \(error.localizedDescription)"
-                }
+    private func startStatusRefresh(generation: Int) {
+        let request = StatusRefreshRequest(generation: generation)
+        activeStatusRefresh = request
+        let cli = self.cli
+        // The worker owns the command, not the model. Releasing the model can
+        // therefore cancel a blocked CLI instead of waiting for its timeout.
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            let result: Result<CommandOutput, Error>
+            do {
+                result = .success(try cli.run(["status", "--json"], cancellation: request.cancellation))
+            } catch {
+                result = .failure(error)
             }
+            DispatchQueue.main.async { [weak self] in
+                self?.finishStatusRefresh(request, result: result)
+            }
+        }
+    }
+
+    private func finishStatusRefresh(_ request: StatusRefreshRequest, result: Result<CommandOutput, Error>) {
+        guard activeStatusRefresh?.id == request.id else { return }
+        // The CLI and both pipe readers have finished before another starts.
+        activeStatusRefresh = nil
+        if request.generation == indexReadGeneration && !request.cancellation.isCancelled {
+            switch result {
+            case .success(let output):
+                applyStatusOutput(output)
+            case .failure(let error):
+                message = "Status failed: \(error.localizedDescription)"
+            }
+        }
+        let pending = pendingStatusRefreshGeneration
+        pendingStatusRefreshGeneration = nil
+        if let pending, pending == indexReadGeneration {
+            startStatusRefresh(generation: pending)
+        }
+    }
+
+    private func cancelStatusRefresh() {
+        pendingStatusRefreshGeneration = nil
+        // Keep the in-flight slot until run() has reaped the old child. A new
+        // generation will wait in the single pending slot rather than overlap.
+        activeStatusRefresh?.cancellation.cancel()
+    }
+
+    private func applyStatusOutput(_ output: CommandOutput) {
+        guard output.exitCode == 0 else {
+            message = output.stderr.trimmingCharacters(in: .whitespacesAndNewlines)
+            return
+        }
+        do {
+            let data = Data(output.stdout.utf8)
+            let status = try JSONDecoder().decode(IndexStatus.self, from: data)
+            self.status = status
+            guard !isIndexing else { return }
+            applyIndexConfiguration(roots: status.roots, excludes: status.excludes)
+            if startInitialIndexIfNeeded(hasRecords: status.total > 0, roots: status.roots) { return }
+            message = "Indexed \(Self.formatCount(status.total)) entries"
+            if status.total > 0 { startSearchServiceIfNeeded() }
+            if !status.roots.isEmpty { startWatcherIfNeeded() }
+        } catch {
+            message = "Status decode failed: \(error.localizedDescription)"
         }
     }
 
@@ -869,6 +1116,7 @@ final class SearchViewModel: ObservableObject {
         // Reads begun before/during a rebuild must not replace its completed
         // configuration or trigger an initial index after isIndexing turns off.
         indexReadGeneration += 1
+        cancelStatusRefresh()
         startupCountsGeneration = nil
         startupCountsDeadline = nil
         isBootstrapping = false
@@ -892,6 +1140,7 @@ final class SearchViewModel: ObservableObject {
             } catch {
                 DispatchQueue.main.async {
                     self.indexReadGeneration += 1
+                    self.cancelStatusRefresh()
                     self.isIndexing = false
                     self.message = "Index failed: \(error.localizedDescription)"
                 }
@@ -900,6 +1149,7 @@ final class SearchViewModel: ObservableObject {
 
             DispatchQueue.main.async {
                 self.indexReadGeneration += 1
+                self.cancelStatusRefresh()
                 self.isIndexing = false
                 if output.exitCode == 0 {
                     self.message = output.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -1199,18 +1449,33 @@ final class SearchViewModel: ObservableObject {
         stdout.fileHandleForReading.readabilityHandler = { handle in
             _ = handle.availableData
         }
-        stderr.fileHandleForReading.readabilityHandler = { [weak self] handle in
+        let relay = makeWatchMessageRelay(for: process)
+        watchMessageRelay = relay
+        let readLock = NSLock()
+#if MACEVERY_TESTING
+        let readGate = watchStderrReadGateForTesting
+#endif
+        stderr.fileHandleForReading.readabilityHandler = { [weak relay] handle in
+            readLock.lock()
+            defer { readLock.unlock() }
+#if MACEVERY_TESTING
+            readGate?()
+#endif
             let data = handle.availableData
-            guard !data.isEmpty, let text = String(data: data, encoding: .utf8) else { return }
-            DispatchQueue.main.async {
-                self?.message = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            if data.isEmpty {
+                handle.readabilityHandler = nil
+                relay?.inputDidEnd()
+            } else {
+                relay?.receive(data)
             }
         }
         process.terminationHandler = { [weak self] process in
             DispatchQueue.main.async {
-                if self?.watchProcess === process {
-                    self?.watchProcess = nil
-                }
+                guard let self, self.watchProcess === process else { return }
+#if MACEVERY_TESTING
+                self.watchTerminationObserverForTesting?()
+#endif
+                self.watchMessageRelay?.finishWhenInputEndsOnMain()
             }
         }
 
@@ -1221,11 +1486,47 @@ final class SearchViewModel: ObservableObject {
                 message = "\(message) • Watcher active"
             }
         } catch {
+            relay.invalidate()
+            watchMessageRelay = nil
+            stdout.fileHandleForReading.readabilityHandler = nil
+            stderr.fileHandleForReading.readabilityHandler = nil
+            watchStdout = nil
+            watchStderr = nil
             message = "Watcher failed: \(error.localizedDescription)"
         }
     }
 
+    private func makeWatchMessageRelay(for process: Process) -> WatchMessageRelay {
+        WatchMessageRelay(finished: { [weak self, weak process] in
+            guard let self, let process, self.watchProcess === process else { return }
+            self.watchStdout?.fileHandleForReading.readabilityHandler = nil
+            self.watchStderr?.fileHandleForReading.readabilityHandler = nil
+            self.watchMessageRelay = nil
+            self.watchProcess = nil
+            self.watchStdout = nil
+            self.watchStderr = nil
+        }) { [weak self, weak process] text in
+            guard let self, let process, self.watchProcess === process else { return }
+            if self.message != text { self.message = text }
+        }
+    }
+
+#if MACEVERY_TESTING
+    // Exercise the production identity guard without launching a listener or
+    // watcher. A Process value is an identity token here and is never run.
+    func replaceWatchMessageSourceForTesting() -> WatchMessageRelay {
+        watchMessageRelay?.invalidate()
+        let process = Process()
+        watchProcess = process
+        let relay = makeWatchMessageRelay(for: process)
+        watchMessageRelay = relay
+        return relay
+    }
+#endif
+
     func stopWatcher() {
+        watchMessageRelay?.invalidate()
+        watchMessageRelay = nil
         watchStdout?.fileHandleForReading.readabilityHandler = nil
         watchStderr?.fileHandleForReading.readabilityHandler = nil
         if let watchProcess, watchProcess.isRunning {
@@ -1248,6 +1549,7 @@ final class SearchViewModel: ObservableObject {
     }
 
     deinit {
+        cancelStatusRefresh()
         pendingSearch?.cancel()
         activeSearchTask?.cancel()
         activeCLICancellation?.cancel()
@@ -1509,9 +1811,7 @@ final class SearchViewModel: ObservableObject {
     }
 
     static func formatCount(_ value: Int64) -> String {
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .decimal
-        return formatter.string(from: NSNumber(value: value)) ?? "\(value)"
+        MacEveryDisplayFormatters.shared.count(value)
     }
 
     static func formatOptionalCount(_ value: Int64?) -> String {
@@ -2187,12 +2487,7 @@ struct ResultRow: View {
     }
 
     private func formatDate(_ value: Int64?) -> String {
-        guard let value else { return "-" }
-        let date = Date(timeIntervalSince1970: TimeInterval(value))
-        let formatter = DateFormatter()
-        formatter.dateStyle = .medium
-        formatter.timeStyle = .short
-        return formatter.string(from: date)
+        MacEveryDisplayFormatters.shared.date(value)
     }
 }
 

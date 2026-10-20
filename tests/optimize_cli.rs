@@ -3,18 +3,21 @@ use macevery::db::Database;
 use macevery::model::{FileKind, FileRecord};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 struct Scratch(PathBuf);
 impl Scratch {
     fn new() -> Self {
+        static SEQUENCE: AtomicU64 = AtomicU64::new(0);
         let nonce = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_nanos();
         let path = std::env::temp_dir().join(format!(
-            "macevery-optimize-cli-{}-{nonce}",
-            std::process::id()
+            "macevery-optimize-cli-{}-{nonce}-{}",
+            std::process::id(),
+            SEQUENCE.fetch_add(1, Ordering::Relaxed)
         ));
         std::fs::create_dir(&path).unwrap();
         Self(path)

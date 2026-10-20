@@ -1,6 +1,6 @@
 # MacEvery监听恢复、写入与GUI资源优化
 
-更新：2026-10-20，r2，Asia/Shanghai。Owner：当前聊天。
+更新：2026-10-20，r4，Asia/Shanghai。Owner：当前聊天。
 
 ## 目标与范围
 
@@ -17,12 +17,18 @@
 - 前窗口收尾已提交推送：main `c3a78778ff39077b0c82e74df85bab354d85a05e`，精确远端回读一致；文档提交未重建App。
 - 清理：COMPLETE，28目录均删除，6,722文件/1.210439GiB私有归档逐一SHA独立复核通过，142条数据库指纹保留但历史大库已删除。原du127.852GiB，实测空闲+15.490784GiB，不混称。见[清理报告](HISTORY_CLEANUP.md)和私有 `.build/history-cleanup-20261020/state.local.json`。
 - 清理后原始/封存raw、当前App/真实DB、冻结/回滚及旧67点再次核对保持。新轮基线App、源码archive及cached rlib已独立冻结于 `.build/watch-recovery-20261020/baseline`。
-- 实现IN_PROGRESS：watch_cpu_audit独占watch/scanner，search_memory_audit独占db，gui_cpu_audit独占Swift及独立GUI验证工具；root统一集成与运行构建/负载。新轮正确性/性能/安装/原生/推送验收仍NOT_RUN，当前App未替换。
+- 清理记录已提交推送：main `2c3ed5de81758f12c8f9c89fd080f122ec496426`，精确远端回读一致。清理脚本及旧观察器均不得重复运行。
+- 新轮正式基线：干净源码archive与a4418a7的Rust源码树相同，独立release library已构建并记录SHA；真实索引以只读事务备份成新独立快照，quick_check及内容身份通过。旧cached rlib未作为正式基线。
+- 实现/验收IN_PROGRESS：watch/scanner、db、Swift分工独立，root统一运行。Rust新增真实deferred-FK COMMIT失败回滚验证已通过；debug 170单元+8集成通过，release/Clippy/fmt另存私有日志。完整fixture和真实快照六view×24阶段的Top300/更新门禁通过，未延长15秒预算。
+- 独立review两项恢复反例已修正并验证：Must与HistoryDone组合保留局部恢复；relative/alias/无字面交集的未知scope保守恢复全根。最新debug/release均172单元+8集成通过，Clippy/fmt通过。GUI完整回归与资源正确性v4通过，私有还原旧finish的真实pipe负例明确FAIL；测试autoreleasepool失败原件保留。
+- 历史失败保留：首次TopK隔离HTTP受sandbox拒绝（授权执行重跑PASS）；首次新Swift测试类型推导编译失败；一次optimize_cli并行临时目录时间戳碰撞已加进程内序号后全量重跑PASS。这些与产品搜索结果失败区分。
+- A/B/A已完成并独立复核：36次scope/logging小树、100k upsert、657次真实短词、6进程GUI资源；最后冻结CLI真实六view×24阶段再验PASS。code/短词聚合CPU及内存门禁通过，首轮wall尖峰、日志/普通FSEvents及GUI model局部CPU增加均保留，见[本轮报告](REPORT.md)。不宣称所有项都下降或历史footprint原因已解。
+- 待闭合：固定本地源码提交、生产Swift真实15秒超时/取消、远端主干包含性/精确回读、clean候选App、App-only替换（真实索引不维护/替换）、原生搜索/更新与最终普通资源点、验收文档推送。当前App未替换，MacEvery窗口本轮已只读确认可访问，未改查询。
 
 ## 下一步
 
-1. 完成前窗口收尾文档提交推送并精确回读SHA（文档提交不重建App）。
-2. 私有归档必要raw失败/参数/源码driver/精确小制品和已有DB哈希，验证清单；即刻核对28路径身份/软链接/存活与打开文件后逐项删过期历史库及cache，不做宽泛通配；记录分配字节与实际可用空间差。历史大测试DB已获删除授权，不要求全部备份，但删除后不能称输入仍保留。
+1. 前窗口封存、文档推送及过期库清理已完成，不重复。
+2. 实现/隔离资源主门禁已完成；只继续上述待闭合项，保留所有负例与失败，不重复旧观察器/清理。
 3. 冻结新轮可追溯基线和最小隔离DB。先有界日志：容量/频率/轮转、隐私、不自写循环，记录来源/原始flags/ID/范围/重试/完成失败；再修恢复范围，单独MustScanSubDirs限子树，真正丢事件/回绕/根变化和组合flags保留必要恢复，排除过滤不可吞恢复。
 4. 减少可避免写入与prepare成本；公开indexed_at及stale cleanup兼容必须明确，不能删触发条件伪造低revision。GUI排查区分源码风险、可控重现和普通使用观测，不凭RSS推断footprint释放。
 5. 先三路径完整有序Top300/更新与真实FSEvents、恢复、不完整扫描、重试/rollback/checkpoint/外部写/journal gap/清理保真，再同输入同物理布局A/B/A，code与短词CPU门槛+5%、RSS/footprint无实质增长，真实15秒超时/取消、Rust/Swift必要检查与独立review。
