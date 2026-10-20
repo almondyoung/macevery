@@ -1,6 +1,6 @@
 # MacEvery监听恢复、写入与GUI资源优化
 
-更新：2026-10-20，r1，Asia/Shanghai。Owner：当前聊天。
+更新：2026-10-20，r2，Asia/Shanghai。Owner：当前聊天。
 
 ## 目标与范围
 
@@ -14,8 +14,10 @@
 
 - 前窗口SEALED_WITH_ANOMALIES_AND_SLEEP_GAPS：[收尾报告](../topk-consistency-20261019/REPORT.md)、[脱敏结束摘要](../topk-consistency-20261019/evidence/observation-finish.json)。worker实际PID不存在，writer锁空闲，33个raw文件及53份阶段材料复制逐字一致；旧67点独立保留。非无泄漏/连续24小时PASS。
 - 私有封存 `.build/topk-consistency-20261019/sealed-24h-20261020`；原件及旧冻结8096e0a、a4418a7冻结App/source archive、真实回滚恢复图全部保留。
-- 清理：AUTHORIZED_PENDING_ARCHIVE_AND_REFERENCE_CHECK；精确28目录见 `.build/topk-consistency-20261019/history-cleanup-plan-20261020.local.json`，原du合计127.852GiB，不等于实际释放。尚未删除。
-- 新轮实现/正确性/性能/安装/原生/推送验收：NOT_RUN。GUI与watch只读源码审查进行中，当前App未替换。
+- 前窗口收尾已提交推送：main `c3a78778ff39077b0c82e74df85bab354d85a05e`，精确远端回读一致；文档提交未重建App。
+- 清理：COMPLETE，28目录均删除，6,722文件/1.210439GiB私有归档逐一SHA独立复核通过，142条数据库指纹保留但历史大库已删除。原du127.852GiB，实测空闲+15.490784GiB，不混称。见[清理报告](HISTORY_CLEANUP.md)和私有 `.build/history-cleanup-20261020/state.local.json`。
+- 清理后原始/封存raw、当前App/真实DB、冻结/回滚及旧67点再次核对保持。新轮基线App、源码archive及cached rlib已独立冻结于 `.build/watch-recovery-20261020/baseline`。
+- 实现IN_PROGRESS：watch_cpu_audit独占watch/scanner，search_memory_audit独占db，gui_cpu_audit独占Swift及独立GUI验证工具；root统一集成与运行构建/负载。新轮正确性/性能/安装/原生/推送验收仍NOT_RUN，当前App未替换。
 
 ## 下一步
 

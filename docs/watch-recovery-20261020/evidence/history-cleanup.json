@@ -1,0 +1,29 @@
+{
+  "schema": 1,
+  "state": "COMPLETE",
+  "exact_authorized_directories": 28,
+  "deleted_directories": 28,
+  "inventory_allocated_GiB_not_actual_release": 127.85216903686523,
+  "archive_verified_files": 6722,
+  "archive_verified_bytes": 1299699217,
+  "database_hash_records": 142,
+  "historical_databases_deleted_not_replayable_from_archive": true,
+  "cache_files": 22190,
+  "free_bytes_before_archive": 720856711168,
+  "free_bytes_after": 737489813504,
+  "observed_free_bytes_delta": 16633102336,
+  "started_utc": "2026-10-20T12:04:17.610895+00:00",
+  "finished_utc": "2026-10-20T12:05:52.692567+00:00",
+  "receipt_sha256": "bf9a6d0ba568a1b8e07c35690bfe854a7b92045676a01c85d10da5d9c53c626e",
+  "independent_archive_member_size_hash_review": true,
+  "all_allowed_roots_absent": true,
+  "all_pre_and_immediate_delete_lsof_checks_clear": true,
+  "post_cleanup_app_db_frozen_rollback_observation_identity_hashes_match": true,
+  "no_untargeted_cleanup_or_system_snapshot_changes": true,
+  "limits": [
+    "Free-space delta includes archive cost and concurrent filesystem activity.",
+    "APFS clones may share blocks; du sum is not physical release.",
+    "Deleted database original bytes cannot be independently rehashed after deletion.",
+    "lsof snapshots do not eliminate all TOCTOU."
+  ]
+}
