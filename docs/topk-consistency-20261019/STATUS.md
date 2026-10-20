@@ -1,6 +1,6 @@
 # MacEvery Top300一致性修复
 
-更新：2026-10-19，r3，Asia/Shanghai。本机修复/采用/原生验收完成；固定App 0.1.3-ga4418a7，新的24小时观察RUNNING，尚未完成长稳验收。
+更新：2026-10-20，r4，Asia/Shanghai。本机修复/采用/原生验收保持；固定App 0.1.3-ga4418a7的24小时窗口已封存，状态SEALED_WITH_ANOMALIES_AND_SLEEP_GAPS，非连续24小时无异常或无泄漏PASS。
 
 ## 任务与边界
 
@@ -34,7 +34,7 @@
 - 旧观察：**PRESERVED**。已核对启动cookie/UUID/boot停止collector，67个原样本及旧state保留，封存时原heartbeat PAUSED；随后同ID仅复用作新24小时，旧collector不再运行；旧窗口未完成。
 - 安装/原生：**PASS**。真实源停用只读备份，完整核对7,320,209条后adopt等价紧凑副本与已测App；原DB/App/sidecar及恢复图保留。Fastest、Low Memory原生code各300条，18→35字节修改、改名/删除经窗口与只读SQL核对；fixture已清理，恢复Fastest/memory及No Query，原快捷键/配置/权限Limited保持。见[安装](evidence/installation.json)、[原生](evidence/native.json)。
 - 最终资源：普通使用20秒No Query三角色单核CPU0.11662%→0.09694%，RSS +0.110%，footprint +17.690%（+256,098,328字节）。不是同输入受控A/B，footprint差异原因尚未建立；不宣称内存整体降低。受控Fastest容量/RSS保持，点采样footprint为新24小时观察重点。见[资源对照](evidence/live-resource-comparison.json)。
-- 新24小时：**RUNNING**。2026-10-19 19:45:23至10月20日19:45:23（Asia/Shanghai），每60秒采样；初始worker启动cookie/UUID/boot与App/DB身份已核对，工具未变。heartbeat `macevery-48` 已更新名称和目标为本窗口、ACTIVE，正常保持安静；旧窗口与旧67样本独立保留。见[启动](evidence/observation-start.json)。
+- 新24小时：**SEALED_WITH_ANOMALIES_AND_SLEEP_GAPS**。2026-10-19 19:45:23至10月20日19:45:23（Asia/Shanghai），每60秒采样；初始worker启动cookie/UUID/boot与App/DB身份已核对，工具未变。heartbeat `macevery-48` 已更新名称和目标为本窗口、ACTIVE，正常保持安静；旧窗口与旧67样本独立保留。见[启动](evidence/observation-start.json)。
 
 ## 观察入口与下一步
 
@@ -42,4 +42,6 @@
 - 新state：`.build/topk-consistency-20261019/observation-24h`，优先读manifest.local.json/state.json/launch.local.json，再运行 `python3 tools/observe_app_resources.py summarize --state /Users/yangtao/pine/code/macevery/.build/topk-consistency-20261019/observation-24h`。
 - worker存活必须核对PID/start cookie/boot；UUID及实际解释器路径对照launch-settled.local.json，不只信running字段。原launch捕获了Python launcher的exec前UUID，与稳定Python.app不同；两个实际Mach-O LC_UUID、精确argv、同PID/start/boot和单一连续session已核对，保留两次过严断言拒绝及原回执，窗口未重启。见[交接健康](evidence/observation-health-at-handoff.json)。不要在窗口内改工具、再开writer、发搜索、COUNT、重启替换App、改DB或权限，不阻止自然睡眠，不静默延长或补窗。
 - 旧原件恢复图：`.build/topk-consistency-20261019/install-state/adopt-plan.local.json`；原始真实DB与旧App路径以此为准，不按模糊名字清理。需要恢复时先核对精确进程/身份并正常Quit，使用同目录install_topk.py的adopt --restore；当前未请求恢复。
-- 到期检查实际覆盖、每小时各身份CPU/RSS/footprint的分位/趋势/平台、缺口与睡眠重启，尤其核查普通使用footprint升高是否持续。保存脱敏结束摘要，更新REPORT/STATUS与周登记，按已有授权提交推送并回读SHA，再暂停heartbeat。未到期不称连续24小时稳定或无泄漏PASS。
+- 已按期封存：1426点/1421有效CPU区间，各85177.990530秒；4段睡眠缺口已排除。监听9分钟高CPU与11:08 revision+7,341,204、GUI多次台阶及89.485MiB峰值、普通安装footprint+17.690%未解、serve RSS下降但footprint保持均保留。见[结束摘要](evidence/observation-finish.json)与REPORT收尾节。上面的RUNNING段为原启动时状态，以本节为当前状态。
+- 原始33文件和53份阶段核查已逐字复制至ignored `.build/topk-consistency-20261019/sealed-24h-20261020`，原件/冻结/真实回滚/旧67点均保留。实际worker已退出，勿再次启动采样器。
+- 同一heartbeat继续已授权后续，不在本窗口结束时暂停：先按精确清单归档并清理过期临时库，再依[下一轮STATUS](../watch-recovery-20261020/STATUS.md)推进日志/恢复范围/写放大及GUI定位，完成全部验收或明确需人工处理后才暂停。不自动重开观察，不拼接数据。
