@@ -1,6 +1,6 @@
 # MacEvery修复版独立24小时观察
 
-2026-10-21，r2，Asia/Shanghai，OBSERVING_WITH_WATCH_CPU_RECURRENCE。Owner：当前聊天。
+2026-10-21，r3，Asia/Shanghai，OBSERVING_WITH_WATCH_CPU_RECURRENCE。Owner：当前聊天。
 
 ## 固定范围
 
@@ -31,6 +31,14 @@
 2. 监听检查每个有效无barrier区间的单核CPU，特别记录≥50%的分钟区间、连续性、CPU秒、revision delta/last_indexed_at及同期日志。新日志可辅助判读，不能猜未捕获的path/flags；恢复必要性需独立证据。
 3. GUI和serve检查同身份footprint小时中位是否连续上行、幅度、斜率、尾部是否回落或平台。重启/模式切换另分段，不跨身份连线；短时峰值与持续增长分开。显著复发、持续增长候选、缺样/worker退出或身份失配等才通知；正常无变化安静。
 4. 睡眠、power UUID变化、未知时钟/进程及采样缺口按现有barrier规则排除CPU连线；记录wall窗口、实际清醒覆盖及缺口。锁屏不需要UI操作；不加唤醒锁、不改系统权限。
+
+## 16:29新增监听复发
+
+[新增异常证据](evidence/watch-recurrence-1629.json)冻结至17:23:28、seq426：新增seq373–378六个有效分钟区间（端点16:30–16:35）watch单核CPU≥50%，峰82.080153%，这六段CPU284.977806秒/有效清醒359.999676秒；本窗累计24段。16:29:33.497至16:35:49.050的成对日志证实又一次roots恢复，原始recovery flags=3、event_count=2，indexed=rows_written=7,369,600，elapsed375.548秒，stale/warnings/retry/fallback均为0或false。16:36端点revision+7,369,633、last_indexed_at前进。日志和控制元数据不能证明所有文件内容正确，丢事件底因与该轮全扫是否可避免仍未知。
+
+watch本次峰RSS107.969MiB/footprint97.204MiB，16:36已回到13.844MiB，尾15点相同；17:23 GUI/serve footprint为51.626/1501.595MiB，最近两完整小时GUI中位均52.142、serve1501.642→1501.595MiB，未见持续上行。此前峰值和较高watch平台继续保留，不据此作无泄漏结论。本次末端三角色仍各一个身份、App/DB均426点match、单一session、仅初始barrier；有效CPU覆盖25463.195430秒（约7小时4分23秒），24小时尚未结束。
+
+额外active/rotation原件共432,915字节及SHA、完整性判据、独立复核在 `.build/watch-observation-20261021/anomalies/20261021-092414-548603`。565条可解析日志中报告合计729次诊断记录被抑制，不能称完整触发审计，也不能将其等同于丢失FSEvents数量。已通知新增6段；后续不重复播报既有24段。原App、采样器和10月22日10:18:28截止均不变。
 
 ## 到期
 
