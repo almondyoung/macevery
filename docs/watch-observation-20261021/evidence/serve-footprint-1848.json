@@ -1,0 +1,192 @@
+{
+  "schema": 1,
+  "status": "READ_ONLY_INVESTIGATION_CAUSE_UNRESOLVED_OBSERVATION_CONTINUES",
+  "source_commit": "29b6140575cdd69c965732b943dccda77e8b586e",
+  "build_label": "0.1.3-g29b6140",
+  "resource_cutoff_utc": "2026-10-21T12:01:28.625453+00:00",
+  "reviewed_sequence": 584,
+  "committed_prefix_sha256": "46226fcd5492fe6248e22729cc7668fad2d121de52e945bf43cce5948fc58003",
+  "collector_sessions": 1,
+  "single_identity_each_role": true,
+  "source_match_count": 584,
+  "database_pin_match_count": 584,
+  "barriers": {
+    "initial_endpoint": 1
+  },
+  "step": {
+    "before_sequence": 510,
+    "after_sequence": 511,
+    "before_utc": "2026-10-21T10:47:28.616446+00:00",
+    "after_utc": "2026-10-21T10:48:28.609575+00:00",
+    "interval_awake_seconds": 59.992205083,
+    "serve_footprint_before_bytes": 1574455072,
+    "serve_footprint_after_bytes": 1624344352,
+    "footprint_delta_bytes": 49889280,
+    "rss_delta_bytes": -73154560,
+    "reported_cpu_delta_ns": 700791,
+    "reported_average_cpu_percent_one_core": 0.0011681367588179939,
+    "revision_delta": 4,
+    "last_indexed_at_unchanged": true,
+    "other_role_memory_delta_bytes": {
+      "gui": {
+        "rss_bytes": -5341184,
+        "footprint_bytes": 32768
+      },
+      "watch": {
+        "rss_bytes": -229376,
+        "footprint_bytes": -16384
+      }
+    }
+  },
+  "post_step": {
+    "first_sequence": 511,
+    "last_sequence": 584,
+    "endpoint_count": 74,
+    "elapsed_wall_seconds": 4380.015878,
+    "serve_fp_min_bytes": 1624344352,
+    "serve_fp_max_bytes": 1624377120,
+    "last_serve_rss_bytes": 8192000,
+    "last_serve_footprint_bytes": 1624377120,
+    "reported_cpu_seconds": 0.037764417,
+    "footprint_changes": [
+      {
+        "sequence": 512,
+        "at_utc": "2026-10-21T10:49:28.598755+00:00",
+        "delta_bytes": 16384
+      },
+      {
+        "sequence": 564,
+        "at_utc": "2026-10-21T11:41:28.685519+00:00",
+        "delta_bytes": 16384
+      }
+    ]
+  },
+  "rss_only_large_drops": [
+    {
+      "sequence": 570,
+      "at_utc": "2026-10-21T11:47:28.695832+00:00",
+      "rss_before_bytes": 927678464,
+      "rss_after_bytes": 659668992,
+      "footprint_bytes": 1624377120
+    },
+    {
+      "sequence": 572,
+      "at_utc": "2026-10-21T11:49:28.621493+00:00",
+      "rss_before_bytes": 659668992,
+      "rss_after_bytes": 8241152,
+      "footprint_bytes": 1624377120
+    }
+  ],
+  "source_checks": [
+    {
+      "path": "src/server.rs",
+      "sha256": "95354f8a7f7f13f72ba9085037d15a672466d87c7f9e4873fe41a9cef333a459",
+      "matches_fixed_source": true
+    },
+    {
+      "path": "src/search.rs",
+      "sha256": "101ee1589e2ecf03681c5b1afe01b670017febc4b9b8939ea5ff95b1bbfc82bb",
+      "matches_fixed_source": true
+    },
+    {
+      "path": "src/compact_index.rs",
+      "sha256": "e7056aa01db6ab7d3f8b41573f3b9246978d6d8fa80c7da3e864e9c505b1bf06",
+      "matches_fixed_source": true
+    },
+    {
+      "path": "src/db.rs",
+      "sha256": "6089f4cab8fc3942b39fbf8639b5cd01684e5410669b1c41f98fc61050a47fff",
+      "matches_fixed_source": true
+    },
+    {
+      "path": "src/sqlite.rs",
+      "sha256": "be2a5bc8f687de47560b908657152c005b81eb172d0f7244d51c09d5d0a9b825",
+      "matches_fixed_source": true
+    },
+    {
+      "path": "src/model.rs",
+      "sha256": "0724a27c391d3bfa232c24575115da403ed9561154489fc167a363ed53a72053",
+      "matches_fixed_source": true
+    },
+    {
+      "path": "macos/MacEveryApp.swift",
+      "sha256": "35a1e011fb5ed8b6dafe15323c13c56dd013d0116d49c383bc39449368f89ed1",
+      "matches_fixed_source": true
+    },
+    {
+      "path": "tools/observe_app_resources.py",
+      "sha256": "781564a67a55defaa9778357e3f45b1adc5dd40a02f689922963ce01cb3caefe",
+      "matches_fixed_source": true
+    },
+    {
+      "path": "tools/check_service_round2.py",
+      "sha256": "41e09df119b34b0a84832e759a1068c09eb88bb82f7cb21ec02ef0bb2cac2e59",
+      "matches_fixed_source": true
+    }
+  ],
+  "confirmed_source_mechanisms": [
+    "One owned backend; old index dropped before full replacement",
+    "Refresh only from search ensure_fresh or explicit reload, not background/status refresh",
+    "Per-search state/results are local; no cross-request result cache found",
+    "Incremental changes payload bounded to32MiB and4096 events/IDs then explicitly dropped",
+    "Packed arenas retain capacity/dead text until budget-driven reload; normal arena bound64MiB",
+    "Serve stdout/stderr drained and discarded by native GUI; no persisted per-request/allocation audit in this window"
+  ],
+  "unproven_candidates": [
+    "OS footprint ledger or residency/compression-accounting changes",
+    "Arena capacity growth and retained slack/dead strings",
+    "Allocator retained freed pages/native cache or request transient allocation"
+  ],
+  "cause": "UNKNOWN",
+  "unnecessary_retention_proven": false,
+  "measurement_fields_available": [
+    "rss_bytes",
+    "footprint_bytes",
+    "cpu_ns",
+    "process identity",
+    "database control stamp"
+  ],
+  "missing_historical_measurements": [
+    "compressed memory by process",
+    "private dirty memory",
+    "malloc allocations/stacks",
+    "arena length/capacity at both endpoints",
+    "loaded service revision/capacity at both endpoints",
+    "complete service request/reload audit"
+  ],
+  "no_new_resource_sampler_or_sample": true,
+  "no_search_status_reload_http_requests_sent": true,
+  "no_database_opened_for_investigation": true,
+  "no_process_attachment_or_live_heap_vm_inspection": true,
+  "app_db_config_or_observer_tools_changed": false,
+  "window_changed_or_extended": false,
+  "no_leak_pass": false,
+  "metrics_static_review": {
+    "reviewer": "serve_metrics_review",
+    "read_only": true,
+    "rusage_info_v0_static_sdk_layout_matches": true,
+    "static_size_bytes": 96,
+    "static_resident_size_offset": 64,
+    "static_phys_footprint_offset": 72,
+    "cpu_input_units": "Mach timebase units",
+    "existing_once_timebase_conversion_to_ns": "CORRECT",
+    "footprint_bytes_not_cpu_scaled": true,
+    "phys_footprint_includes_internal_compressed_and_other_ledgers": true,
+    "rss_is_distinct_ledger": true,
+    "host_specific_running_kernel_not_bound_to_public_main_sources": true,
+    "no_helper_or_probe_executed": true,
+    "references": {
+      "xnu_task_ledger": "https://github.com/apple-oss-distributions/xnu/blob/main/osfmk/kern/task.c#L1144-L1169",
+      "xnu_recount_mach_units": "https://github.com/apple-oss-distributions/xnu/blob/main/osfmk/kern/recount.h#L123-L124",
+      "xnu_fill_task_rusage": "https://github.com/apple-oss-distributions/xnu/blob/main/osfmk/kern/bsd_kern.c#L1194-L1212",
+      "xnu_libproc_wrapper": "https://github.com/apple-oss-distributions/xnu/blob/main/libsyscall/wrappers/libproc/libproc.c#L129-L133",
+      "apple_timebase_conversion": "https://developer.apple.com/library/archive/qa/qa1398/_index.html"
+    }
+  },
+  "cpu_step_ns_conversion_review": "Verified correct against primary API source chain; raw interval delta arithmetic independently confirmed",
+  "independent_reviews": [
+    "observation_h7_review",
+    "search_memory_audit",
+    "serve_metrics_review"
+  ]
+}

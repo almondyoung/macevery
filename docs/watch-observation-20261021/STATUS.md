@@ -1,6 +1,6 @@
 # MacEvery修复版独立24小时观察
 
-2026-10-21，r3，Asia/Shanghai，OBSERVING_WITH_WATCH_CPU_RECURRENCE。Owner：当前聊天。
+2026-10-21，r4，Asia/Shanghai，OBSERVING_WITH_WATCH_CPU_RECURRENCE。Owner：当前聊天。
 
 ## 固定范围
 
@@ -39,6 +39,14 @@
 watch本次峰RSS107.969MiB/footprint97.204MiB，16:36已回到13.844MiB，尾15点相同；17:23 GUI/serve footprint为51.626/1501.595MiB，最近两完整小时GUI中位均52.142、serve1501.642→1501.595MiB，未见持续上行。此前峰值和较高watch平台继续保留，不据此作无泄漏结论。本次末端三角色仍各一个身份、App/DB均426点match、单一session、仅初始barrier；有效CPU覆盖25463.195430秒（约7小时4分23秒），24小时尚未结束。
 
 额外active/rotation原件共432,915字节及SHA、完整性判据、独立复核在 `.build/watch-observation-20261021/anomalies/20261021-092414-548603`。565条可解析日志中报告合计729次诊断记录被抑制，不能称完整触发审计，也不能将其等同于丢失FSEvents数量。已通知新增6段；后续不重复播报既有24段。原App、采样器和10月22日10:18:28截止均不变。
+
+## 18:48搜索服务footprint台阶：只读排查
+
+用户追加授权只读定位约47.6MiB增长及可能不必要保留，继续保持原App和观察窗口，到期统一汇总。[排查证据](evidence/serve-footprint-1848.json)和REPORT对应节记录至20:01:28、seq584：18:48 serve footprint一次+49,889,280字节（47.578125MiB），同段RSS−69.765625MiB、CPU仅0.000700791秒，revision+4、last_indexed_at不变；同身份/boot/power连续。之后73分钟footprint只两次各+16KiB，末1549.127MiB，未见再次明显上行。RSS后续降至7.813MiB而footprint保持，不能据此称索引释放、压缩已证实或内存恢复。
+
+确认源码未见跨请求结果缓存或长期双份backend；换索引先释放旧backend，delta暂存有界并drop，status不触发刷新。arena保留容量/死字符串和分配器留存是候选机制，未证实本次触发或不必要。采样ABI/CPU单位已独立静态核对；footprint含压缩等ledger，历史样本没有其分项、堆分配栈、前后arena容量或服务请求审计，无法确定根因。原生GUI会排空并丢弃serve stdout/stderr，不把缺失日志写成没有重载。
+
+私有只读材料在 `.build/watch-observation-20261021/investigations/serve-footprint-1848-20261021`，含冻结前缀摘要/端点摘录/源码哈希/三个独立复核；原始journal和监控工具未改。不得补采或通过status/search/reload请求、heap/vmmap附加、强制GC/缓存清理来验证候选。后续心跳按同身份跟踪serve此新平台是否再升、GUI约53.2MiB平台及监听既有24段之外的新增高CPU；到期将该台阶与后续RSS变化并入完整异常线，不重复通知已解释无须操作的变化，根因保持UNKNOWN。
 
 ## 到期
 
