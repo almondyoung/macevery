@@ -1,0 +1,54 @@
+{
+  "schema": 1,
+  "status": "OBSERVING_NOT_FINAL",
+  "source_commit": "29b6140575cdd69c965732b943dccda77e8b586e",
+  "build_label": "0.1.3-g29b6140",
+  "app_fingerprint": "2e976594395678e726c252e81a97f2fd5c88911bcb4893862c1893553b932681",
+  "app_payload_hashes": {
+    "plist": "44339123679967781cf7bdea1c30e334d195f859aef4122a86cad7638789fb5d",
+    "gui": "9ed79923cc04f58a98866fa2170d6a1e9364382de2b4a7700e9c0a454096b485",
+    "cli": "cc08bdc30f63a1f1511ae73787c10c285d8cb7c12b40217030ddfdb226cf32f0"
+  },
+  "source_archive_sha256": "dfa17931c4c93f8b6f80c3cef33bbea77b1d7facf5d43dfe5ff909f28738ede1",
+  "window_start_utc": "2026-10-21T02:18:28.343991+00:00",
+  "window_deadline_utc": "2026-10-22T02:18:28.343991+00:00",
+  "window_start_asia_shanghai": "2026-10-21T10:18:28.343991+08:00",
+  "window_deadline_asia_shanghai": "2026-10-22T10:18:28.343991+08:00",
+  "duration_seconds": 86400.0,
+  "interval_seconds": 60.0,
+  "first_endpoint_utc": "2026-10-21T02:19:05.169777+00:00",
+  "first_endpoint_elapsed_seconds": 36.825831208,
+  "initial_database_known": true,
+  "first_source_and_database_match": true,
+  "first_roles": {
+    "gui": {
+      "rss_bytes": 117751808,
+      "footprint_bytes": 52937808
+    },
+    "serve": {
+      "rss_bytes": 77365248,
+      "footprint_bytes": 1618921152
+    },
+    "watch": {
+      "rss_bytes": 9125888,
+      "footprint_bytes": 4112888
+    }
+  },
+  "mode": "memory",
+  "all_three_actual_macho_uuid_verified_at_preflight": true,
+  "one_bounded_resource_collector": true,
+  "baseline_evidence_and_current_app_source_frozen": true,
+  "historical_windows_not_joined": true,
+  "maximum_hourly_diagnostic_snapshot_bytes": 13107200,
+  "diagnostic_limit": "Hourly copies of active/one rotation file are bounded and may miss between-copy rotation, rate-suppressed or event-sampled detail",
+  "initial_receipt_verification_failure_retained": "Universal Python binary first UUID belonged to x86_64; running arm64 UUID was independently matched with same PID/cookie/boot/argv and one session; worker/window never restarted",
+  "coverage_boundary": "First endpoint at +36.825831208s gives no CPU interval before it; sleep/gaps/unknown/identity boundaries excluded; no automatic refill or extension",
+  "tool_sha256": "781564a67a55defaa9778357e3f45b1adc5dd40a02f689922963ce01cb3caefe",
+  "metrics_helper_sha256": "41e09df119b34b0a84832e759a1068c09eb88bb82f7cb21ec02ef0bb2cac2e59",
+  "historical_memory_boundaries": [
+    "TopK installation ordinary footprint +17.690092 percent remains unexplained",
+    "Previous watcher/GUI install ordinary serve footprint +40.843773MiB/+2.717283 percent retained separately; not same-input A/B/A",
+    "Historical GUI footprint staircases and full-window peak89.485MiB/end66.032MiB are not no-leak proof"
+  ],
+  "health_helper_sha256": "acae5bc6fc955db5962f7ca778ebeadd969cd14d05d728c1d160735a41c453bb"
+}
