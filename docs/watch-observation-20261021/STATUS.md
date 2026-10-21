@@ -1,6 +1,6 @@
 # MacEvery修复版独立24小时观察
 
-2026-10-21，r1，Asia/Shanghai，OBSERVING。Owner：当前聊天。
+2026-10-21，r2，Asia/Shanghai，OBSERVING_WITH_WATCH_CPU_RECURRENCE。Owner：当前聊天。
 
 ## 固定范围
 
@@ -12,7 +12,7 @@
 ## 状态与入口
 
 - [启动摘要](evidence/start.json)、[观察报告](REPORT.md)。本轮独立私有目录 `.build/watch-observation-20261021`；所有旧窗口、异常、冻结版及真实索引回滚原件保持，不合并数据。
-- 单一有界采样器：`tools/observe_app_resources.py run --state /Users/yangtao/pine/code/macevery/.build/watch-observation-20261021/observation-24h`。已核对实际PID/start cookie/arm64 UUID/boot/精确argv和单一collector_session，不能只信state.running。writer锁已被同一worker持有；未穿插sample。
+- 单一有界采样器（仓库根目录下的等价命令示意，勿重复执行）：`tools/observe_app_resources.py run --state .build/watch-observation-20261021/observation-24h`。实际绝对argv以私有launch回执为准，未改进程启动参数。已核对实际PID/start cookie/arm64 UUID/boot/精确argv和单一collector_session，不能只信state.running。writer锁已被同一worker持有；未穿插sample。
 - 首次启动回执校验误取通用Python的首条x86_64 UUID而失败；已从全部Mach-O项匹配实际arm64 UUID，以同PID/cookie/boot/argv及全部已提交样本的单一session证明没有重启或重开。原launch脚本、request及修正说明均保留。
 - 新冻结基线在 `baseline/`：当前App副本、精确源码archive、上轮REPORT/STATUS/最终验收及前后资源点、旧24小时收尾/封存清单、当前两份有界触发日志；文件SHA逐项记录。真实DB仅保存控制身份/配置，不再复制大测试库；既有完整真实索引回滚保留。
 - 当前配置模式memory/Fastest，roots/excludes及快捷键保持；身份/配置在 `preflight.local.json`，工具冻结哈希在 `monitoring-tools.local.json`。
@@ -20,6 +20,12 @@
 - `health_check.py`只在本目录保存缓存/快照。每小时最多一组active及一个轮转文件，共25组、原始字节上限12.5MiB；不获取诊断writer锁。记录FD前后size/mtime及路径inode是否一致、尾行是否完整。两次核查间可能轮转丢细节，源日志本身也采样/限频，不能称完整原始事件审计。
 
 ## 判读和通知
+
+本窗已记录并通知的显著异常见[14:38监听复发证据](evidence/watch-recurrence-1438.json)：14:38:47至15:13:00三轮全根恢复，原始recovery flags均3（代码中的MustScanSubDirs|UserDropped），均无scope_fallback/retry_due/warnings。三次indexed/rows_written合计22,103,162，是重复扫描工作量而非不同文件数；公开indexed_at变化仍导致写入。当前证据不能确定丢事件起因或每轮恢复是否存在可避免重复。
+
+截至seq301/15:18:28，18个有效约分钟区间watch单核CPU≥50%，峰81.625992%，这些区间合计CPU825.388416秒；两组为14:39–14:40的2段、14:57–15:12的16段。三次revision分钟增量7,368,580/7,407,882/7,369,362，last_indexed_at均前进。最近5段CPU约0.0169%–0.0287%，不能只凭短尾部称事件长期恢复。
+
+监听峰RSS109.328MiB/footprint98.001MiB，事件后footprint14.657MiB仍高于此前约5.110MiB平台（最近前端点14:38:28为5.407MiB）；GUI同期峰66.579、末52.064MiB，serve footprint从1543.924降至1501.642MiB。均按同身份记录，未重启App/worker或改库，尚不能据此判持续泄漏或整体内存改善。额外有界原始日志及完整分析在 `.build/watch-observation-20261021/anomalies/20261021-071833-559634`，与较早的hour-004快照分别保留。异常已通知，后续仅新增复发/显著趋势或需操作时再提醒，不重复播报旧18段；原窗口/截止不变。
 
 1. 用已提交JSONL计算本小时和全窗，而非将累计hourly summary当成单小时结果。按每角色、同一进程身份列每小时CPU/RSS/footprint中位、p95、峰值、端点、斜率和尾部平台；记录实际样本数/有效CPU时长。单次台阶不直接定为泄漏，RSS回落不等于footprint回落。
 2. 监听检查每个有效无barrier区间的单核CPU，特别记录≥50%的分钟区间、连续性、CPU秒、revision delta/last_indexed_at及同期日志。新日志可辅助判读，不能猜未捕获的path/flags；恢复必要性需独立证据。
