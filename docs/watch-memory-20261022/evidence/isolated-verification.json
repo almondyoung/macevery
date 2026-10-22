@@ -1,5 +1,5 @@
 {
-  "status": "ISOLATED_GATES_PASSED_NATIVE_PENDING",
+  "status": "ISOLATED_GATES_PASSED",
   "baseline_app_source": "29b6140575cdd69c965732b943dccda77e8b586e",
   "tested_artifacts": {
     "macevery": {
@@ -8243,8 +8243,21 @@
     "ad-hoc short display null percentage error retained; raw benchmark unchanged",
     "ordinary first run selected legacy MemoryIndex; retained as supplementary, not App packed memory gate"
   ],
-  "native_app": "NOT_RUN",
-  "real_15s_timeout_cancel": "PENDING",
+  "native_app": "PASS_CONFIGURED_SCOPE_SEE_NATIVE_ACCEPTANCE",
+  "real_15s_timeout_cancel": {
+    "status": "PASS",
+    "cases": 7,
+    "http_timeouts_seconds": [
+      15.00189,
+      15.007102
+    ],
+    "budget_seconds": 15,
+    "cancelled_owned_child_reaped": true,
+    "old_result_publications": 0,
+    "cold_request_precedes_loaded_at_min_seconds": 1.411265,
+    "full_ordered_oracle_count": 300,
+    "cleanup_complete": true
+  },
   "memory_claim": "No overall memory reduction claim; short sampled footprint increase retained.",
   "excludes_function": {
     "status": "PASS",

@@ -1,6 +1,6 @@
 # MacEvery 监听恢复与搜索内存定位记录
 
-2026-10-22，r3，隔离门禁通过，真实15秒超时/取消、App替换与原生验收待完成。基线App为0.1.3-g29b6140；日常开发继续0.1.3，未分配正式发布版本。
+2026-10-22，r4，受测源码已推送，clean App **0.1.3-g4dc3e4b** 已替换并完成原生验收。源码 `4dc3e4b5d05136ecb75ca72eaa6dc3f6ce18b114`；基线29b6140保留，日常开发继续0.1.3，未分配正式发布版本。
 
 本轮减少排队恢复放大和排除目录噪声，并限制长期积压计划。**尚未找到历史UserDropped及47.578125MiB footprint台阶的唯一底因，也不宣称整体内存下降。** [上轮24小时原始结论](../watch-observation-20261021/REPORT.md)、冻结版与真实索引回滚保持；本轮独立测试不拼入旧窗口，不自动开始新观察。
 
@@ -47,4 +47,32 @@ serve增加有界容量/fragmentation/刷新身份缓存、自身VM resident/int
 
 并行测试fixture文件名碰撞已增加进程内原子序号；初始Clippy/独立driver编译失败、权限/loopback sandbox失败均保留。机制controller参数曾容许第四批无恢复标记的错误范围，现收紧至8195..12288，默认实测9000不变，原文/hash保留。内存外部sampler四个临退出零footprint点保留并独立排除；不拿它们声称内存释放。一次临时显示脚本null百分比失败不影响原始benchmark。新工具修正均不改已运行原件或冻结production source。
 
-下一步从精确已测clean源码构建开发App，完成真实15秒HTTP超时/CLI回退/取消、签名及payload核对；保留旧App原inode与独立真实索引回滚后替换，进行原生双模式搜索/文件增改名删与最终身份/资源回读。当前这些门禁仍NOT_RUN，不提前标记替换或发布完成。历史普通安装footprint+17.690%、上轮serve+40.844MiB/+2.717%及旧GUI台阶继续保留，未因本轮诊断被解释或清除。
+## App替换、原生验收与最终回读
+
+[安装及原生证据](evidence/native-acceptance.json)保留签名/payload、回滚校验及分角色资源值。源码4dc3e4b提交后精确回读远端main同SHA、fetch后behind=0并证明包含性；从clean20文件一致源码构建，签名deep/strict通过。原冻结CLI SHA为4f47823…，App签名CLI为0f8f5df9…。
+
+首次去签名整文件比较失败原件保留：两副本799664B仅1字节不同，属于只读terminal `__LINKEDIT.vmsize`，32768→49152。签名实际从6416增到19840B，使signed LINKEDIT跨16KiB页；去签名仍保留旧vmsize。14个file-backed section及其余全部字节一致。独立复核后，仅在私有副本规范化这个已证明的8字节字段，且逐个校验raw签名范围/页取整、strip后无签名命令、readonly/no-sections LINKEDIT和其它每个字节；保留raw受测hash及严格签名门禁，没有重写App payload或泛化忽略segment。未做superblob内部槽完整审计。
+
+CUA正常Quit后实查三进程全停、主库和全部sidecar无开放FD。只读SQLite backup到本轮新rollback，独立关闭副本quick_check及全文件SHA通过；普通RO验证副本的失败保留，只在已关闭/无sidecar/哈希固定的该私有副本上采用immutable验证，真实DB从未immutable。保留旧App原inode后独占重命名App-only替换；真实DB inode、database_id、roots/excludes保持，revision不回退，不迁移/整理/采用测试库。旧8096e0a、a4418a7、29b、两轮观察与既有回滚均保留；当前clean候选App和精确源码archive另留。
+
+生产Swift七场景门禁通过：两次真实15秒请求分别15.001890/15.007102秒超时后启动CLI，300条完整六字段/顺序一致；取消子进程SIGTERM/wait4回收、不回填旧结果，冷请求确早于加载至少1.411秒；HTTP200真实no-hit与错误空结果分开，所有隔离子进程/端口清理通过。首次传短SHA被参数门禁拒绝，原日志保留，之后以完整源码SHA执行。
+
+原生窗口Fastest/code300、Low Memory/code300（实际子进程argv=sqlite）及恢复Fastest/code300通过。真实文件新增/修改/改名/删除，窗口结果1/1/1/0；只读核对路径、kind、size、mtime/ctime、dev/inode及DB身份，旧路径和末文件均清理，未直接SQL写files。原查询、Fastest与Command-Shift-Space偏好恢复。新三角色PID/start/UUID/boot/exact argv与制品核对通过；模式切换的不同serve身份不跨段连线。
+
+权限栏旧App显示Limited，新App在Check后为Unknown；相同Swift启发式在三个候选目录均不可见时返回Unknown，不能由此证明系统授权改变或保持。未改TCC/Full Disk Access，roots/excludes保持；受保护目录权限/内容不在本轮验收范围。当前配置范围的搜索与文件更新通过，不能扩展为全盘无权限遗漏PASS。
+
+## 普通使用点（独立于受控A/B/A）
+
+两次均No Query/Fastest、各约20秒，同一点内三个角色身份稳定。前为长寿命/旧加载代次，后经历重启、模式切换、原生查询及自然文件更新，索引内容代次不同；RSS/footprint点差不作为本轮因果收益。
+
+| 角色 | 单核CPU，前→后 | RSS MiB，前→后 | footprint MiB，前→后 |
+| --- | ---: | ---: | ---: |
+| GUI | 0.000000% → 0.000000% | 115.000 → 143.188 | 52.845 → 51.985 |
+| watch | 0.018498% → 0.004931% | 21.297 → 8.219 | 13.969 → 3.219 |
+| serve | 0.000896% → 0.000982% | 6.063 → 1553.953 | 1549.158 → 1550.127 |
+
+0只表示该短区间未测得CPU增量。serve footprint仍增加约0.969MiB；旧低RSS不表示owned index释放，fresh加载后的RSS回升也不能当作同输入回退。第一次安装后点与回滚SHA读取部分重叠，原样保留；上表使用之后无本任务负载/哈希重叠的独立quiet点，没有覆盖或拼接。
+
+新原生serve有14条有限诊断快照，VM/CPU API均有效、与实际同身份匹配。首次加载后footprint约1117.830MiB，首批查询后约1549.9MiB；后续fixture增量capacity只增72B，最后三个idle点在120秒内footprint均1550.126648MiB，cached snapshot时刻与实际VM采样时刻分列。受控短词两版也都有首次查询后约432MiB台阶、容量不变，故直接支持“容量不变时出现与查询关联的footprint台阶”，VM/allocator具体分摊仍未知；不证明历史47.578MiB台阶原因或不必要长期保留。上游排除实际requested8/accepted=true。这里只做有限验收回读，没有启动新24小时采样器，短平台不作无泄漏或不再复发结论。
+
+历史普通安装footprint+17.690%、上轮serve+40.844MiB/+2.717%、47.578MiB台阶及旧GUI台阶继续保留。UserDropped最初缓冲压力来源、历史重复恢复能否逐次避免、系统VM/allocator精确归因和长期趋势仍UNKNOWN。当前实现验证了可合并积压恢复、限制长期计划和减少排除噪声；真正后到/丢失恢复仍保留。收尾文档按授权推送并精确回读远端SHA，当前App保持4dc3e4b，不随docs HEAD重建；已有heartbeat继续暂停，不自动新开观察。
