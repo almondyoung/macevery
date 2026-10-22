@@ -1,0 +1,181 @@
+{
+  "status": "RETAINED_TIMELINE_VERIFIED_WITH_DIAGNOSTIC_GAPS",
+  "source_commit": "29b6140575cdd69c965732b943dccda77e8b586e",
+  "total_logged_root_indexed_and_written": 29472762,
+  "total_logged_root_elapsed_ms": 2425419,
+  "no_additional_root_scan_visible_after_fourth": true,
+  "root_scan_underlying_drop_cause": "UNKNOWN",
+  "root_scan_necessity_or_redundancy": "NOT_ESTABLISHED",
+  "watch_cpu": {
+    "intervals_at_least_50_percent": 24,
+    "last_high_interval_sequence": 378,
+    "peak_percent_one_core": 82.08015340903162,
+    "cpu_seconds_in_high_intervals": 1110.366222085,
+    "no_later_high_interval_observed": true
+  },
+  "serve_footprint": {
+    "step_sequence": 511,
+    "step_delta_bytes": 49889280,
+    "step_delta_MiB": 47.578125,
+    "post_step_endpoint_count": 931,
+    "post_step_changes": [
+      {
+        "sequence": 512,
+        "at_utc": "2026-10-21T10:49:28.598755+00:00",
+        "delta_bytes": 16384
+      },
+      {
+        "sequence": 564,
+        "at_utc": "2026-10-21T11:41:28.685519+00:00",
+        "delta_bytes": 16384
+      },
+      {
+        "sequence": 1107,
+        "at_utc": "2026-10-21T20:44:28.842547+00:00",
+        "delta_bytes": 16384
+      }
+    ],
+    "post_step_total_further_delta_bytes": 49152,
+    "post_step_min_bytes": 1624344352,
+    "post_step_max_bytes": 1624393504,
+    "final_bytes": 1624393504,
+    "final_MiB": 1549.1423645019531,
+    "final_rss_bytes": 5554176,
+    "interpretation": "One large step followed by a platform with three further 16KiB steps; no continuing MiB-scale rise established. Root cause UNKNOWN."
+  },
+  "gui_tail": {
+    "last_60_endpoints_start_utc": "2026-10-22T01:19:28.748543+00:00",
+    "last_60_endpoints_end_utc": "2026-10-22T02:18:28.536960+00:00",
+    "footprint_net_delta_bytes": 98304,
+    "footprint_changes": [
+      {
+        "sequence": 1393,
+        "at_utc": "2026-10-22T01:30:28.697025+00:00",
+        "delta_bytes": 16384
+      },
+      {
+        "sequence": 1440,
+        "at_utc": "2026-10-22T02:17:28.545137+00:00",
+        "delta_bytes": 16384
+      },
+      {
+        "sequence": 1441,
+        "at_utc": "2026-10-22T02:18:28.536960+00:00",
+        "delta_bytes": 65536
+      }
+    ],
+    "final_footprint_bytes": 55428176,
+    "first_footprint_bytes": 52937808,
+    "window_peak_footprint_bytes": 69813376,
+    "interpretation": "Retain the small terminal increase; this does not establish a leak."
+  },
+  "boundaries": [
+    "Missing hourly slots are missing diagnostic snapshots, not missing resource endpoints.",
+    "Each captured file individually passed size/SHA/FD stability/path inode/newline gates. Active and rotated files were not captured under the writer lock or atomically as a pair.",
+    "Deduplication is by complete canonical JSON across overlapping copies; exact identical same-millisecond original records cannot be distinguished without a source record sequence.",
+    "Only timestamps inside the requested window are used for the diagnostic totals and root timeline. 548 older and 3 later unique records are excluded.",
+    "Source diagnostic suppression, first-three/last/recovery event sampling and one-file rotation mean retained snapshots are not a complete FSEvents or indexing audit.",
+    "Suppression sum counts reported diagnostic record attempts in captured unique emitted records, not dropped FSEvents, unique file changes or complete in-window attempts; counters can span capture/window boundaries.",
+    "Per-path raw flags are not recorded for every scanned/compacted target. flags_or is a batch OR mask; scope_hash can be absent from the bounded sampled events. Only the four logged recovery_event raw flags are individually established here.",
+    "The 4096 batch event count is a processing limit, not measured total backlog depth or a cause of UserDropped.",
+    "Four root scans cover configured roots and may overlap work. Summed indexed/rows_written is repeated work, not distinct files; unchanged indexed_at generations were not suppressed.",
+    "Root elapsed_ms is production elapsed timing; logged at_ms uses wall time. Their differences need not be identical.",
+    "No new roots after the fourth are visible in the retained in-window logs; diagnostic coverage gaps prevent a proof of absence. No later >=50 percent watch CPU interval was observed.",
+    "Footprint is distinct from RSS and indexed container capacity. The serve step cause, unnecessary retention and leak status remain UNKNOWN; later RSS decreases do not prove compression or recovered footprint.",
+    "GUI small end-of-window rises and net change are observations, not a leak diagnosis or long-term stability pass.",
+    "Natural exit is verified here in committed state; actual worker absence and free lock are supported by the parent final-health receipt, not a new process/lock probe by this reviewer."
+  ],
+  "root_scans": [
+    {
+      "start_utc": "2026-10-21T06:38:47.785000+00:00",
+      "complete_utc": "2026-10-21T07:00:37.018000+00:00",
+      "recovery_flags": 3,
+      "batch_event_count": 4096,
+      "indexed": 7364441,
+      "rows_written": 7364441,
+      "unchanged": 0,
+      "stale_removed": 1,
+      "warnings": 0,
+      "elapsed_ms": 1309356,
+      "scope_fallback": false,
+      "retry_due": false,
+      "retry_roots": false,
+      "checkpoint_utc": "2026-10-21T07:00:37.140000+00:00",
+      "checkpoint_delay_after_complete_ms": 122
+    },
+    {
+      "start_utc": "2026-10-21T07:00:37.375000+00:00",
+      "complete_utc": "2026-10-21T07:06:54.471000+00:00",
+      "recovery_flags": 3,
+      "batch_event_count": 4096,
+      "indexed": 7369360,
+      "rows_written": 7369360,
+      "unchanged": 0,
+      "stale_removed": 12,
+      "warnings": 0,
+      "elapsed_ms": 377099,
+      "scope_fallback": false,
+      "retry_due": false,
+      "retry_roots": false,
+      "checkpoint_utc": "2026-10-21T07:06:54.608000+00:00",
+      "checkpoint_delay_after_complete_ms": 137
+    },
+    {
+      "start_utc": "2026-10-21T07:06:56.587000+00:00",
+      "complete_utc": "2026-10-21T07:13:00+00:00",
+      "recovery_flags": 3,
+      "batch_event_count": 2099,
+      "indexed": 7369361,
+      "rows_written": 7369361,
+      "unchanged": 0,
+      "stale_removed": 0,
+      "warnings": 0,
+      "elapsed_ms": 363416,
+      "scope_fallback": false,
+      "retry_due": false,
+      "retry_roots": false,
+      "checkpoint_utc": "2026-10-21T07:13:00.105000+00:00",
+      "checkpoint_delay_after_complete_ms": 105
+    },
+    {
+      "start_utc": "2026-10-21T08:29:33.497000+00:00",
+      "complete_utc": "2026-10-21T08:35:49.050000+00:00",
+      "recovery_flags": 3,
+      "batch_event_count": 2,
+      "indexed": 7369600,
+      "rows_written": 7369600,
+      "unchanged": 0,
+      "stale_removed": 0,
+      "warnings": 0,
+      "elapsed_ms": 375548,
+      "scope_fallback": false,
+      "retry_due": false,
+      "retry_roots": false,
+      "checkpoint_utc": "2026-10-21T08:35:49.161000+00:00",
+      "checkpoint_delay_after_complete_ms": 111
+    }
+  ],
+  "diagnostic_snapshot_coverage": {
+    "missing_slots": [
+      6,
+      8,
+      13,
+      19,
+      22
+    ],
+    "hourly_snapshot_groups": 20,
+    "files_including_anomaly_copies": 44,
+    "raw_bytes_including_anomaly_copies": 8195699,
+    "raw_record_appearances": 11240,
+    "unique_canonical_records": 7277,
+    "unique_in_window_records": 6726,
+    "older_unique_records_excluded": 548,
+    "later_unique_records_excluded": 3,
+    "reported_suppressed_diagnostic_attempts_in_retained_records": 24063,
+    "all_per_file_size_sha_fd_path_tail_gates_pass": true,
+    "per_path_raw_flags_complete": false,
+    "subtree_scan_log_records": 4245,
+    "scope_hash_not_in_bounded_event_samples": 1411,
+    "boundary": "Suppression is reported diagnostic attempts, not dropped FSEvents; sampled paths and batch OR masks cannot establish every path raw flag. Snapshot pairs are not atomic."
+  }
+}
