@@ -5,7 +5,9 @@ use crate::error::{MacEveryError, Result};
 use crate::model::{FileKind, SearchOptions, SearchResult};
 use crate::process_lifetime;
 use crate::search;
+use crate::serve_memory::{MemoryAudit, Snapshot as MemorySnapshot, TrafficCounters};
 use std::collections::HashMap;
+use std::hash::{Hash, Hasher};
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::path::PathBuf;
@@ -80,17 +82,23 @@ pub fn serve(addr: Option<String>, backend: BackendPreference) -> Result<()> {
         eprintln!("macevery search service listening on http://{addr} (no auth — debug mode)");
     }
 
-    let state = Arc::new(RwLock::new(ServiceState::load(db_path, backend)?));
+    let state = ServiceState::load(db_path, backend)?;
+    let traffic = state.memory_audit.traffic();
+    state.memory_audit.start();
+    let state = Arc::new(RwLock::new(state));
     let active_requests = Arc::new(AtomicUsize::new(0));
     let max_active_requests = max_active_requests();
     let search_slots = Arc::new(SearchSlots {
         active: Arc::new(AtomicUsize::new(0)),
         limit: max_active_searches(),
+        traffic: Arc::clone(&traffic),
     });
     for stream in listener.incoming() {
         match stream {
             Ok(mut stream) => {
-                if !try_acquire_request_slot(&active_requests, max_active_requests) {
+                let Some(guard) =
+                    ActiveRequestGuard::http(&active_requests, max_active_requests, &traffic)
+                else {
                     let _ = write_response(
                         &mut stream,
                         "503 Service Unavailable",
@@ -98,13 +106,10 @@ pub fn serve(addr: Option<String>, backend: BackendPreference) -> Result<()> {
                         "server busy\n",
                     );
                     continue;
-                }
+                };
                 let state = Arc::clone(&state);
                 let auth_token = auth_token.clone();
                 let search_slots = Arc::clone(&search_slots);
-                let guard = ActiveRequestGuard {
-                    active: Arc::clone(&active_requests),
-                };
                 thread::spawn(move || {
                     let _guard = guard;
                     if let Err(err) =
@@ -122,23 +127,59 @@ pub fn serve(addr: Option<String>, backend: BackendPreference) -> Result<()> {
 
 struct ActiveRequestGuard {
     active: Arc<AtomicUsize>,
+    traffic: Arc<TrafficCounters>,
+    completion: CompletionKind,
+}
+
+enum CompletionKind {
+    Http,
+    Search,
+}
+
+impl ActiveRequestGuard {
+    fn http(
+        active: &Arc<AtomicUsize>,
+        limit: usize,
+        traffic: &Arc<TrafficCounters>,
+    ) -> Option<Self> {
+        traffic.http_accept();
+        if !try_acquire_request_slot(active, limit) {
+            traffic.http_reject();
+            return None;
+        }
+        Some(Self {
+            active: Arc::clone(active),
+            traffic: Arc::clone(traffic),
+            completion: CompletionKind::Http,
+        })
+    }
 }
 
 impl Drop for ActiveRequestGuard {
     fn drop(&mut self) {
         self.active.fetch_sub(1, Ordering::AcqRel);
+        match self.completion {
+            CompletionKind::Http => self.traffic.http_complete(),
+            CompletionKind::Search => self.traffic.search_complete(),
+        }
     }
 }
 
 struct SearchSlots {
     active: Arc<AtomicUsize>,
     limit: usize,
+    traffic: Arc<TrafficCounters>,
 }
 
 impl SearchSlots {
     fn try_acquire(&self) -> Option<ActiveRequestGuard> {
-        try_acquire_request_slot(&self.active, self.limit).then(|| ActiveRequestGuard {
-            active: Arc::clone(&self.active),
+        try_acquire_request_slot(&self.active, self.limit).then(|| {
+            self.traffic.search_start();
+            ActiveRequestGuard {
+                active: Arc::clone(&self.active),
+                traffic: Arc::clone(&self.traffic),
+                completion: CompletionKind::Search,
+            }
         })
     }
 }
@@ -150,6 +191,7 @@ enum Backend {
 }
 
 impl Backend {
+    #[cfg(test)]
     fn memory_usage_bytes(&self) -> u64 {
         match self {
             Self::Packed(index) => index.memory_usage_bytes(),
@@ -191,6 +233,9 @@ struct ServiceState {
     last_fallback_reason: Option<&'static str>,
     last_refresh_error: Option<String>,
     pending_full_reason: Option<&'static str>,
+    // Computed only when index ownership changes; /status uses the cached sum.
+    memory_snapshot: MemorySnapshot,
+    memory_audit: Arc<MemoryAudit>,
 }
 
 // The first stamp SELECT pins the same WAL snapshot used by the full load.
@@ -226,6 +271,7 @@ impl ServiceState {
         // and do not rerun schema initialization for each HTTP request.
         drop(Database::open(db_path.clone())?);
         let observer = ContentObserver::open(db_path.clone())?;
+        let memory_audit = MemoryAudit::new(&db_path);
         let mut state = Self {
             db_path,
             requested_backend,
@@ -248,6 +294,8 @@ impl ServiceState {
             last_fallback_reason: None,
             last_refresh_error: None,
             pending_full_reason: None,
+            memory_snapshot: MemorySnapshot::default(),
+            memory_audit,
         };
         if let Err(error) = state.full_reload("startup_full", None) {
             // Keep the listener usable after a failed full load. A later search
@@ -312,6 +360,68 @@ impl ServiceState {
         self.estimated_memory_bytes = 0;
         self.loaded_at = 0;
         self.refreshed_at = 0;
+        self.memory_snapshot = MemorySnapshot::default();
+    }
+
+    fn collect_memory(&self, phase: &'static str) -> MemorySnapshot {
+        let mut snapshot = MemorySnapshot {
+            phase,
+            backend: self.selected_backend.as_str(),
+            revision: self.loaded_stamp.as_ref().map(|stamp| stamp.revision),
+            database_device: self
+                .loaded_stamp
+                .as_ref()
+                .map(|stamp| stamp.file_identity.device),
+            database_inode: self
+                .loaded_stamp
+                .as_ref()
+                .map(|stamp| stamp.file_identity.inode),
+            database_token: self.loaded_stamp.as_ref().map(|stamp| {
+                let mut hash = std::collections::hash_map::DefaultHasher::new();
+                stamp.database_id.hash(&mut hash);
+                hash.finish()
+            }),
+            records: self.backend.loaded_records(),
+            load_attempts: self.load_attempts,
+            successful_loads: self.successful_loads,
+            incremental_attempts: self.incremental_attempts,
+            incremental_applies: self.incremental_applies,
+            incremental_change_ids: self.incremental_change_ids,
+            last_change_ids: self.last_incremental_change_ids,
+            method: self.last_refresh_method,
+            fallback_reason: self.last_fallback_reason,
+            ..MemorySnapshot::default()
+        };
+        if let Backend::Packed(index) = &self.backend {
+            snapshot.memory = index.memory_breakdown();
+            let memory = snapshot.memory;
+            snapshot.capacity_bytes = [
+                memory.record_capacity_bytes,
+                memory.metadata_capacity_bytes,
+                memory.string_capacity_bytes,
+                memory.extension_capacity_bytes,
+                memory.container_bytes,
+                memory.prefix_string_bytes,
+                memory.prefix_entry_capacity_bytes,
+                memory.prefix_lookup_capacity_bytes,
+            ]
+            .into_iter()
+            .fold(0u64, |sum, bytes| sum.saturating_add(bytes as u64));
+            snapshot.set_fragmentation(index.fragmentation_stats());
+        }
+        snapshot
+    }
+
+    fn publish_memory(&mut self, phase: &'static str) {
+        let snapshot = self.collect_memory(phase);
+        self.memory_snapshot = snapshot;
+        self.memory_audit.publish(snapshot);
+    }
+
+    fn cache_memory(&mut self, phase: &'static str) {
+        let snapshot = self.collect_memory(phase);
+        self.memory_snapshot = snapshot;
+        self.memory_audit.cache_only(snapshot);
     }
 
     fn reload(&mut self) -> Result<()> {
@@ -323,11 +433,24 @@ impl ServiceState {
         method: &'static str,
         fallback_reason: Option<&'static str>,
     ) -> Result<()> {
+        self.full_reload_with_capture(method, fallback_reason, true)
+    }
+
+    fn full_reload_with_capture(
+        &mut self,
+        method: &'static str,
+        fallback_reason: Option<&'static str>,
+        capture_before: bool,
+    ) -> Result<()> {
         self.load_attempts = self.load_attempts.saturating_add(1);
         self.last_fallback_reason = fallback_reason;
+        if capture_before {
+            self.publish_memory("full_before");
+        }
         // Drop all old index arenas before allocating a replacement. While the
         // write lock is held searches wait; /health does not take this lock.
         self.invalidate_backend();
+        self.cache_memory("full_loading");
         match self.load_backend() {
             Ok((backend, selected, stamp, records_total)) => {
                 self.backend = backend;
@@ -343,11 +466,12 @@ impl ServiceState {
                 self.last_refresh_error = None;
                 self.last_refresh_method = method;
                 self.pending_full_reason = None;
+                self.publish_memory("full_after");
                 eprintln!(
                     "serve: loaded {} records, backend={}, index storage {} (allocated capacity, not process RSS)",
                     records_total,
                     selected.as_str(),
-                    format_bytes(self.backend.memory_usage_bytes())
+                    format_bytes(self.memory_snapshot.capacity_bytes)
                 );
                 Ok(())
             }
@@ -355,6 +479,7 @@ impl ServiceState {
                 self.last_load_error = Some(error.to_string());
                 self.last_refresh_error = Some(error.to_string());
                 self.last_refresh_method = "full_failed";
+                self.publish_memory("full_failed");
                 Err(error)
             }
         }
@@ -412,6 +537,7 @@ impl ServiceState {
                 // stale; callers receive 503 until a refresh succeeds.
                 self.last_refresh_method = "incremental_failed";
                 self.last_refresh_error = Some(error.to_string());
+                self.publish_memory("incremental_read_failed");
                 Err(error)
             }
         }
@@ -419,14 +545,24 @@ impl ServiceState {
 
     fn apply_delta(&mut self, target: ContentStamp, changes: Vec<FileChange>) -> Result<()> {
         let change_ids = changes.len();
+        self.publish_memory("incremental_before");
         let outcome = match &mut self.backend {
             Backend::Packed(index) => index.apply_changes(&changes),
-            _ => return self.full_reload("fallback_full", Some("backend_not_packed")),
+            _ => {
+                return self.full_reload_with_capture(
+                    "fallback_full",
+                    Some("backend_not_packed"),
+                    false,
+                );
+            }
         };
         drop(changes);
         match outcome {
             Ok(ApplyOutcome::NeedsFullReload(reason)) => {
-                self.full_reload("fallback_full", Some(reason))
+                // This outcome guarantees no index mutation. incremental_before
+                // already captured this ownership; a duplicate full_before would
+                // consume the two-capture window and suppress a fast outcome.
+                self.full_reload_with_capture("fallback_full", Some(reason), false)
             }
             Ok(ApplyOutcome::Applied) => {
                 let records_total = self.backend.loaded_records() as i64;
@@ -436,6 +572,8 @@ impl ServiceState {
                     self.selected_backend
                 };
                 if selected == BackendPreference::Sqlite {
+                    // Applied has changed the index, so its before-drop snapshot
+                    // is distinct. General refresh storms may still be coalesced.
                     return self.full_reload("fallback_full", Some("auto_backend_change"));
                 }
                 // The read transaction has committed and every mutation
@@ -455,6 +593,7 @@ impl ServiceState {
                 self.last_fallback_reason = None;
                 self.last_load_error = None;
                 self.last_refresh_error = None;
+                self.publish_memory("incremental_after");
                 Ok(())
             }
             Err(error) => {
@@ -465,6 +604,7 @@ impl ServiceState {
                 self.last_fallback_reason = Some("apply_failed");
                 self.last_refresh_method = "incremental_failed";
                 self.last_refresh_error = Some(error.to_string());
+                self.publish_memory("incremental_failed");
                 Err(error)
             }
         }
@@ -517,7 +657,7 @@ impl ServiceState {
             self.records_total,
             self.backend.loaded_records(),
             self.estimated_memory_bytes,
-            self.backend.memory_usage_bytes(),
+            self.memory_snapshot.capacity_bytes,
             self.loaded_at,
             self.successful_loads.saturating_sub(1),
             self.load_attempts.saturating_sub(1),
@@ -1006,6 +1146,33 @@ mod tests {
         }
     }
 
+    #[test]
+    fn pre_mutation_delta_fallback_keeps_before_and_outcome_vm_captures() {
+        let (directory, path) = test_database("fallback-memory-captures");
+        let mut state = ServiceState::load(path.clone(), BackendPreference::Memory).unwrap();
+        // A fresh enabled audit makes this test independent of the process's
+        // diagnostic environment and startup captures; no timer or log I/O.
+        state.memory_audit = MemoryAudit::for_test(&path);
+        let writer = crate::sqlite::Connection::open(&path).unwrap();
+        writer.execute_batch("INSERT INTO files(id,path,path_lower,basename,basename_lower,kind,indexed_at) VALUES(-50,'/fixture/code-short.txt','/fixture/code-short.txt','code-short.txt','code-short.txt','file',2);").unwrap();
+        state.reload_if_changed().unwrap();
+        assert_eq!(
+            state.last_fallback_reason,
+            Some("new non-monotonic record ID")
+        );
+        assert_eq!(state.successful_loads, 2);
+        assert_eq!(
+            state.memory_audit.pending_phases(),
+            (vec!["incremental_before", "full_after"], 0)
+        );
+        assert_eq!(state.memory_snapshot.phase, "full_after");
+        assert_eq!(state.search(&query("code")).unwrap().len(), 1);
+        assert_matches_full_snapshot(&state, &path);
+        drop(writer);
+        drop(state);
+        std::fs::remove_dir_all(directory).unwrap();
+    }
+
     fn assert_matches_full_snapshot(state: &ServiceState, path: &std::path::Path) {
         let db = Database::open_read_only(path.to_path_buf()).unwrap();
         let expected = search::search_records(&db.all_records().unwrap(), &query("*"));
@@ -1013,6 +1180,14 @@ mod tests {
         assert_eq!(
             state.records_total as usize,
             db.all_records().unwrap().len()
+        );
+        assert_eq!(
+            state.memory_snapshot.capacity_bytes,
+            state.backend.memory_usage_bytes()
+        );
+        assert_eq!(
+            state.memory_snapshot.revision,
+            state.loaded_stamp.as_ref().map(|stamp| stamp.revision)
         );
     }
 
@@ -1303,6 +1478,7 @@ mod tests {
         assert!(state.backend.memory_usage_bytes() > 0);
         let initial_stamp = state.loaded_stamp.clone();
         let initial_capacity = state.backend.memory_usage_bytes();
+        let initial_memory_snapshot = state.memory_snapshot;
         let db = Database::open(path.clone()).unwrap();
         db.set_meta("watch_last_event_id", "4242").unwrap();
         db.set_roots(&["/different/root".into()]).unwrap();
@@ -1320,6 +1496,11 @@ mod tests {
         assert_eq!(state.loaded_stamp, initial_stamp);
         assert_eq!(state.backend.memory_usage_bytes(), initial_capacity);
         let status = state.status_json();
+        for _ in 0..10 {
+            assert_eq!(state.status_json(), status);
+        }
+        assert_eq!(state.memory_snapshot, initial_memory_snapshot);
+        assert_eq!(state.memory_snapshot.capacity_bytes, initial_capacity);
         assert!(status.contains("\"backend\":\"memory\""));
         assert!(status.contains("\"reload_count\":0"));
         assert!(status.contains("\"loaded_records\":1"));
@@ -1523,6 +1704,7 @@ mod tests {
         let slots = SearchSlots {
             active: Arc::new(AtomicUsize::new(0)),
             limit: 2,
+            traffic: Arc::new(TrafficCounters::default()),
         };
         let first = slots.try_acquire().unwrap();
         let second = slots.try_acquire().unwrap();
@@ -1532,6 +1714,29 @@ mod tests {
         drop(second);
         drop(replacement);
         assert_eq!(slots.active.load(Ordering::Acquire), 0);
+        assert_eq!(slots.traffic.totals(), [0, 0, 0, 3, 3]);
+    }
+
+    #[test]
+    fn request_traffic_counts_errors_and_unwind_without_leaking_slots() {
+        let active = Arc::new(AtomicUsize::new(0));
+        let traffic = Arc::new(TrafficCounters::default());
+        let first = ActiveRequestGuard::http(&active, 1, &traffic).unwrap();
+        assert!(ActiveRequestGuard::http(&active, 1, &traffic).is_none());
+        assert_eq!(traffic.totals(), [2, 0, 1, 0, 0]);
+        drop(first);
+        let failed = || -> Result<()> {
+            let _guard = ActiveRequestGuard::http(&active, 1, &traffic).unwrap();
+            Err(MacEveryError::Cli("injected handler failure".into()))
+        };
+        assert!(failed().is_err());
+        let unwound = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let _guard = ActiveRequestGuard::http(&active, 1, &traffic).unwrap();
+            panic!("injected handler unwind");
+        }));
+        assert!(unwound.is_err());
+        assert_eq!(active.load(Ordering::Acquire), 0);
+        assert_eq!(traffic.totals(), [4, 3, 1, 0, 0]);
     }
 
     #[test]

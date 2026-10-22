@@ -9,6 +9,7 @@ pub mod model;
 pub mod process_lifetime;
 pub mod scanner;
 pub mod search;
+mod serve_memory;
 pub mod server;
 pub mod sqlite;
 pub mod watch;

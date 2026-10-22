@@ -284,40 +284,43 @@ fn classify(path: &Path, metadata: &fs::Metadata) -> FileKind {
 
 #[derive(Clone, Debug)]
 pub(crate) struct ExcludeMatcher {
-    patterns: Vec<Vec<String>>,
+    // Group suffixes by their first component. The callback and scanner can
+    // reject a path without allocating a Vec for every filesystem event.
+    patterns: std::collections::HashMap<String, Vec<Vec<String>>>,
 }
 
 impl ExcludeMatcher {
     pub(crate) fn new(excludes: &[String]) -> Self {
-        Self {
-            patterns: excludes
-                .iter()
-                .map(|pattern| {
-                    pattern
-                        .trim()
-                        .split('/')
-                        .filter(|part| !part.is_empty())
-                        .map(str::to_string)
-                        .collect::<Vec<_>>()
-                })
-                .filter(|parts| !parts.is_empty())
-                .collect(),
+        let mut patterns = std::collections::HashMap::<String, Vec<Vec<String>>>::new();
+        for pattern in excludes {
+            let mut parts = pattern.trim().split('/').filter(|part| !part.is_empty());
+            if let Some(first) = parts.next() {
+                let suffix = parts.map(str::to_string).collect::<Vec<_>>();
+                let choices = patterns.entry(first.to_string()).or_default();
+                if !choices.contains(&suffix) {
+                    choices.push(suffix);
+                }
+            }
         }
+        Self { patterns }
     }
 
     pub(crate) fn is_excluded(&self, path: &Path) -> bool {
-        let path_components = path
-            .components()
-            .filter_map(component_text)
-            .collect::<Vec<_>>();
-        self.patterns.iter().any(|pattern| {
-            path_components.windows(pattern.len()).any(|window| {
-                window
-                    .iter()
-                    .zip(pattern)
-                    .all(|(value, expected)| value.as_ref() == expected)
-            })
-        })
+        let mut components = path.components().filter_map(component_text);
+        while let Some(first) = components.next() {
+            if let Some(suffixes) = self.patterns.get(first.as_ref()) {
+                for suffix in suffixes {
+                    let mut tail = components.clone();
+                    if suffix
+                        .iter()
+                        .all(|expected| tail.next().is_some_and(|value| value.as_ref() == expected))
+                    {
+                        return true;
+                    }
+                }
+            }
+        }
+        false
     }
 }
 
@@ -372,6 +375,73 @@ mod tests {
     use std::fs;
     use std::path::{Path, PathBuf};
     use std::time::{SystemTime, UNIX_EPOCH};
+
+    #[test]
+    fn compiled_excludes_preserve_component_window_semantics() {
+        use super::{component_text, ExcludeMatcher};
+        use std::os::unix::ffi::OsStringExt;
+        let excludes = [
+            "",
+            " / ",
+            ".git",
+            "Library/Caches",
+            "Library/Mail",
+            "a/a/b",
+            "a/b",
+            "./x",
+            "../x",
+            "重复/目录",
+            " bad�/x ",
+            "//a///b//",
+        ]
+        .map(str::to_string);
+        let matcher = ExcludeMatcher::new(&excludes);
+        // The pre-optimization component-window contract is the oracle. Include
+        // overlapping starts, relative components, lookalikes and lossy paths.
+        let mut paths = [
+            "/",
+            "",
+            "./x",
+            "../x",
+            "/x/a/a/b/c",
+            "a/a/a/b",
+            "a/b-old",
+            "a/b",
+            "/Library/Caches/x",
+            "Library/Mail",
+            "Library/Caches-old/x",
+            "/重复/目录/x",
+            "/重复/目录外/x",
+            "/foo/.git/x",
+            "/foo/.github/x",
+        ]
+        .map(PathBuf::from)
+        .to_vec();
+        paths.push(PathBuf::from(std::ffi::OsString::from_vec(
+            b"/foo/bad\xff/x".to_vec(),
+        )));
+        for path in paths {
+            let components = path
+                .components()
+                .filter_map(component_text)
+                .collect::<Vec<_>>();
+            let expected = excludes.iter().any(|pattern| {
+                let parts = pattern
+                    .trim()
+                    .split('/')
+                    .filter(|part| !part.is_empty())
+                    .collect::<Vec<_>>();
+                !parts.is_empty()
+                    && components.windows(parts.len()).any(|window| {
+                        window
+                            .iter()
+                            .zip(&parts)
+                            .all(|(value, part)| value.as_ref() == *part)
+                    })
+            });
+            assert_eq!(matcher.is_excluded(&path), expected, "{}", path.display());
+        }
+    }
 
     #[test]
     fn clock_rollback_keeps_recovered_rows_newer_than_deferred_cleanup() {

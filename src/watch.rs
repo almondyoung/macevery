@@ -19,8 +19,7 @@ mod macos_impl {
     use std::path::{Path, PathBuf};
     use std::ptr;
     use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
-    use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
-    use std::sync::Arc;
+    use std::sync::{Arc, Condvar, Mutex};
     use std::thread;
     use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
@@ -90,6 +89,10 @@ mod macos_impl {
             run_loop_mode: CFStringRef,
         );
         fn FSEventStreamStart(stream_ref: FSEventStreamRef) -> Boolean;
+        fn FSEventStreamSetExclusionPaths(
+            stream_ref: FSEventStreamRef,
+            paths_to_exclude: CFArrayRef,
+        ) -> Boolean;
         fn FSEventStreamStop(stream_ref: FSEventStreamRef);
         fn FSEventStreamInvalidate(stream_ref: FSEventStreamRef);
         fn FSEventStreamRelease(stream_ref: FSEventStreamRef);
@@ -115,6 +118,10 @@ mod macos_impl {
         received: AtomicU64,
         rejected: AtomicU64,
         flags: AtomicU32,
+        callback_count: AtomicU64,
+        callback_events: AtomicU64,
+        callback_total_ns: AtomicU64,
+        callback_max_ns: AtomicU64,
     }
 
     #[derive(Clone, Debug)]
@@ -171,13 +178,20 @@ mod macos_impl {
     }
 
     struct CallbackState {
-        sender: Sender<FsEvent>,
+        inbox: Arc<EventInbox>,
         filter: EventFilter,
+    }
+
+    impl Drop for CallbackState {
+        fn drop(&mut self) {
+            self.inbox.close();
+        }
     }
 
     #[derive(Default)]
     struct PendingWork {
         paths: BTreeMap<String, FSEventStreamEventFlags>,
+        path_bytes: usize,
         retry_paths: BTreeMap<String, FSEventStreamEventFlags>,
         rescan_roots: bool,
         retry_roots: bool,
@@ -192,6 +206,11 @@ mod macos_impl {
         last_event: Option<EventSample>,
         recovery_event: Option<EventSample>,
         hash_state: RandomState,
+        inbox_overflow: bool,
+        worker_overflow: bool,
+        full_recovery_obligation: bool,
+        full_recovery_generation: Option<i64>,
+        worker_scope_failure: bool,
     }
 
     #[derive(Clone, Copy)]
@@ -211,16 +230,36 @@ mod macos_impl {
     }
 
     impl PendingWork {
+        fn with_hash_state(hash_state: RandomState) -> Self {
+            Self {
+                hash_state,
+                ..Self::default()
+            }
+        }
+
+        fn clear_paths(&mut self) {
+            self.paths.clear();
+            self.path_bytes = 0;
+        }
+
+        fn insert_path(&mut self, path: String, flags: u32) {
+            use std::collections::btree_map::Entry;
+            match self.paths.entry(path) {
+                Entry::Occupied(mut entry) => *entry.get_mut() |= flags,
+                Entry::Vacant(entry) => {
+                    self.path_bytes = self.path_bytes.saturating_add(entry.key().capacity());
+                    entry.insert(flags);
+                }
+            }
+        }
+
         fn add(&mut self, event: FsEvent) {
             self.record_event(&event);
             if action_for_flags(event.flags) == WatchAction::RescanRoots {
                 self.rescan_roots = true;
-                self.paths.clear();
+                self.clear_paths();
             } else if !self.rescan_roots {
-                self.paths
-                    .entry(event.path)
-                    .and_modify(|flags| *flags |= event.flags)
-                    .or_insert(event.flags);
+                self.insert_path(event.path, event.flags);
             }
         }
 
@@ -251,9 +290,7 @@ mod macos_impl {
         }
 
         fn add_scoped(&mut self, event: FsEvent, roots: &[PathBuf]) {
-            if action_for_flags(event.flags) == WatchAction::RescanRoots
-                || event.flags & FLAG_MUST_SCAN_SUBDIRS == 0
-            {
+            if action_for_flags(event.flags) == WatchAction::RescanRoots {
                 self.add(event);
                 return;
             }
@@ -261,17 +298,14 @@ mod macos_impl {
             match subtree_targets(Path::new(&event.path), roots) {
                 Some(paths) if !self.rescan_roots => {
                     for path in paths {
-                        self.paths
-                            .entry(path)
-                            .and_modify(|flags| *flags |= event.flags)
-                            .or_insert(event.flags);
+                        self.insert_path(path, event.flags);
                     }
                 }
                 Some(_) => {}
                 None => {
                     self.scope_fallback = true;
                     self.rescan_roots = true;
-                    self.paths.clear();
+                    self.clear_paths();
                     self.recovery_event = self.last_event;
                 }
             }
@@ -284,14 +318,55 @@ mod macos_impl {
             self.first_events = [None; 3];
             self.last_event = None;
             self.recovery_event = None;
+            self.inbox_overflow = false;
+            self.worker_overflow = false;
+        }
+
+        // Incoming work is a complete, ordered inbox boundary. A new wrap must
+        // reset the numeric watermark; older failed work still blocks checkpoint.
+        fn merge_incoming(&mut self, mut incoming: Self) {
+            if incoming.checkpoint_reset {
+                self.max_event_id = incoming.max_event_id;
+                self.checkpoint_reset = true;
+                self.checkpoint_invalidated = false;
+            } else {
+                self.max_event_id = self.max_event_id.max(incoming.max_event_id);
+            }
+            let next = self.event_count.min(self.first_events.len() as u64) as usize;
+            for (destination, sample) in self.first_events[next..]
+                .iter_mut()
+                .zip(incoming.first_events.iter().flatten())
+            {
+                *destination = Some(*sample);
+            }
+            self.event_count = self.event_count.saturating_add(incoming.event_count);
+            self.raw_flags |= incoming.raw_flags;
+            self.last_event = incoming.last_event.or(self.last_event);
+            self.recovery_event = self.recovery_event.or(incoming.recovery_event);
+            self.scope_fallback |= incoming.scope_fallback;
+            self.inbox_overflow |= incoming.inbox_overflow;
+            self.rescan_roots |= incoming.rescan_roots;
+            if self.worker_scope_failure {
+                // Retain the original unexpected namespace debt. New events are
+                // still represented by the blocked watermark and replay on restart.
+            } else if self.rescan_roots {
+                self.clear_paths();
+            } else {
+                for (path, flags) in std::mem::take(&mut incoming.paths) {
+                    self.insert_path(path, flags);
+                }
+            }
         }
 
         fn has_retries(&self) -> bool {
-            self.retry_roots || !self.retry_paths.is_empty()
+            self.retry_roots || !self.retry_paths.is_empty() || self.full_recovery_obligation
         }
 
         fn has_work(&self) -> bool {
-            self.rescan_roots || !self.paths.is_empty() || self.has_retries()
+            self.rescan_roots
+                || !self.paths.is_empty()
+                || self.has_retries()
+                || self.worker_scope_failure
         }
 
         fn has_pending(&self) -> bool {
@@ -299,6 +374,211 @@ mod macos_impl {
                 || self.max_event_id > 0
                 || self.checkpoint_reset
                 || !self.deferred_cleanups.is_empty()
+        }
+    }
+
+    // Retained path storage is bounded, including while the DB worker scans.
+    // The one incoming OS path/target being inserted is additional temporary
+    // storage. A capacity collapse is explicitly diagnosed, never mislabeled as
+    // a UserDropped event, and conservatively recovers all configured roots.
+    const INBOX_MAX_PATHS: usize = 16_384;
+    const INBOX_MAX_PATH_BYTES: usize = 4 * 1024 * 1024;
+
+    fn worker_plan_size(pending: &PendingWork) -> (usize, usize) {
+        // Count retained map entries, including separately allocated duplicates
+        // between maps. Do not clone all paths just to measure the bound.
+        (
+            pending.paths.len() + pending.retry_paths.len() + pending.deferred_cleanups.len(),
+            pending.paths.keys().map(String::capacity).sum::<usize>()
+                + pending
+                    .retry_paths
+                    .keys()
+                    .map(String::capacity)
+                    .sum::<usize>()
+                + pending
+                    .deferred_cleanups
+                    .keys()
+                    .map(PathBuf::capacity)
+                    .sum::<usize>(),
+        )
+    }
+
+    fn enforce_worker_plan_bound(pending: &mut PendingWork, roots: &[PathBuf]) -> bool {
+        let (entries, bytes) = worker_plan_size(pending);
+        if !pending.full_recovery_obligation
+            && entries <= INBOX_MAX_PATHS
+            && bytes <= INBOX_MAX_PATH_BYTES
+        {
+            return !pending.worker_scope_failure;
+        }
+        let covered = |path: &Path| {
+            !path
+                .components()
+                .any(|part| matches!(part, std::path::Component::ParentDir))
+                && roots.iter().any(|root| {
+                    path.is_absolute() == root.is_absolute()
+                        && !root
+                            .components()
+                            .any(|part| matches!(part, std::path::Component::ParentDir))
+                        && path.starts_with(root)
+                })
+        };
+        if !pending.paths.keys().all(|path| covered(Path::new(path)))
+            || !pending
+                .retry_paths
+                .keys()
+                .all(|path| covered(Path::new(path)))
+            || !pending.deferred_cleanups.keys().all(|path| covered(path))
+        {
+            // This cannot come from the guarded inbox + scanner rooted at its
+            // configured paths. Preserve unexpected debt and fail closed rather
+            // than claiming a root scan covers an outside/alias namespace.
+            pending.worker_scope_failure = true;
+            return false;
+        }
+        pending.full_recovery_obligation = true;
+        pending.worker_overflow |= entries > INBOX_MAX_PATHS || bytes > INBOX_MAX_PATH_BYTES;
+        pending.full_recovery_generation = pending
+            .deferred_cleanups
+            .values()
+            .copied()
+            .chain(pending.full_recovery_generation)
+            .max();
+        // Exact per-path generations are compressed into the full-root debt
+        // above. A later complete scan uses a newer process-monotonic generation
+        // and cleans every covered namespace. Partial success cannot clear it.
+        pending.clear_paths();
+        pending.retry_paths.clear();
+        pending.deferred_cleanups.clear();
+        pending.retry_roots = true;
+        true
+    }
+
+    #[derive(Default)]
+    struct InboxStats {
+        admitted: u64,
+        coalesced: u64,
+        overflows: u64,
+        highwater_paths: usize,
+        highwater_bytes: usize,
+        first_delivery: Option<Instant>,
+        last_delivery: Option<Instant>,
+    }
+
+    struct InboxState {
+        pending: PendingWork,
+        stats: InboxStats,
+        closed: bool,
+    }
+
+    struct EventInbox {
+        state: Mutex<InboxState>,
+        ready: Condvar,
+        roots: Vec<PathBuf>,
+    }
+
+    struct InboxBatch {
+        pending: PendingWork,
+        stats: InboxStats,
+        closed: bool,
+    }
+
+    impl EventInbox {
+        fn new(roots: Vec<PathBuf>, hash_state: RandomState) -> Self {
+            Self {
+                state: Mutex::new(InboxState {
+                    pending: PendingWork::with_hash_state(hash_state),
+                    stats: InboxStats::default(),
+                    closed: false,
+                }),
+                ready: Condvar::new(),
+                roots,
+            }
+        }
+
+        fn push(&self, event: FsEvent) {
+            let delivered = Instant::now();
+            let mut state = self.state.lock().unwrap_or_else(|err| err.into_inner());
+            if state.closed {
+                return;
+            }
+            let was_empty = state.pending.event_count == 0;
+            let previous_paths = state.pending.paths.len();
+            state.pending.add_scoped(event, &self.roots);
+            state.stats.admitted = state.stats.admitted.saturating_add(1);
+            if !was_empty && state.pending.paths.len() <= previous_paths {
+                state.stats.coalesced = state.stats.coalesced.saturating_add(1);
+            }
+            state.stats.highwater_paths =
+                state.stats.highwater_paths.max(state.pending.paths.len());
+            state.stats.highwater_bytes = state.stats.highwater_bytes.max(state.pending.path_bytes);
+            if state.pending.paths.len() > INBOX_MAX_PATHS
+                || state.pending.path_bytes > INBOX_MAX_PATH_BYTES
+            {
+                state.pending.rescan_roots = true;
+                state.pending.inbox_overflow = true;
+                state.pending.clear_paths();
+                state.stats.overflows = state.stats.overflows.saturating_add(1);
+            }
+            state.stats.first_delivery.get_or_insert(delivered);
+            state.stats.last_delivery = Some(delivered);
+            drop(state);
+            if was_empty {
+                self.ready.notify_one();
+            }
+        }
+
+        fn close(&self) {
+            self.state
+                .lock()
+                .unwrap_or_else(|err| err.into_inner())
+                .closed = true;
+            self.ready.notify_one();
+        }
+
+        fn take_locked(state: &mut InboxState) -> InboxBatch {
+            let replacement = PendingWork::with_hash_state(state.pending.hash_state.clone());
+            InboxBatch {
+                pending: std::mem::replace(&mut state.pending, replacement),
+                stats: std::mem::take(&mut state.stats),
+                closed: state.closed,
+            }
+        }
+
+        // Swap every admitted event at once, rather than slicing an existing
+        // backlog into 4096-event batches separated by multi-minute root scans.
+        // The lock is never held during DB, filesystem scanning, logging or I/O.
+        // Events arriving after this boundary remain in the next inbox.
+        fn take_batch(&self, wait: Duration) -> InboxBatch {
+            let mut state = self.state.lock().unwrap_or_else(|err| err.into_inner());
+            if state.pending.event_count == 0 && !state.closed {
+                let (next, _) = self
+                    .ready
+                    .wait_timeout_while(state, wait, |state| {
+                        state.pending.event_count == 0 && !state.closed
+                    })
+                    .unwrap_or_else(|err| err.into_inner());
+                state = next;
+            }
+            if state.pending.event_count > 0 && !state.closed {
+                let deadline = Instant::now() + MAX_BATCH_WAIT;
+                loop {
+                    let remaining = deadline.saturating_duration_since(Instant::now());
+                    if remaining.is_zero() {
+                        break;
+                    }
+                    let before = state.stats.admitted;
+                    let (next, _) = self
+                        .ready
+                        .wait_timeout(state, BATCH_IDLE.min(remaining))
+                        .unwrap_or_else(|err| err.into_inner());
+                    state = next;
+                    if state.closed || state.stats.admitted == before {
+                        break;
+                    }
+                }
+            }
+            Self::take_locked(&mut state)
         }
     }
 
@@ -356,6 +636,19 @@ mod macos_impl {
         received: u64,
         rejected: u64,
         received_flags: u32,
+        callback_count: u64,
+        callback_events: u64,
+        callback_total_ns: u64,
+        callback_max_ns: u64,
+        inbox_admitted: u64,
+        inbox_coalesced: u64,
+        inbox_overflows: u64,
+        inbox_highwater_paths: usize,
+        inbox_highwater_bytes: usize,
+        first_delivery_age_ms: u128,
+        last_delivery_age_ms: u128,
+        upstream_requested: usize,
+        upstream_accepted: bool,
     }
 
     impl LogInfo {
@@ -452,12 +745,24 @@ mod macos_impl {
                 "\"flags_or\":{},\"event_count\":{},\"first_events\":[{}],\"last_event\":{},\"recovery_event\":{},\"events_outside_first_last\":{},",
                 "\"watermark\":{},\"wrap_pending\":{},\"scope_fallback\":{},\"paths\":{},\"retry_paths\":{},\"retry_roots\":{},\"retry_due\":{},",
                 "\"indexed\":{},\"rows_written\":{},\"unchanged\":{},\"stale_removed\":{},\"warnings\":{},\"elapsed_ms\":{},",
-                "\"received\":{},\"rejected\":{},\"received_flags_or\":{},\"suppressed_records\":{},\"oversized_records\":{},\"io_failures\":{}}}\n"),
+                "\"received\":{},\"rejected\":{},\"received_flags_or\":{},",
+                "\"callback_count\":{},\"callback_events\":{},\"callback_total_ns\":{},\"callback_max_ns\":{},",
+                "\"inbox_admitted\":{},\"inbox_coalesced\":{},\"inbox_overflows\":{},\"inbox_highwater_paths\":{},\"inbox_highwater_bytes\":{},",
+                "\"first_delivery_age_ms\":{},\"last_delivery_age_ms\":{},\"inbox_overflow\":{},",
+                "\"upstream_requested\":{},\"upstream_accepted\":{},",
+                "\"worker_overflow\":{},\"full_recovery_obligation\":{},\"worker_scope_failure\":{},",
+                "\"suppressed_records\":{},\"oversized_records\":{},\"io_failures\":{}}}\n"),
                 at_ms, std::process::id(), kind, scope, path_hash, pending.raw_flags, pending.event_count,
                 first, last, recovery, pending.event_count.saturating_sub(sampled), pending.max_event_id,
                 pending.checkpoint_reset, pending.scope_fallback, pending.paths.len(), pending.retry_paths.len(), pending.retry_roots,
                 info.retry_due, info.indexed, info.written, info.unchanged, info.stale_removed, info.warnings, info.elapsed_ms,
-                info.received, info.rejected, info.received_flags, self.suppressed, self.oversized, self.io_failures);
+                info.received, info.rejected, info.received_flags,
+                info.callback_count, info.callback_events, info.callback_total_ns, info.callback_max_ns,
+                info.inbox_admitted, info.inbox_coalesced, info.inbox_overflows, info.inbox_highwater_paths, info.inbox_highwater_bytes,
+                info.first_delivery_age_ms, info.last_delivery_age_ms, pending.inbox_overflow,
+                info.upstream_requested, info.upstream_accepted,
+                pending.worker_overflow, pending.full_recovery_obligation, pending.worker_scope_failure,
+                self.suppressed, self.oversized, self.io_failures);
             if line.len() > LOG_RECORD_BYTES {
                 self.oversized = self.oversized.saturating_add(1);
                 return;
@@ -574,9 +879,9 @@ mod macos_impl {
     }
 
     impl CallbackStateGuard {
-        fn new(sender: Sender<FsEvent>, filter: EventFilter) -> Self {
+        fn new(inbox: Arc<EventInbox>, filter: EventFilter) -> Self {
             Self {
-                state: Box::into_raw(Box::new(CallbackState { sender, filter })),
+                state: Box::into_raw(Box::new(CallbackState { inbox, filter })),
             }
         }
 
@@ -598,6 +903,9 @@ mod macos_impl {
     struct FSEventStreamGuard {
         stream: FSEventStreamRef,
         started: bool,
+        // Keep every CF object alive until Drop has stopped/released the stream;
+        // do not rely on undocumented ownership in SetExclusionPaths.
+        exclusions: Option<(Vec<CfReleaseGuard>, CfReleaseGuard)>,
     }
 
     impl FSEventStreamGuard {
@@ -608,6 +916,7 @@ mod macos_impl {
                 Some(Self {
                     stream,
                     started: false,
+                    exclusions: None,
                 })
             }
         }
@@ -744,16 +1053,8 @@ mod macos_impl {
             }
         };
         let filter = EventFilter::new(&db_path, &excludes);
-        let (sender, receiver) = mpsc::channel::<FsEvent>();
-        spawn_processor(
-            db_path,
-            roots.clone(),
-            excludes,
-            receiver,
-            initial,
-            diagnostics,
-            Arc::clone(&filter.counters),
-        );
+        let inbox = Arc::new(EventInbox::new(roots.clone(), initial.hash_state.clone()));
+        let counters = Arc::clone(&filter.counters);
 
         let mut root_strings = Vec::new();
         let mut root_values = Vec::new();
@@ -786,7 +1087,7 @@ mod macos_impl {
             ));
         }
 
-        let state = CallbackStateGuard::new(sender, filter);
+        let state = CallbackStateGuard::new(Arc::clone(&inbox), filter);
         let mut context = FSEventStreamContext {
             version: 0,
             info: state.as_info(),
@@ -809,6 +1110,30 @@ mod macos_impl {
         };
         let mut stream = FSEventStreamGuard::new(stream)
             .ok_or_else(|| MacEveryError::Cli("failed to create FSEventStream".to_string()))?;
+        let upstream_paths = upstream_exclusion_paths(&db_path, &roots, &excludes);
+        let upstream_accepted = configure_upstream_exclusions(&mut stream, &upstream_paths);
+        diagnostics.record(
+            "stream_configuration",
+            "stream",
+            &initial,
+            None,
+            LogInfo {
+                upstream_requested: upstream_paths.len(),
+                upstream_accepted,
+                ..LogInfo::default()
+            },
+        );
+        // A false API result leaves the existing callback filter authoritative.
+        // The worker never owns or calls the FSEvents stream.
+        spawn_processor(
+            db_path,
+            roots.clone(),
+            excludes,
+            Arc::clone(&inbox),
+            initial,
+            diagnostics,
+            counters,
+        );
 
         unsafe {
             FSEventStreamScheduleWithRunLoop(
@@ -840,7 +1165,6 @@ mod macos_impl {
 
     const BATCH_IDLE: Duration = Duration::from_millis(150);
     const MAX_BATCH_WAIT: Duration = Duration::from_secs(1);
-    const MAX_BATCH_EVENTS: usize = 4096;
     const MIN_RETRY_DELAY: Duration = Duration::from_secs(1);
     const MAX_RETRY_DELAY: Duration = Duration::from_secs(60);
 
@@ -848,7 +1172,7 @@ mod macos_impl {
         db_path: PathBuf,
         roots: Vec<PathBuf>,
         excludes: Vec<String>,
-        receiver: Receiver<FsEvent>,
+        inbox: Arc<EventInbox>,
         mut pending: PendingWork,
         mut diagnostics: TriggerLog,
         counters: Arc<FilterCounters>,
@@ -872,39 +1196,19 @@ mod macos_impl {
             let mut retry_at = pending.has_pending().then(|| Instant::now() + retry_delay);
 
             loop {
-                let first = if pending.has_pending() {
-                    let wait = retry_at
+                let wait = if pending.has_pending() {
+                    retry_at
                         .unwrap_or_else(Instant::now)
-                        .saturating_duration_since(Instant::now());
-                    receiver.recv_timeout(wait)
+                        .saturating_duration_since(Instant::now())
                 } else {
                     // One wake/minute also reports excluded-only storms; no DB access.
-                    receiver.recv_timeout(LOG_WINDOW)
+                    LOG_WINDOW
                 };
-                let mut disconnected = false;
-                match first {
-                    Ok(event) => {
-                        pending.add_scoped(event, &roots);
-                        let deadline = Instant::now() + MAX_BATCH_WAIT;
-                        // Bound both latency and the number drained under constant writes.
-                        for _ in 1..MAX_BATCH_EVENTS {
-                            let remaining = deadline.saturating_duration_since(Instant::now());
-                            if remaining.is_zero() {
-                                break;
-                            }
-                            match receiver.recv_timeout(BATCH_IDLE.min(remaining)) {
-                                Ok(event) => pending.add_scoped(event, &roots),
-                                Err(RecvTimeoutError::Timeout) => break,
-                                Err(RecvTimeoutError::Disconnected) => {
-                                    disconnected = true;
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                    Err(RecvTimeoutError::Timeout) => {}
-                    Err(RecvTimeoutError::Disconnected) => disconnected = true,
-                }
+                let incoming = inbox.take_batch(wait);
+                let disconnected = incoming.closed;
+                let ingress = incoming.stats;
+                pending.merge_incoming(incoming.pending);
+                let scoped_plan = enforce_worker_plan_bound(&mut pending, &roots);
                 let retry_due =
                     disconnected || retry_at.is_none_or(|deadline| Instant::now() >= deadline);
                 let received = counters.received.swap(0, Ordering::Relaxed);
@@ -920,11 +1224,39 @@ mod macos_impl {
                             received,
                             rejected,
                             received_flags,
+                            callback_count: counters.callback_count.swap(0, Ordering::Relaxed),
+                            callback_events: counters.callback_events.swap(0, Ordering::Relaxed),
+                            callback_total_ns: counters
+                                .callback_total_ns
+                                .swap(0, Ordering::Relaxed),
+                            callback_max_ns: counters.callback_max_ns.swap(0, Ordering::Relaxed),
+                            inbox_admitted: ingress.admitted,
+                            inbox_coalesced: ingress.coalesced,
+                            inbox_overflows: ingress.overflows,
+                            inbox_highwater_paths: ingress.highwater_paths,
+                            inbox_highwater_bytes: ingress.highwater_bytes,
+                            first_delivery_age_ms: ingress
+                                .first_delivery
+                                .map_or(0, |at| at.elapsed().as_millis()),
+                            last_delivery_age_ms: ingress
+                                .last_delivery
+                                .map_or(0, |at| at.elapsed().as_millis()),
                             ..LogInfo::default()
                         },
                     );
                 }
-                let complete = if invalidate_wrapped_checkpoint(&db, &mut pending).is_ok() {
+                let checkpoint_epoch_ready =
+                    invalidate_wrapped_checkpoint(&db, &mut pending).is_ok();
+                let complete = if !scoped_plan {
+                    diagnostics.record(
+                        "worker_scope_failed",
+                        "roots",
+                        &pending,
+                        None,
+                        LogInfo::default(),
+                    );
+                    false
+                } else if checkpoint_epoch_ready {
                     process_pending_logged(
                         &mut pending,
                         retry_due,
@@ -932,7 +1264,8 @@ mod macos_impl {
                         || refresh_roots(&db, &roots, &excludes),
                         Some(&mut diagnostics),
                     );
-                    persist_checkpoint_logged(&db, &mut pending, Some(&mut diagnostics))
+                    enforce_worker_plan_bound(&mut pending, &roots)
+                        && persist_checkpoint_logged(&db, &mut pending, Some(&mut diagnostics))
                 } else {
                     diagnostics.record(
                         "checkpoint_reset_failed",
@@ -989,6 +1322,7 @@ mod macos_impl {
         let retrying = retry_due && pending.has_retries();
         if retry_due {
             pending.paths.append(&mut pending.retry_paths);
+            pending.path_bytes = pending.paths.keys().map(String::capacity).sum();
             pending.rescan_roots |= std::mem::take(&mut pending.retry_roots);
         }
         if std::mem::take(&mut pending.rescan_roots) {
@@ -1018,9 +1352,16 @@ mod macos_impl {
                         "watch: rescanned roots, {} entries, {} stale removed",
                         summary.indexed, summary.deleted
                     );
-                    pending.paths.clear();
+                    pending.clear_paths();
                     pending.retry_paths.clear();
                     pending.retry_roots = false;
+                    if pending.full_recovery_obligation && !pending.worker_scope_failure {
+                        // The production rescan closure completed a fresh scan
+                        // and its stale cleanup across every configured root.
+                        pending.full_recovery_obligation = false;
+                        pending.full_recovery_generation = None;
+                        pending.deferred_cleanups.clear();
+                    }
                     return;
                 }
                 Ok(summary) => {
@@ -1033,7 +1374,7 @@ mod macos_impl {
                         LogInfo::scanned(&summary, started),
                     );
                     log_scan_warnings("root rescan", &summary);
-                    pending.paths.clear();
+                    pending.clear_paths();
                     pending.retry_paths.clear();
                     pending.retry_roots = summary.retry_paths.is_empty();
                     retain_incomplete(pending, summary);
@@ -1058,7 +1399,7 @@ mod macos_impl {
             }
         }
         let paths = fold_refresh_paths(pending.paths.keys().cloned().collect());
-        pending.paths.clear();
+        pending.clear_paths();
         let mut indexed = 0_u64;
         let mut deleted = 0_u64;
         let total = paths.len();
@@ -1253,6 +1594,102 @@ mod macos_impl {
         true
     }
 
+    fn upstream_exclusion_paths(
+        db_path: &Path,
+        roots: &[PathBuf],
+        excludes: &[String],
+    ) -> Vec<PathBuf> {
+        // The SDK accepts at most eight directories. Only exact, existing,
+        // already-excluded namespaces may move upstream. No recursive discovery
+        // or canonical rewriting of the persistent index namespace is performed.
+        // An uncertain root alias disables this optimization, not recovery.
+        if roots.iter().any(|root| {
+            !root.is_absolute() || fs::canonicalize(root).ok().as_deref() != Some(root.as_path())
+        }) {
+            return Vec::new();
+        }
+        let matcher = ExcludeMatcher::new(excludes);
+        let mut candidates = Vec::new();
+        if let Some(parent) = db_path.parent() {
+            candidates.push(parent.to_path_buf());
+        }
+        for relative in [
+            "Library",
+            ".codex",
+            ".cargo/registry",
+            ".npm",
+            ".cache",
+            ".gemini",
+            ".cursor",
+        ] {
+            candidates.extend(roots.iter().map(|root| root.join(relative)));
+        }
+        let mut selected = Vec::new();
+        for path in candidates {
+            if selected.len() == 8 {
+                break;
+            }
+            if selected.contains(&path)
+                || !path.is_absolute()
+                || !matcher.is_excluded(&path)
+                || !path.is_dir()
+                || fs::canonicalize(&path).ok().as_deref() != Some(path.as_path())
+                || !roots
+                    .iter()
+                    .any(|root| path != *root && path.starts_with(root))
+                || roots.iter().any(|root| root.starts_with(&path))
+            {
+                continue;
+            }
+            selected.push(path);
+        }
+        selected
+    }
+
+    fn configure_upstream_exclusions(stream: &mut FSEventStreamGuard, paths: &[PathBuf]) -> bool {
+        configure_upstream_exclusions_with(stream, paths, |stream, paths| {
+            (unsafe { FSEventStreamSetExclusionPaths(stream, paths) }) != 0
+        })
+    }
+
+    fn configure_upstream_exclusions_with(
+        stream: &mut FSEventStreamGuard,
+        paths: &[PathBuf],
+        mut configure: impl FnMut(FSEventStreamRef, CFArrayRef) -> bool,
+    ) -> bool {
+        if paths.is_empty() || paths.len() > 8 {
+            return false;
+        }
+        let mut strings = Vec::with_capacity(paths.len());
+        let mut values = Vec::with_capacity(paths.len());
+        for path in paths {
+            let Ok(path) = CString::new(path.to_string_lossy().as_bytes()) else {
+                return false;
+            };
+            let string =
+                unsafe { CFStringCreateWithCString(ptr::null(), path.as_ptr(), UTF8_ENCODING) };
+            if string.is_null() {
+                return false;
+            }
+            strings.push(CfReleaseGuard::new(string));
+            values.push(string);
+        }
+        let array = CfReleaseGuard::new(unsafe {
+            CFArrayCreate(
+                ptr::null(),
+                values.as_ptr(),
+                values.len() as CFIndex,
+                ptr::null(),
+            )
+        });
+        if array.as_ptr().is_null() {
+            return false;
+        }
+        let accepted = configure(stream.as_ptr(), array.as_ptr());
+        stream.exclusions = Some((strings, array));
+        accepted
+    }
+
     fn runtime_excludes(mut excludes: Vec<String>, db_path: &Path) -> Vec<String> {
         for pattern in [".local/share/macevery", ".codex", ".gemini", ".cursor"] {
             push_exclude_once(&mut excludes, pattern.to_string());
@@ -1357,6 +1794,7 @@ mod macos_impl {
         }
 
         let state = &*(client_info.cast::<CallbackState>());
+        let started = Instant::now();
         let paths = event_paths.cast::<*const c_char>();
         for index in 0..num_events {
             let path_ptr = *paths.add(index);
@@ -1374,8 +1812,29 @@ mod macos_impl {
             } else {
                 *event_ids.add(index)
             };
-            let _ = state.sender.send(FsEvent { path, flags, id });
+            state.inbox.push(FsEvent { path, flags, id });
         }
+        let elapsed_ns = started.elapsed().as_nanos().min(u64::MAX as u128) as u64;
+        state
+            .filter
+            .counters
+            .callback_total_ns
+            .fetch_add(elapsed_ns, Ordering::Relaxed);
+        state
+            .filter
+            .counters
+            .callback_max_ns
+            .fetch_max(elapsed_ns, Ordering::Relaxed);
+        state
+            .filter
+            .counters
+            .callback_events
+            .fetch_add(num_events as u64, Ordering::Relaxed);
+        state
+            .filter
+            .counters
+            .callback_count
+            .fetch_add(1, Ordering::Relaxed);
     }
 
     #[cfg(test)]
@@ -1409,9 +1868,12 @@ mod macos_impl {
 
         #[test]
         fn callback_excludes_noise_before_queue_but_keeps_recovery_events() {
-            let (sender, receiver) = mpsc::channel();
+            let inbox = Arc::new(EventInbox::new(
+                vec![PathBuf::from("/project")],
+                RandomState::new(),
+            ));
             let state = CallbackState {
-                sender,
+                inbox: Arc::clone(&inbox),
                 filter: EventFilter::new(
                     Path::new("/private/tmp/index-state/index.sqlite"),
                     &[".git".to_string(), "node_modules".to_string()],
@@ -1448,19 +1910,591 @@ mod macos_impl {
                     ids.as_ptr(),
                 );
             }
-            let events = receiver.try_iter().collect::<Vec<_>>();
+            let batch = take_now(&inbox);
             assert_eq!(
-                events.iter().map(|event| event.id).collect::<Vec<_>>(),
+                batch
+                    .pending
+                    .first_events
+                    .iter()
+                    .flatten()
+                    .map(|event| event.id)
+                    .collect::<Vec<_>>(),
                 [4, 5, 7]
             );
             // Rejected events cannot reach a transaction, scan, or checkpoint write.
-            let mut pending = PendingWork::default();
-            for event in events {
-                pending.add(event);
-            }
+            let pending = batch.pending;
             assert!(pending.rescan_roots);
             assert!(pending.paths.is_empty());
             assert_eq!(pending.max_event_id, 7);
+            assert_eq!(
+                state.filter.counters.callback_count.load(Ordering::Relaxed),
+                1
+            );
+            assert_eq!(
+                state
+                    .filter
+                    .counters
+                    .callback_events
+                    .load(Ordering::Relaxed),
+                7
+            );
+            assert!(
+                state
+                    .filter
+                    .counters
+                    .callback_max_ns
+                    .load(Ordering::Relaxed)
+                    > 0
+            );
+        }
+
+        fn take_now(inbox: &EventInbox) -> InboxBatch {
+            EventInbox::take_locked(&mut inbox.state.lock().unwrap())
+        }
+
+        #[test]
+        fn inbox_coalesces_preexisting_drop_markers_across_old_batch_boundaries() {
+            let roots = vec![PathBuf::from("/root")];
+            let inbox = EventInbox::new(roots, RandomState::new());
+            for id in 1..=9000 {
+                inbox.push(FsEvent {
+                    path: format!("/root/files/{id}"),
+                    flags: if [4100, 8200].contains(&id) {
+                        FLAG_USER_DROPPED | FLAG_MUST_SCAN_SUBDIRS
+                    } else {
+                        0
+                    },
+                    id,
+                });
+            }
+            let batch = take_now(&inbox);
+            assert_eq!(batch.pending.event_count, 9000);
+            assert_eq!(batch.stats.admitted, 9000);
+            assert_eq!(batch.stats.overflows, 0);
+            assert!(batch.pending.rescan_roots);
+            assert!(batch.pending.paths.is_empty());
+            assert_eq!(batch.pending.max_event_id, 9000);
+            let mut pending = batch.pending;
+            let mut scans = 0;
+            process_pending(
+                &mut pending,
+                true,
+                |_| panic!("full recovery"),
+                || {
+                    scans += 1;
+                    Ok(IndexSummary::default())
+                },
+            );
+            assert_eq!(scans, 1);
+            assert_eq!(take_now(&inbox).pending.event_count, 0);
+        }
+
+        #[test]
+        fn inbox_retains_arrivals_during_scan_and_checkpoint_stops_at_boundary() {
+            let temp = temp_dir("inbox-boundary");
+            fs::create_dir_all(&temp).unwrap();
+            let db = Database::open(temp.join("index.sqlite")).unwrap();
+            let hash_state = RandomState::new();
+            let inbox = EventInbox::new(vec![PathBuf::from("/root")], hash_state.clone());
+            inbox.push(FsEvent {
+                path: "/root".into(),
+                flags: FLAG_USER_DROPPED,
+                id: 100,
+            });
+            let mut pending = PendingWork::with_hash_state(hash_state);
+            pending.merge_incoming(take_now(&inbox).pending);
+            process_pending(
+                &mut pending,
+                true,
+                |_| panic!("full recovery"),
+                || {
+                    inbox.push(FsEvent {
+                        path: "/root/new".into(),
+                        flags: 0,
+                        id: 101,
+                    });
+                    inbox.push(FsEvent {
+                        path: "/root".into(),
+                        flags: FLAG_USER_DROPPED,
+                        id: 102,
+                    });
+                    Ok(IndexSummary::default())
+                },
+            );
+            assert!(persist_checkpoint(&db, &mut pending));
+            assert_eq!(
+                db.get_meta(META_LAST_EVENT_ID).unwrap().as_deref(),
+                Some("100")
+            );
+            let later = take_now(&inbox);
+            assert_eq!(later.pending.event_count, 2);
+            assert!(later.pending.rescan_roots);
+            pending.merge_incoming(later.pending);
+            let mut scans = 0;
+            process_pending(
+                &mut pending,
+                true,
+                |_| panic!("later loss needs recovery"),
+                || {
+                    scans += 1;
+                    Ok(IndexSummary::default())
+                },
+            );
+            assert_eq!(scans, 1);
+            assert!(persist_checkpoint(&db, &mut pending));
+            assert_eq!(
+                db.get_meta(META_LAST_EVENT_ID).unwrap().as_deref(),
+                Some("102")
+            );
+            drop(db);
+            fs::remove_dir_all(temp).unwrap();
+        }
+
+        #[test]
+        fn inbox_has_path_and_byte_bounds_without_fabricating_dropped_flags() {
+            let inbox = EventInbox::new(vec![PathBuf::from("/root")], RandomState::new());
+            for id in 1..=INBOX_MAX_PATHS + 10 {
+                inbox.push(FsEvent {
+                    path: format!("/root/{id}"),
+                    flags: 0,
+                    id: id as u64,
+                });
+                let state = inbox.state.lock().unwrap();
+                assert!(state.pending.paths.len() <= INBOX_MAX_PATHS);
+                assert!(state.pending.path_bytes <= INBOX_MAX_PATH_BYTES);
+            }
+            let batch = take_now(&inbox);
+            assert!(batch.pending.rescan_roots && batch.pending.inbox_overflow);
+            assert_eq!(batch.pending.raw_flags, 0);
+            assert!(batch.pending.recovery_event.is_none());
+            assert_eq!(batch.stats.overflows, 1);
+            assert_eq!(batch.stats.highwater_paths, INBOX_MAX_PATHS + 1);
+            assert_eq!(batch.pending.max_event_id, (INBOX_MAX_PATHS + 10) as u64);
+            for id in 1..=5 {
+                inbox.push(FsEvent {
+                    path: format!("/root/{}-{id}", "x".repeat(INBOX_MAX_PATH_BYTES / 4)),
+                    flags: 0,
+                    id,
+                });
+            }
+            let bytes = take_now(&inbox);
+            assert!(bytes.pending.rescan_roots && bytes.pending.inbox_overflow);
+            assert_eq!(bytes.stats.overflows, 1);
+            assert!(bytes.stats.highwater_paths < INBOX_MAX_PATHS);
+            assert!(bytes.stats.highwater_bytes > INBOX_MAX_PATH_BYTES);
+        }
+
+        #[test]
+        fn inbox_wrap_merge_preserves_failed_work_and_new_epoch_checkpoint() {
+            let temp = temp_dir("inbox-wrap-retry");
+            fs::create_dir_all(&temp).unwrap();
+            let db = Database::open(temp.join("index.sqlite")).unwrap();
+            db.set_meta(META_LAST_EVENT_ID, "900").unwrap();
+            let hash_state = RandomState::new();
+            let inbox = EventInbox::new(vec![PathBuf::from("/root")], hash_state.clone());
+            let mut pending = PendingWork::with_hash_state(hash_state);
+            pending.retry_paths.insert("/root/failed".into(), 0);
+            pending.max_event_id = 1000;
+            inbox.push(FsEvent {
+                path: "/root".into(),
+                flags: FLAG_IDS_WRAPPED | FLAG_HISTORY_DONE,
+                id: 2,
+            });
+            inbox.push(FsEvent {
+                path: "/root/new".into(),
+                flags: 0,
+                id: 3,
+            });
+            pending.merge_incoming(take_now(&inbox).pending);
+            assert_eq!(pending.max_event_id, 3);
+            assert!(pending.retry_paths.contains_key("/root/failed"));
+            invalidate_wrapped_checkpoint(&db, &mut pending).unwrap();
+            assert_eq!(
+                db.get_meta(META_LAST_EVENT_ID).unwrap().as_deref(),
+                Some("0")
+            );
+            process_pending(
+                &mut pending,
+                true,
+                |path| {
+                    assert_eq!(path, Path::new("/root/failed"));
+                    Err(MacEveryError::Cli("injected path retry failure".into()))
+                },
+                || Err(MacEveryError::Cli("injected recovery failure".into())),
+            );
+            assert!(!persist_checkpoint(&db, &mut pending));
+            assert_eq!(
+                db.get_meta(META_LAST_EVENT_ID).unwrap().as_deref(),
+                Some("0")
+            );
+            inbox.push(FsEvent {
+                path: "/root/later".into(),
+                flags: 0,
+                id: 4,
+            });
+            pending.merge_incoming(take_now(&inbox).pending);
+            assert!(pending.checkpoint_invalidated);
+            process_pending(
+                &mut pending,
+                true,
+                |_| panic!("root retry covers old failure"),
+                || Ok(IndexSummary::default()),
+            );
+            assert!(persist_checkpoint(&db, &mut pending));
+            assert_eq!(
+                db.get_meta(META_LAST_EVENT_ID).unwrap().as_deref(),
+                Some("4")
+            );
+            drop(db);
+            fs::remove_dir_all(temp).unwrap();
+        }
+
+        #[test]
+        fn worker_bound_compacts_distinct_failure_batches_and_generation_debt() {
+            let roots = vec![PathBuf::from("/root")];
+            let mut pending = PendingWork::default();
+            for batch in 1..=8 {
+                retain_incomplete(
+                    &mut pending,
+                    IndexSummary {
+                        warnings: vec!["injected incomplete scan".into()],
+                        retry_paths: (0..3000)
+                            .map(|id| PathBuf::from(format!("/root/batch-{batch}/failed-{id}")))
+                            .collect(),
+                        deferred_cleanups: vec![(
+                            PathBuf::from(format!("/root/batch-{batch}")),
+                            batch * 100,
+                        )],
+                        ..IndexSummary::default()
+                    },
+                );
+                pending.max_event_id = batch as u64;
+                assert!(enforce_worker_plan_bound(&mut pending, &roots));
+                let (entries, bytes) = worker_plan_size(&pending);
+                assert!(entries <= INBOX_MAX_PATHS && bytes <= INBOX_MAX_PATH_BYTES);
+            }
+            assert!(
+                pending.worker_overflow && pending.full_recovery_obligation && pending.retry_roots
+            );
+            assert_eq!(pending.full_recovery_generation, Some(800));
+            assert!(pending.retry_paths.is_empty() && pending.deferred_cleanups.is_empty());
+            assert_eq!(
+                pending.raw_flags, 0,
+                "capacity promotion is not UserDropped"
+            );
+        }
+
+        #[test]
+        fn worker_full_recovery_debt_survives_partial_and_failed_retries_until_real_cleanup() {
+            use crate::model::{FileKind, FileRecord};
+            let temp = temp_dir("worker-generation-debt");
+            let root = temp.join("root");
+            fs::create_dir_all(&root).unwrap();
+            fs::write(root.join("live-code.txt"), "live").unwrap();
+            let db = Database::open(temp.join("index.sqlite")).unwrap();
+            let stale = root.join("old-deleted-code.txt");
+            db.upsert_file(&FileRecord::new(
+                stale.to_string_lossy().into_owned(),
+                FileKind::File,
+                1,
+            ))
+            .unwrap();
+            db.set_meta(META_LAST_EVENT_ID, "10").unwrap();
+            let roots = vec![root.clone()];
+            let mut pending = PendingWork {
+                max_event_id: 200,
+                ..PendingWork::default()
+            };
+            for id in 0..=INBOX_MAX_PATHS {
+                pending.retry_paths.insert(
+                    root.join(format!("failed-{id}"))
+                        .to_string_lossy()
+                        .into_owned(),
+                    0,
+                );
+            }
+            pending.deferred_cleanups.insert(root.clone(), 500);
+            assert!(enforce_worker_plan_bound(&mut pending, &roots));
+            assert_eq!(pending.full_recovery_generation, Some(500));
+            process_pending(
+                &mut pending,
+                true,
+                |_| panic!("full recovery required"),
+                || {
+                    Ok(IndexSummary {
+                        warnings: vec!["injected partial scan".into()],
+                        retry_paths: vec![root.join("blocked")],
+                        deferred_cleanups: vec![(root.clone(), 900)],
+                        ..IndexSummary::default()
+                    })
+                },
+            );
+            assert!(enforce_worker_plan_bound(&mut pending, &roots));
+            assert_eq!(pending.full_recovery_generation, Some(900));
+            assert!(!persist_checkpoint(&db, &mut pending));
+            assert_eq!(
+                db.get_meta(META_LAST_EVENT_ID).unwrap().as_deref(),
+                Some("10")
+            );
+            let mut incoming = PendingWork::with_hash_state(pending.hash_state.clone());
+            incoming.add_scoped(event(&root.join("live-code.txt"), 201), &roots);
+            pending.merge_incoming(incoming);
+            assert!(enforce_worker_plan_bound(&mut pending, &roots));
+            process_pending(
+                &mut pending,
+                false,
+                |_| panic!("partial path cannot discharge debt"),
+                || panic!("retry not due"),
+            );
+            assert!(!persist_checkpoint(&db, &mut pending));
+            process_pending(
+                &mut pending,
+                true,
+                |_| panic!("full recovery required"),
+                || Err(MacEveryError::Cli("injected full retry failure".into())),
+            );
+            assert!(enforce_worker_plan_bound(&mut pending, &roots));
+            assert!(!persist_checkpoint(&db, &mut pending));
+            assert_eq!(pending.full_recovery_generation, Some(900));
+            assert!(db
+                .kind_for_path(&stale.to_string_lossy())
+                .unwrap()
+                .is_some());
+            fs::write(root.join("later-code.txt"), "later").unwrap();
+            process_pending(
+                &mut pending,
+                true,
+                |_| panic!("full recovery required"),
+                || refresh_roots(&db, &roots, &[]),
+            );
+            assert!(
+                !pending.full_recovery_obligation && pending.full_recovery_generation.is_none()
+            );
+            assert!(enforce_worker_plan_bound(&mut pending, &roots));
+            assert!(persist_checkpoint(&db, &mut pending));
+            assert_eq!(
+                db.get_meta(META_LAST_EVENT_ID).unwrap().as_deref(),
+                Some("201")
+            );
+            assert!(db
+                .kind_for_path(&stale.to_string_lossy())
+                .unwrap()
+                .is_none());
+            assert!(db
+                .kind_for_path(&root.join("live-code.txt").to_string_lossy())
+                .unwrap()
+                .is_some());
+            assert!(db
+                .kind_for_path(&root.join("later-code.txt").to_string_lossy())
+                .unwrap()
+                .is_some());
+            drop(db);
+            fs::remove_dir_all(temp).unwrap();
+        }
+
+        #[test]
+        fn ordinary_unknown_or_alias_namespace_falls_back_to_configured_roots() {
+            for (root, outside) in [
+                ("/tmp/project", "/private/tmp/project/new-code.txt"),
+                ("/root/project", "/unrelated/new-code.txt"),
+                ("/root/project", "/root/project/../elsewhere"),
+            ] {
+                let mut pending = PendingWork::default();
+                pending.add_scoped(
+                    FsEvent {
+                        path: outside.into(),
+                        flags: 0,
+                        id: 20,
+                    },
+                    &[PathBuf::from(root)],
+                );
+                assert!(pending.rescan_roots && pending.scope_fallback);
+                assert!(pending.paths.is_empty());
+                assert_eq!(pending.max_event_id, 20);
+            }
+            let mut ancestor = PendingWork::default();
+            ancestor.add_scoped(
+                FsEvent {
+                    path: "/root".into(),
+                    flags: 0,
+                    id: 21,
+                },
+                &[PathBuf::from("/root/project")],
+            );
+            assert_eq!(
+                ancestor
+                    .paths
+                    .keys()
+                    .map(String::as_str)
+                    .collect::<Vec<_>>(),
+                ["/root/project"]
+            );
+        }
+
+        #[test]
+        fn unexpected_uncovered_cleanup_is_never_claimed_by_configured_root_recovery() {
+            let mut pending = PendingWork {
+                full_recovery_obligation: true,
+                ..PendingWork::default()
+            };
+            pending
+                .deferred_cleanups
+                .insert(PathBuf::from("/outside/or-alias"), 123);
+            assert!(!enforce_worker_plan_bound(
+                &mut pending,
+                &[PathBuf::from("/root")]
+            ));
+            assert!(pending.worker_scope_failure);
+            assert_eq!(
+                pending
+                    .deferred_cleanups
+                    .get(Path::new("/outside/or-alias")),
+                Some(&123)
+            );
+            let mut incoming = PendingWork::with_hash_state(pending.hash_state.clone());
+            incoming.add(FsEvent {
+                path: "/root/new".into(),
+                flags: 0,
+                id: 22,
+            });
+            pending.merge_incoming(incoming);
+            assert!(pending.paths.is_empty());
+            pending.rescan_roots = true;
+            process_pending(
+                &mut pending,
+                true,
+                |_| panic!("no admitted new path"),
+                || Ok(IndexSummary::default()),
+            );
+            assert!(pending.full_recovery_obligation && pending.has_work());
+            assert_eq!(
+                pending
+                    .deferred_cleanups
+                    .get(Path::new("/outside/or-alias")),
+                Some(&123)
+            );
+        }
+
+        #[test]
+        fn upstream_selection_is_bounded_exact_existing_and_preserves_watched_roots() {
+            let temp = temp_dir("upstream-selection");
+            fs::create_dir_all(&temp).unwrap();
+            let temp = fs::canonicalize(temp).unwrap();
+            let root = temp.join("root");
+            let other = temp.join("other");
+            for directory in [
+                root.join("state"),
+                root.join("Library"),
+                other.join("Library"),
+                root.join(".codex"),
+                root.join(".cargo/registry"),
+                root.join(".npm"),
+                root.join(".cache"),
+                root.join(".gemini"),
+                root.join(".cursor"),
+            ] {
+                fs::create_dir_all(directory).unwrap();
+            }
+            let db_path = root.join("state/index.sqlite");
+            let roots = vec![root.clone(), other.clone()];
+            let excludes = runtime_excludes(
+                ["Library", ".cargo/registry", ".npm", ".cache"]
+                    .map(str::to_string)
+                    .to_vec(),
+                &db_path,
+            );
+            let selected = upstream_exclusion_paths(&db_path, &roots, &excludes);
+            assert_eq!(selected.len(), 8);
+            assert_eq!(selected[0], root.join("state"));
+            assert_eq!(selected[1], root.join("Library"));
+            assert_eq!(selected[2], other.join("Library"));
+            let matcher = ExcludeMatcher::new(&excludes);
+            assert!(selected
+                .iter()
+                .all(|path| path.is_dir() && matcher.is_excluded(path)));
+            assert!(selected.iter().all(|path| roots
+                .iter()
+                .any(|root| path != root && path.starts_with(root))));
+            let nested = root.join("Library/nested-root");
+            fs::create_dir_all(&nested).unwrap();
+            let nested_roots = vec![root.clone(), nested];
+            let selected = upstream_exclusion_paths(&db_path, &nested_roots, &excludes);
+            assert!(!selected.contains(&root.join("Library")));
+            assert!(!selected.contains(&root));
+            assert!(!selected.contains(&other.join("Library")));
+            let empty = upstream_exclusion_paths(&db_path, &roots, &[]);
+            assert!(
+                empty.is_empty(),
+                "existing directory alone is not exclusion authorization"
+            );
+            fs::remove_dir_all(temp).unwrap();
+        }
+
+        #[test]
+        fn upstream_selection_skips_aliases_missing_paths_and_outside_database() {
+            use std::os::unix::fs::symlink;
+            let temp = temp_dir("upstream-alias");
+            fs::create_dir_all(&temp).unwrap();
+            let temp = fs::canonicalize(temp).unwrap();
+            let root = temp.join("root");
+            let outside = temp.join("outside");
+            fs::create_dir_all(root.join("visible")).unwrap();
+            fs::create_dir_all(&outside).unwrap();
+            symlink(root.join("visible"), root.join(".cache")).unwrap();
+            symlink(&root, temp.join("alias")).unwrap();
+            let db_path = outside.join("index.sqlite");
+            let excludes = runtime_excludes(vec!["Library".into(), ".cache".into()], &db_path);
+            assert!(
+                upstream_exclusion_paths(&db_path, std::slice::from_ref(&root), &excludes)
+                    .is_empty()
+            );
+            fs::create_dir_all(root.join("Library")).unwrap();
+            assert_eq!(
+                upstream_exclusion_paths(&db_path, &[root], &excludes),
+                [temp.join("root/Library")]
+            );
+            assert!(
+                upstream_exclusion_paths(&db_path, &[temp.join("alias")], &excludes).is_empty()
+            );
+            fs::remove_dir_all(temp).unwrap();
+        }
+
+        #[test]
+        fn upstream_api_failure_keeps_cf_lifetimes_and_callback_recovery_filter() {
+            let mut stream = FSEventStreamGuard {
+                stream: ptr::null_mut(),
+                started: false,
+                exclusions: None,
+            };
+            let paths = vec![PathBuf::from("/root/Library")];
+            let mut called = false;
+            assert!(!configure_upstream_exclusions_with(
+                &mut stream,
+                &paths,
+                |_, array| {
+                    called = true;
+                    assert!(!array.is_null());
+                    false
+                }
+            ));
+            assert!(called && stream.exclusions.is_some());
+            let filter = EventFilter::new(Path::new("/state/index.sqlite"), &["Library".into()]);
+            assert!(!filter.accepts("/root/Library/a", 0));
+            assert!(filter.accepts("/root/visible/a", 0));
+            assert!(filter.accepts(
+                "/root/Library/a",
+                FLAG_USER_DROPPED | FLAG_MUST_SCAN_SUBDIRS
+            ));
+            assert!(!configure_upstream_exclusions_with(
+                &mut stream,
+                &[],
+                |_, _| panic!("empty selection must not call API")
+            ));
+            assert!(!configure_upstream_exclusions_with(
+                &mut stream,
+                &vec![paths[0].clone(); 9],
+                |_, _| panic!("SDK limit must be enforced")
+            ));
         }
 
         #[test]
