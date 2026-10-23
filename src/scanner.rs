@@ -1,4 +1,4 @@
-use crate::db::{Database, FileUpsert};
+use crate::db::{Database, FileUpsert, SCANNER_SEEN_MAX_PAGES};
 use crate::error::Result;
 use crate::model::{FileKind, FileRecord};
 use std::borrow::Cow;
@@ -18,13 +18,16 @@ pub struct IndexRequest {
 #[derive(Clone, Debug, Default)]
 pub struct IndexSummary {
     pub indexed: u64,
-    /// Outer files INSERT/UPDATE rows, including generation-only changes.
+    /// Outer files INSERT/UPDATE rows. Complete refreshes preserve unchanged
+    /// rows; legacy scans also count generation-only changes.
     pub rows_written: u64,
     pub unchanged: u64,
     pub deleted: u64,
     pub warnings: Vec<String>,
     pub retry_paths: Vec<PathBuf>,
     pub deferred_cleanups: Vec<(PathBuf, i64)>,
+    /// An exact refresh was rolled back before retrying with legacy generations.
+    pub legacy_fallback: bool,
 }
 
 pub fn index_paths(db: &Database, request: &IndexRequest) -> Result<IndexSummary> {
@@ -63,6 +66,25 @@ pub fn index_paths(db: &Database, request: &IndexRequest) -> Result<IndexSummary
 }
 
 pub fn refresh_path(db: &Database, path: &Path, excludes: &[String]) -> Result<IndexSummary> {
+    refresh_path_with_budget(db, path, excludes, Some(SCANNER_SEEN_MAX_PAGES))
+}
+
+/// Existing deferred generation cleanup requires every recovered row to be
+/// stamped again. Watch keeps this conservative path until that debt retires.
+pub(crate) fn refresh_path_legacy(
+    db: &Database,
+    path: &Path,
+    excludes: &[String],
+) -> Result<IndexSummary> {
+    refresh_path_with_budget(db, path, excludes, None)
+}
+
+fn refresh_path_with_budget(
+    db: &Database,
+    path: &Path,
+    excludes: &[String],
+    exact_pages: Option<usize>,
+) -> Result<IndexSummary> {
     let mut summary = IndexSummary::default();
     let matcher = ExcludeMatcher::new(excludes);
     if matcher.is_excluded(path) {
@@ -82,6 +104,7 @@ pub fn refresh_path(db: &Database, path: &Path, excludes: &[String]) -> Result<I
         Err(err) => return Err(err.into()),
     };
     db.begin()?;
+    let mut fallback = false;
     let result = (|| {
         let path_text = path.to_string_lossy().to_string();
         let indexed_at = now_index_generation();
@@ -94,11 +117,18 @@ pub fn refresh_path(db: &Database, path: &Path, excludes: &[String]) -> Result<I
             {
                 db.delete_path_prefix(&path_text)?;
             }
-            let mut upsert = db.prepare_file_upsert()?;
+            let mut upsert = prepare_refresh_upsert(db, exact_pages)?;
             scan_path(&mut upsert, path, &matcher, indexed_at, &mut summary)?;
-            drop(upsert);
-            if should_cleanup_children {
-                cleanup_stale_if_complete(db, &[path.to_path_buf()], indexed_at, &mut summary)?;
+            fallback = exact_pages.is_some()
+                && (upsert.seen_limit_exceeded() || !summary.warnings.is_empty());
+            let seen = upsert.into_seen_ids();
+            if should_cleanup_children && !fallback {
+                if let Some(seen) = seen {
+                    summary.deleted +=
+                        db.delete_unseen_under_roots(&[path.to_path_buf()], &seen)?;
+                } else {
+                    cleanup_stale_if_complete(db, &[path.to_path_buf()], indexed_at, &mut summary)?;
+                }
             }
         } else {
             // NotFound/NotADirectory proves this entire namespace is absent.
@@ -107,6 +137,16 @@ pub fn refresh_path(db: &Database, path: &Path, excludes: &[String]) -> Result<I
         }
         Ok(())
     })();
+
+    if result.is_ok() && fallback {
+        // Partial scans cannot safely use a transient seen set for later
+        // generation-based cleanup. Discard ALL fast writes, then preserve the
+        // established partial-scan/retry semantics in one legacy transaction.
+        db.rollback()?;
+        let mut summary = refresh_path_legacy(db, path, excludes)?;
+        summary.legacy_fallback = true;
+        return Ok(summary);
+    }
 
     finish_write(db, result)?;
 
@@ -118,24 +158,68 @@ pub fn refresh_roots(
     roots: &[PathBuf],
     excludes: &[String],
 ) -> Result<IndexSummary> {
+    refresh_roots_with_budget(db, roots, excludes, Some(SCANNER_SEEN_MAX_PAGES))
+}
+
+pub(crate) fn refresh_roots_legacy(
+    db: &Database,
+    roots: &[PathBuf],
+    excludes: &[String],
+) -> Result<IndexSummary> {
+    refresh_roots_with_budget(db, roots, excludes, None)
+}
+
+fn refresh_roots_with_budget(
+    db: &Database,
+    roots: &[PathBuf],
+    excludes: &[String],
+    exact_pages: Option<usize>,
+) -> Result<IndexSummary> {
     let mut summary = IndexSummary::default();
     let matcher = ExcludeMatcher::new(excludes);
     db.begin()?;
+    let mut fallback = false;
     let result = (|| {
         let indexed_at = now_index_generation();
-        let mut upsert = db.prepare_file_upsert()?;
+        let mut upsert = prepare_refresh_upsert(db, exact_pages)?;
         for root in roots {
             scan_path(&mut upsert, root, &matcher, indexed_at, &mut summary)?;
+            if upsert.seen_limit_exceeded() {
+                break;
+            }
         }
-        drop(upsert);
-        cleanup_stale_if_complete(db, roots, indexed_at, &mut summary)?;
+        fallback =
+            exact_pages.is_some() && (upsert.seen_limit_exceeded() || !summary.warnings.is_empty());
+        let seen = upsert.into_seen_ids();
+        if fallback {
+            return Ok(());
+        }
+        if let Some(seen) = seen {
+            summary.deleted += db.delete_unseen_under_roots(roots, &seen)?;
+        } else {
+            cleanup_stale_if_complete(db, roots, indexed_at, &mut summary)?;
+        }
         db.set_meta("last_indexed_at", &now_epoch().to_string())?;
         Ok(())
     })();
 
+    if result.is_ok() && fallback {
+        db.rollback()?;
+        let mut summary = refresh_roots_legacy(db, roots, excludes)?;
+        summary.legacy_fallback = true;
+        return Ok(summary);
+    }
+
     finish_write(db, result)?;
 
     Ok(summary)
+}
+
+fn prepare_refresh_upsert(db: &Database, exact_pages: Option<usize>) -> Result<FileUpsert<'_>> {
+    match exact_pages {
+        Some(max_pages) => db.prepare_scanner_upsert(max_pages),
+        None => db.prepare_file_upsert(),
+    }
 }
 
 const MAX_SCAN_DEPTH: u32 = 256;
@@ -156,6 +240,9 @@ fn scan_path(
     indexed_at: i64,
     summary: &mut IndexSummary,
 ) -> Result<()> {
+    if upsert.seen_limit_exceeded() {
+        return Ok(());
+    }
     scan_path_inner(upsert, path, excludes, indexed_at, summary, 0)
 }
 
@@ -221,6 +308,9 @@ fn scan_path_inner(
             }
         };
         for entry in entries {
+            if upsert.seen_limit_exceeded() {
+                break;
+            }
             match entry {
                 Ok(entry) => scan_path_inner(
                     upsert,
@@ -783,7 +873,7 @@ mod tests {
     }
 
     #[test]
-    fn one_transaction_writer_reuses_bindings_and_preserves_generation_writes() {
+    fn generic_writer_preserves_generation_contract_but_complete_refresh_is_content_noop() {
         use super::{finish_write, scan_path, ExcludeMatcher, IndexSummary};
         let temp = unique_temp_dir("macevery-scan-writer");
         let root = temp.join("root");
@@ -814,19 +904,158 @@ mod tests {
         let summary = refresh_path(&db, &root, &[]).unwrap();
         assert_eq!(
             (summary.indexed, summary.rows_written, summary.unchanged),
-            (3, 3, 0)
+            (3, 0, 3)
         );
+        assert_eq!(db.content_stamp().unwrap().revision, first_stamp.revision);
+        let after = db.all_records().unwrap();
+        assert_eq!(
+            before, after,
+            "unchanged scanner rows retain every persisted value"
+        );
+        drop(db);
+        fs::remove_dir_all(temp).unwrap();
+    }
+
+    #[test]
+    fn exact_refresh_updates_metadata_and_deletes_only_unseen_scoped_rows() {
+        let temp = unique_temp_dir("macevery-exact-refresh");
+        let root = temp.join("root");
+        fs::create_dir_all(&root).unwrap();
+        let keep = root.join("keep");
+        let changed = root.join("changed");
+        let stale = root.join("stale");
+        for path in [&keep, &changed, &stale] {
+            fs::write(path, "before").unwrap();
+        }
+        let db = Database::open(temp.join("index.sqlite")).unwrap();
+        refresh_roots(&db, std::slice::from_ref(&root), &[]).unwrap();
+        let before = db.all_records().unwrap();
+        let kept = before
+            .iter()
+            .find(|r| r.path == keep.to_string_lossy())
+            .unwrap()
+            .clone();
+        let stamp = db.content_stamp().unwrap();
+        fs::write(&changed, "now a different size").unwrap();
+        fs::remove_file(&stale).unwrap();
+        let new = root.join("new");
+        fs::write(&new, "new").unwrap();
+        let summary = refresh_roots(&db, &[root.clone(), root.clone()], &[]).unwrap();
+        assert!(summary.warnings.is_empty());
+        assert!(!summary.legacy_fallback);
+        assert_eq!(summary.deleted, 1);
+        let after = db.all_records().unwrap();
+        assert_eq!(
+            after.iter().find(|r| r.path == keep.to_string_lossy()),
+            Some(&kept)
+        );
+        assert!(!after.iter().any(|r| r.path == stale.to_string_lossy()));
+        assert_eq!(
+            after
+                .iter()
+                .filter(|r| r.path == new.to_string_lossy())
+                .count(),
+            1
+        );
+        assert!(
+            after
+                .iter()
+                .find(|r| r.path == changed.to_string_lossy())
+                .unwrap()
+                .indexed_at
+                > kept.indexed_at
+        );
+        // Directory metadata may change with entries; count exactly the rows
+        // whose persisted records changed, plus one deletion, without guessing it.
+        let changed_rows = after
+            .iter()
+            .filter(|r| before.iter().find(|old| old.id == r.id) != Some(*r))
+            .count();
+        assert_eq!(summary.rows_written as usize, changed_rows);
         assert_eq!(
             db.content_stamp().unwrap().revision,
-            first_stamp.revision + 3
+            stamp.revision + changed_rows as i64 + 1
         );
+        db.begin_read().unwrap();
+        let crate::db::FileChangeRead::Available { changes, .. } =
+            db.file_changes_since(&stamp, 4096, 4096).unwrap()
+        else {
+            panic!("small material refresh must retain incremental journal coverage");
+        };
+        db.commit().unwrap();
+        for change in changes {
+            assert_eq!(
+                change.record.as_ref(),
+                after.iter().find(|row| row.id == change.id)
+            );
+        }
+        drop(db);
+        fs::remove_dir_all(temp).unwrap();
+    }
+
+    #[test]
+    fn exact_seen_budget_fallback_rolls_back_partial_fast_writes_before_legacy_retry() {
+        let temp = unique_temp_dir("macevery-seen-budget");
+        let root = temp.join("root");
+        fs::create_dir_all(&root).unwrap();
+        fs::write(root.join("first"), "one").unwrap();
+        fs::write(root.join("second"), "two").unwrap();
+        let db = Database::open(temp.join("index.sqlite")).unwrap();
+        let before = db.content_stamp().unwrap();
+        // Zero pages exhausts after the first real INSERT, exercising rollback
+        // rather than an admission check before any DML.
+        let summary =
+            super::refresh_roots_with_budget(&db, std::slice::from_ref(&root), &[], Some(0))
+                .unwrap();
+        assert!(summary.legacy_fallback);
+        assert!(summary.warnings.is_empty());
+        assert_eq!(
+            (summary.indexed, summary.rows_written, summary.unchanged),
+            (3, 3, 0)
+        );
+        assert_eq!(db.content_stamp().unwrap().revision, before.revision + 3);
+        assert_eq!(db.all_records().unwrap().len(), 3);
+        let before = db.all_records().unwrap();
+        let stamp = db.content_stamp().unwrap();
+        let summary = super::refresh_path_with_budget(&db, &root, &[], Some(0)).unwrap();
+        assert!(summary.legacy_fallback);
+        assert_eq!(
+            (summary.indexed, summary.rows_written, summary.unchanged),
+            (3, 3, 0)
+        );
+        assert_eq!(db.content_stamp().unwrap().revision, stamp.revision + 3);
         let after = db.all_records().unwrap();
-        for (before, after) in before.iter().zip(&after) {
-            assert_eq!(before.id, after.id);
-            assert!(after.indexed_at > before.indexed_at);
-            let mut expected = before.clone();
-            expected.indexed_at = after.indexed_at;
-            assert_eq!(&expected, after);
+        for (old, new) in before.iter().zip(&after) {
+            assert_eq!(old.id, new.id);
+            assert!(new.indexed_at > old.indexed_at);
+        }
+        db.begin().unwrap();
+        db.rollback().unwrap();
+        drop(db);
+        fs::remove_dir_all(temp).unwrap();
+    }
+
+    #[test]
+    fn incomplete_exact_scan_falls_back_and_preserves_generation_cleanup_debt() {
+        let temp = unique_temp_dir("macevery-incomplete-exact");
+        let root = temp.join("root");
+        let missing = temp.join("not-yet-mounted");
+        fs::create_dir_all(&root).unwrap();
+        fs::write(root.join("keep"), "one").unwrap();
+        let db = Database::open(temp.join("index.sqlite")).unwrap();
+        refresh_roots(&db, std::slice::from_ref(&root), &[]).unwrap();
+        let old = db.all_records().unwrap();
+        let stamp = db.content_stamp().unwrap();
+        let summary = refresh_roots(&db, &[root.clone(), missing.clone()], &[]).unwrap();
+        assert!(summary.legacy_fallback);
+        assert!(!summary.warnings.is_empty());
+        assert_eq!(summary.retry_paths, vec![missing]);
+        assert_eq!(summary.deferred_cleanups.len(), 2);
+        assert_eq!(summary.indexed, 2);
+        assert_eq!(summary.rows_written, 2);
+        assert_eq!(db.content_stamp().unwrap().revision, stamp.revision + 2);
+        for row in db.all_records().unwrap() {
+            assert!(row.indexed_at > old.iter().find(|r| r.id == row.id).unwrap().indexed_at);
         }
         drop(db);
         fs::remove_dir_all(temp).unwrap();

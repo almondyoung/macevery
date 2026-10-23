@@ -1,0 +1,43 @@
+{
+  "status": "PASS",
+  "scope": "Fixture/display/lifecycle equivalence; resources reported without an automatic improvement budget",
+  "ordered_results_equal": true,
+  "display_semantics_equal": true,
+  "cleanup_all_passed": true,
+  "source_unchanged": true,
+  "median_paired_change_percent": {
+    "lifetime_cpu_seconds": 2.172209848259704,
+    "lifetime_peak_rss_bytes": 0.0054233953480087305,
+    "idle_before_cpu_seconds": 2.6688460435086094,
+    "idle_before_rss_bytes_last": -0.8732778856190171,
+    "idle_before_physical_footprint_bytes_last": -3.418558750576156,
+    "formatters_cpu_seconds": -20.244125568454063,
+    "formatters_rss_bytes_last": -0.3366294971596906,
+    "formatters_physical_footprint_bytes_last": -1.901651309555524,
+    "model_replace_clear_cpu_seconds": 1.2592037111938694,
+    "model_replace_clear_rss_bytes_last": 0.4328278963212362,
+    "model_replace_clear_physical_footprint_bytes_last": 0.9222635168155635,
+    "result_row_offscreen_cpu_seconds": 3.5358680358325296,
+    "result_row_offscreen_rss_bytes_last": -0.005315467658317807,
+    "result_row_offscreen_physical_footprint_bytes_last": 0.003788801776127837,
+    "idle_after_work_cpu_seconds": -10.529579981833415,
+    "idle_after_work_rss_bytes_last": 0.08402986951746017,
+    "idle_after_work_physical_footprint_bytes_last": 0.3118083623580403,
+    "release_and_settle_cpu_seconds": -1.5316892568015272,
+    "release_and_settle_rss_bytes_last": 0.11151698185770109,
+    "release_and_settle_physical_footprint_bytes_last": 0.3307255066512971
+  },
+  "limitations": [
+    "Isolated formatter/model/offscreen workload; not the installed App or historical footprint root cause.",
+    "Both variants use their production shared formatter; no historical private-date adapter.",
+    "URLProtocol serves exactly the same ordered 300 six-field JSON results; it never forwards to real port 17649.",
+    "CPU is the harness process only; compilation/controller CPU are excluded. Phase CPU uses getrusage; wait4 gives lifetime CPU/HWM.",
+    "RSS/physical footprint are separate sampled metrics; peaks are lower bounds, and ru_maxrss is lifetime RSS, not footprint.",
+    "No allocation-count or causal whole-App claim; other user applications and WindowServer remain uncontrolled.",
+    "Idle-after-work has a cleared model, at most the final 12-row host page, and retained 300-row fixture/JSON; not a 300-visible-result App steady state.",
+    "Offscreen rendering checks a nonempty bitmap and fixed row/frame visits, not pixel-for-pixel equality or native-window acceptance.",
+    "The timeout bounds each harness run only; compiler preparation is outside measurement and has no automatic compiler deadline.",
+    "Status burst and stderr storm bounds belong to the separate candidate correctness checks, not simulated baseline performance."
+  ],
+  "raw_summary_sha256": "fe743211475d91e89c755132f17a3bbbe306cc268392d99f317f05a480ea8ff7"
+}

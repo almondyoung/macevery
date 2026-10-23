@@ -6,7 +6,10 @@ mod macos_impl {
     use super::*;
     use crate::db::Database;
     use crate::process_lifetime;
-    use crate::scanner::{refresh_path, refresh_roots, ExcludeMatcher, IndexSummary};
+    use crate::scanner::{
+        refresh_path, refresh_path_legacy, refresh_roots, refresh_roots_legacy, ExcludeMatcher,
+        IndexSummary,
+    };
     use std::collections::hash_map::RandomState;
     use std::collections::{BTreeMap, BTreeSet};
     use std::ffi::{CStr, CString};
@@ -113,6 +116,61 @@ mod macos_impl {
     const FLAG_ROOT_CHANGED: FSEventStreamEventFlags = 0x0000_0020;
     const META_LAST_EVENT_ID: &str = "watch_last_event_id";
 
+    // Counts describe raw records, not independent drops, scans or lost files.
+    // IDs retain delivery order, including wrap; they are not numeric min/max.
+    #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+    struct RawEventCounts {
+        must_scan: u64,
+        user_dropped: u64,
+        kernel_dropped: u64,
+        ids_wrapped: u64,
+        root_changed: u64,
+        first_id: Option<u64>,
+        last_id: Option<u64>,
+    }
+
+    impl RawEventCounts {
+        fn record(&mut self, flags: u32, id: u64) {
+            for (count, flag) in [
+                (&mut self.must_scan, FLAG_MUST_SCAN_SUBDIRS),
+                (&mut self.user_dropped, FLAG_USER_DROPPED),
+                (&mut self.kernel_dropped, FLAG_KERNEL_DROPPED),
+                (&mut self.ids_wrapped, FLAG_IDS_WRAPPED),
+                (&mut self.root_changed, FLAG_ROOT_CHANGED),
+            ] {
+                *count = count.saturating_add(u64::from(flags & flag != 0));
+            }
+            self.first_id.get_or_insert(id);
+            self.last_id = Some(id);
+        }
+
+        fn merge(&mut self, incoming: Self) {
+            self.must_scan = self.must_scan.saturating_add(incoming.must_scan);
+            self.user_dropped = self.user_dropped.saturating_add(incoming.user_dropped);
+            self.kernel_dropped = self.kernel_dropped.saturating_add(incoming.kernel_dropped);
+            self.ids_wrapped = self.ids_wrapped.saturating_add(incoming.ids_wrapped);
+            self.root_changed = self.root_changed.saturating_add(incoming.root_changed);
+            self.first_id = self.first_id.or(incoming.first_id);
+            self.last_id = incoming.last_id.or(self.last_id);
+        }
+
+        fn json(self) -> String {
+            format!(
+                concat!(
+                    "{{\"must_scan\":{},\"user_dropped\":{},\"kernel_dropped\":{},",
+                    "\"ids_wrapped\":{},\"root_changed\":{},\"first_id\":{},\"last_id\":{}}}"
+                ),
+                self.must_scan,
+                self.user_dropped,
+                self.kernel_dropped,
+                self.ids_wrapped,
+                self.root_changed,
+                self.first_id.map_or("null".into(), |id| id.to_string()),
+                self.last_id.map_or("null".into(), |id| id.to_string()),
+            )
+        }
+    }
+
     #[derive(Default)]
     struct FilterCounters {
         received: AtomicU64,
@@ -122,6 +180,32 @@ mod macos_impl {
         callback_events: AtomicU64,
         callback_total_ns: AtomicU64,
         callback_max_ns: AtomicU64,
+        callback_signals: Mutex<RawEventCounts>,
+    }
+
+    impl FilterCounters {
+        fn record_callback_signals(&self, flags: u32, id: u64) {
+            if flags
+                & (FLAG_MUST_SCAN_SUBDIRS
+                    | FLAG_USER_DROPPED
+                    | FLAG_KERNEL_DROPPED
+                    | FLAG_IDS_WRAPPED
+                    | FLAG_ROOT_CHANGED)
+                != 0
+            {
+                self.callback_signals
+                    .lock()
+                    .unwrap_or_else(|e| e.into_inner())
+                    .record(flags, id);
+            }
+        }
+
+        fn callback_signal_counts(&self) -> RawEventCounts {
+            *self
+                .callback_signals
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+        }
     }
 
     #[derive(Clone, Debug)]
@@ -202,6 +286,7 @@ mod macos_impl {
         scope_fallback: bool,
         event_count: u64,
         raw_flags: u32,
+        raw_counts: RawEventCounts,
         first_events: [Option<EventSample>; 3],
         last_event: Option<EventSample>,
         recovery_event: Option<EventSample>,
@@ -264,6 +349,7 @@ mod macos_impl {
         }
 
         fn record_event(&mut self, event: &FsEvent) {
+            self.raw_counts.record(event.flags, event.id);
             if event.flags & FLAG_IDS_WRAPPED != 0 {
                 self.max_event_id = event.id;
                 self.checkpoint_reset = true;
@@ -315,6 +401,7 @@ mod macos_impl {
             self.scope_fallback = false;
             self.event_count = 0;
             self.raw_flags = 0;
+            self.raw_counts = RawEventCounts::default();
             self.first_events = [None; 3];
             self.last_event = None;
             self.recovery_event = None;
@@ -341,6 +428,7 @@ mod macos_impl {
             }
             self.event_count = self.event_count.saturating_add(incoming.event_count);
             self.raw_flags |= incoming.raw_flags;
+            self.raw_counts.merge(incoming.raw_counts);
             self.last_event = incoming.last_event.or(self.last_event);
             self.recovery_event = self.recovery_event.or(incoming.recovery_event);
             self.scope_fallback |= incoming.scope_fallback;
@@ -360,6 +448,13 @@ mod macos_impl {
 
         fn has_retries(&self) -> bool {
             self.retry_roots || !self.retry_paths.is_empty() || self.full_recovery_obligation
+        }
+
+        fn needs_legacy_generation(&self) -> bool {
+            // Only previously committed incomplete scans carry generation-based
+            // cleanup debt. A fresh UserDropped/root recovery can use exact seen
+            // IDs; ordinary failed transactions left no rows to restamp.
+            !self.deferred_cleanups.is_empty() || self.full_recovery_generation.is_some()
         }
 
         fn has_work(&self) -> bool {
@@ -616,6 +711,8 @@ mod macos_impl {
     const LOG_WINDOW: Duration = Duration::from_secs(60);
     const LOG_RECORDS_PER_WINDOW: u32 = 120;
     const LOG_FILE_NAME: &str = "macevery-watch-trigger.jsonl";
+    const STARTUP_FILE_NAME: &str = "macevery-watch-startup.json";
+    const STARTUP_FILE_BYTES: usize = 1024;
 
     // Values from the macOS SDK sys/fcntl.h. No new runtime dependency.
     const OPEN_NOFOLLOW: i32 = 0x100;
@@ -631,6 +728,7 @@ mod macos_impl {
         written: u64,
         unchanged: u64,
         stale_removed: u64,
+        legacy_fallback: bool,
         warnings: usize,
         elapsed_ms: u128,
         received: u64,
@@ -658,6 +756,7 @@ mod macos_impl {
                 written: summary.rows_written,
                 unchanged: summary.unchanged,
                 stale_removed: summary.deleted,
+                legacy_fallback: summary.legacy_fallback,
                 warnings: summary.warnings.len(),
                 elapsed_ms: started.elapsed().as_millis(),
                 ..Self::default()
@@ -667,6 +766,8 @@ mod macos_impl {
 
     struct TriggerLog {
         path: PathBuf,
+        session: u64,
+        counters: Arc<FilterCounters>,
         window: Instant,
         records: u32,
         suppressed: u64,
@@ -682,6 +783,8 @@ mod macos_impl {
                     .parent()
                     .unwrap_or_else(|| Path::new("."))
                     .join(LOG_FILE_NAME),
+                session: RandomState::new().hash_one((std::process::id(), SystemTime::now())),
+                counters: Arc::new(FilterCounters::default()),
                 window: Instant::now(),
                 records: 0,
                 suppressed: 0,
@@ -689,6 +792,32 @@ mod macos_impl {
                 io_failures: 0,
                 unavailable_until: None,
             }
+        }
+
+        fn startup_summary(
+            &self,
+            roots: usize,
+            upstream_requested: usize,
+            upstream_accepted: bool,
+            flags: u32,
+        ) -> io::Result<()> {
+            let record = format!(
+                concat!(
+                    "{{\"v\":1,\"pid\":{},\"session\":\"{:016x}\",\"stage\":\"configured\",",
+                    "\"roots\":{},\"upstream_requested\":{},\"upstream_accepted\":{},",
+                    "\"create_flags\":{},\"latency_ms\":350}}\n"
+                ),
+                std::process::id(),
+                self.session,
+                roots,
+                upstream_requested,
+                upstream_accepted,
+                flags
+            );
+            write_startup_summary(
+                &self.path.with_file_name(STARTUP_FILE_NAME),
+                record.as_bytes(),
+            )
         }
 
         fn record(
@@ -744,24 +873,26 @@ mod macos_impl {
                 "{{\"v\":1,\"at_ms\":{},\"pid\":{},\"kind\":\"{}\",\"scope\":\"{}\",\"scope_hash\":\"{:016x}\",",
                 "\"flags_or\":{},\"event_count\":{},\"first_events\":[{}],\"last_event\":{},\"recovery_event\":{},\"events_outside_first_last\":{},",
                 "\"watermark\":{},\"wrap_pending\":{},\"scope_fallback\":{},\"paths\":{},\"retry_paths\":{},\"retry_roots\":{},\"retry_due\":{},",
-                "\"indexed\":{},\"rows_written\":{},\"unchanged\":{},\"stale_removed\":{},\"warnings\":{},\"elapsed_ms\":{},",
+                "\"indexed\":{},\"rows_written\":{},\"unchanged\":{},\"stale_removed\":{},\"legacy_fallback\":{},\"warnings\":{},\"elapsed_ms\":{},",
                 "\"received\":{},\"rejected\":{},\"received_flags_or\":{},",
                 "\"callback_count\":{},\"callback_events\":{},\"callback_total_ns\":{},\"callback_max_ns\":{},",
                 "\"inbox_admitted\":{},\"inbox_coalesced\":{},\"inbox_overflows\":{},\"inbox_highwater_paths\":{},\"inbox_highwater_bytes\":{},",
                 "\"first_delivery_age_ms\":{},\"last_delivery_age_ms\":{},\"inbox_overflow\":{},",
                 "\"upstream_requested\":{},\"upstream_accepted\":{},",
                 "\"worker_overflow\":{},\"full_recovery_obligation\":{},\"worker_scope_failure\":{},",
+                "\"session\":\"{:016x}\",\"admitted_raw\":{},\"callback_signals\":{},",
                 "\"suppressed_records\":{},\"oversized_records\":{},\"io_failures\":{}}}\n"),
                 at_ms, std::process::id(), kind, scope, path_hash, pending.raw_flags, pending.event_count,
                 first, last, recovery, pending.event_count.saturating_sub(sampled), pending.max_event_id,
                 pending.checkpoint_reset, pending.scope_fallback, pending.paths.len(), pending.retry_paths.len(), pending.retry_roots,
-                info.retry_due, info.indexed, info.written, info.unchanged, info.stale_removed, info.warnings, info.elapsed_ms,
+                info.retry_due, info.indexed, info.written, info.unchanged, info.stale_removed, info.legacy_fallback, info.warnings, info.elapsed_ms,
                 info.received, info.rejected, info.received_flags,
                 info.callback_count, info.callback_events, info.callback_total_ns, info.callback_max_ns,
                 info.inbox_admitted, info.inbox_coalesced, info.inbox_overflows, info.inbox_highwater_paths, info.inbox_highwater_bytes,
                 info.first_delivery_age_ms, info.last_delivery_age_ms, pending.inbox_overflow,
                 info.upstream_requested, info.upstream_accepted,
                 pending.worker_overflow, pending.full_recovery_obligation, pending.worker_scope_failure,
+                self.session, pending.raw_counts.json(), self.counters.callback_signal_counts().json(),
                 self.suppressed, self.oversized, self.io_failures);
             if line.len() > LOG_RECORD_BYTES {
                 self.oversized = self.oversized.saturating_add(1);
@@ -848,6 +979,30 @@ mod macos_impl {
         }
         file.write_all(record)
         // Closing the stable lock descriptor releases flock; no blocking fsync.
+    }
+
+    // A fixed-name, once-per-start snapshot survives ordinary log rotation.
+    // Like trigger diagnostics, failure is nonfatal and the callback does no IO.
+    fn write_startup_summary(path: &Path, record: &[u8]) -> io::Result<()> {
+        if record.len() > STARTUP_FILE_BYTES {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "startup summary too large",
+            ));
+        }
+        let lock = private_log_file(&path.with_extension("lock"))?;
+        if unsafe { flock(lock.as_raw_fd(), LOCK_EXCLUSIVE_NONBLOCKING) } != 0 {
+            return Err(io::Error::last_os_error());
+        }
+        let mut file = private_log_file(path)?;
+        if file.metadata()?.len() > STARTUP_FILE_BYTES as u64 {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "unsafe startup summary size",
+            ));
+        }
+        file.set_len(0)?;
+        file.write_all(record)
     }
 
     struct CfReleaseGuard {
@@ -1055,6 +1210,7 @@ mod macos_impl {
         let filter = EventFilter::new(&db_path, &excludes);
         let inbox = Arc::new(EventInbox::new(roots.clone(), initial.hash_state.clone()));
         let counters = Arc::clone(&filter.counters);
+        diagnostics.counters = Arc::clone(&counters);
 
         let mut root_strings = Vec::new();
         let mut root_values = Vec::new();
@@ -1112,6 +1268,12 @@ mod macos_impl {
             .ok_or_else(|| MacEveryError::Cli("failed to create FSEventStream".to_string()))?;
         let upstream_paths = upstream_exclusion_paths(&db_path, &roots, &excludes);
         let upstream_accepted = configure_upstream_exclusions(&mut stream, &upstream_paths);
+        if diagnostics
+            .startup_summary(roots.len(), upstream_paths.len(), upstream_accepted, flags)
+            .is_err()
+        {
+            eprintln!("watch: startup diagnostics unavailable; indexing continues");
+        }
         diagnostics.record(
             "stream_configuration",
             "stream",
@@ -1257,11 +1419,24 @@ mod macos_impl {
                     );
                     false
                 } else if checkpoint_epoch_ready {
+                    let legacy_generation = pending.needs_legacy_generation();
                     process_pending_logged(
                         &mut pending,
                         retry_due,
-                        |path| refresh_path(&db, path, &excludes),
-                        || refresh_roots(&db, &roots, &excludes),
+                        |path| {
+                            if legacy_generation {
+                                refresh_path_legacy(&db, path, &excludes)
+                            } else {
+                                refresh_path(&db, path, &excludes)
+                            }
+                        },
+                        || {
+                            if legacy_generation {
+                                refresh_roots_legacy(&db, &roots, &excludes)
+                            } else {
+                                refresh_roots(&db, &roots, &excludes)
+                            }
+                        },
                         Some(&mut diagnostics),
                     );
                     enforce_worker_plan_bound(&mut pending, &roots)
@@ -1797,21 +1972,22 @@ mod macos_impl {
         let started = Instant::now();
         let paths = event_paths.cast::<*const c_char>();
         for index in 0..num_events {
-            let path_ptr = *paths.add(index);
-            if path_ptr.is_null() {
-                continue;
-            }
-            let path = CStr::from_ptr(path_ptr).to_string_lossy();
             let flags = *event_flags.add(index);
-            if !state.filter.accepts(&path, flags) {
-                continue;
-            }
-            let path = path.into_owned();
             let id = if event_ids.is_null() {
                 0
             } else {
                 *event_ids.add(index)
             };
+            state.filter.counters.record_callback_signals(flags, id);
+            let path_ptr = *paths.add(index);
+            if path_ptr.is_null() {
+                continue;
+            }
+            let path = CStr::from_ptr(path_ptr).to_string_lossy();
+            if !state.filter.accepts(&path, flags) {
+                continue;
+            }
+            let path = path.into_owned();
             state.inbox.push(FsEvent { path, flags, id });
         }
         let elapsed_ns = started.elapsed().as_nanos().min(u64::MAX as u128) as u64;
@@ -2812,6 +2988,87 @@ mod macos_impl {
         }
 
         #[test]
+        fn deferred_cleanup_retry_restamps_unchanged_rows_before_old_generation_delete() {
+            use crate::model::{FileKind, FileRecord};
+            let temp = temp_dir("watch-exact-deferred-generation");
+            let root = temp.join("root");
+            let failed = root.join("failed");
+            let keep = failed.join("keep.txt");
+            let stale = root.join("removed.txt");
+            fs::create_dir_all(&failed).unwrap();
+            fs::write(&keep, "unchanged content").unwrap();
+            let db = Database::open(temp.join("index.sqlite")).unwrap();
+            refresh_roots(&db, std::slice::from_ref(&root), &[]).unwrap();
+            let before = db.all_records().unwrap();
+            let old_keep = before
+                .iter()
+                .find(|r| r.path == keep.to_string_lossy())
+                .unwrap()
+                .clone();
+            let generation = old_keep.indexed_at + 1;
+            // Model an incomplete legacy scan: visited directories were
+            // stamped, while the unreadable child's unchanged file was not.
+            for mut row in before {
+                if row.path != keep.to_string_lossy() {
+                    row.indexed_at = generation;
+                    db.upsert_file(&row).unwrap();
+                }
+            }
+            db.upsert_file(&FileRecord::new(
+                stale.to_string_lossy().into_owned(),
+                FileKind::File,
+                old_keep.indexed_at,
+            ))
+            .unwrap();
+            let mut pending = PendingWork::default();
+            pending
+                .retry_paths
+                .insert(failed.to_string_lossy().into_owned(), 0);
+            pending.deferred_cleanups.insert(root.clone(), generation);
+            pending.max_event_id = 42;
+            let legacy = pending.needs_legacy_generation();
+            assert!(legacy);
+            process_pending(
+                &mut pending,
+                true,
+                |path| {
+                    if legacy {
+                        refresh_path_legacy(&db, path, &[])
+                    } else {
+                        refresh_path(&db, path, &[])
+                    }
+                },
+                || panic!("retry stays within the failed child"),
+            );
+            assert!(persist_checkpoint(&db, &mut pending));
+            let after = db.all_records().unwrap();
+            let kept = after
+                .iter()
+                .find(|r| r.path == keep.to_string_lossy())
+                .unwrap();
+            assert_eq!(kept.id, old_keep.id);
+            assert!(kept.indexed_at > generation);
+            assert!(!after.iter().any(|r| r.path == stale.to_string_lossy()));
+            assert!(!pending.needs_legacy_generation());
+            let mut fresh = PendingWork {
+                full_recovery_obligation: true,
+                rescan_roots: true,
+                ..PendingWork::default()
+            };
+            assert!(
+                !fresh.needs_legacy_generation(),
+                "fresh root recovery is eligible for exact seen IDs"
+            );
+            fresh.full_recovery_generation = Some(generation);
+            assert!(
+                fresh.needs_legacy_generation(),
+                "compressed old generation debt must still restamp rows"
+            );
+            drop(db);
+            fs::remove_dir_all(temp).unwrap();
+        }
+
+        #[test]
         fn must_incomplete_subtree_defers_cleanup_and_retries_only_failed_child() {
             use crate::model::{FileKind, FileRecord};
             let temp = temp_dir("watch-must-incomplete");
@@ -2928,6 +3185,7 @@ mod macos_impl {
             assert!(line.len() <= LOG_RECORD_BYTES);
             assert!(!line.contains("secret-file") && !line.contains(temp.to_str().unwrap()));
             assert!(line.contains("\"event_count\":10"));
+            assert!(line.contains("\"admitted_raw\":{\"must_scan\":10,\"user_dropped\":1,"));
             assert!(line.contains("\"events_outside_first_last\":6"));
             assert!(line.contains(&format!(
                 "\"recovery_event\":{}",
@@ -2955,10 +3213,201 @@ mod macos_impl {
         }
 
         #[test]
+        fn raw_counts_keep_middle_flags_and_delivery_ids_through_merge_and_clear() {
+            let mut first = PendingWork::default();
+            let mut second = PendingWork::default();
+            for id in 0..10 {
+                let flags = match id {
+                    0 => FLAG_MUST_SCAN_SUBDIRS | FLAG_ROOT_CHANGED,
+                    6 => FLAG_USER_DROPPED | FLAG_KERNEL_DROPPED,
+                    7 => FLAG_IDS_WRAPPED,
+                    _ => 0,
+                };
+                let target = if id < 5 { &mut first } else { &mut second };
+                target.add(FsEvent {
+                    path: format!("/private/secret-{id}"),
+                    flags,
+                    id,
+                });
+            }
+            first.merge_incoming(second);
+            assert_eq!(first.event_count, 10);
+            assert!(first
+                .first_events
+                .iter()
+                .flatten()
+                .all(|e| e.flags & FLAG_USER_DROPPED == 0));
+            assert_eq!(first.last_event.unwrap().flags, 0);
+            assert_eq!(
+                first.recovery_event.unwrap().flags,
+                FLAG_MUST_SCAN_SUBDIRS | FLAG_ROOT_CHANGED
+            );
+            assert_eq!(
+                first.raw_counts,
+                RawEventCounts {
+                    must_scan: 1,
+                    user_dropped: 1,
+                    kernel_dropped: 1,
+                    ids_wrapped: 1,
+                    root_changed: 1,
+                    first_id: Some(0),
+                    last_id: Some(9),
+                }
+            );
+            let watermark = first.max_event_id;
+            first.clear_diagnostics();
+            assert_eq!(first.raw_counts, RawEventCounts::default());
+            assert_eq!(first.event_count, 0);
+            assert_eq!(first.max_event_id, watermark);
+            assert!(
+                first.has_work(),
+                "clearing diagnostics must not clear recovery"
+            );
+        }
+
+        #[test]
+        fn callback_signal_counts_are_raw_lifetime_counts_not_batch_or() {
+            let state = CallbackState {
+                inbox: Arc::new(EventInbox::new(
+                    vec![PathBuf::from("/fixture")],
+                    RandomState::new(),
+                )),
+                filter: EventFilter::new(Path::new("/private/state/index.sqlite"), &[]),
+            };
+            let paths = (0..5)
+                .map(|n| CString::new(format!("/fixture/{n}")).unwrap())
+                .collect::<Vec<_>>();
+            let mut pointers = paths.iter().map(|p| p.as_ptr()).collect::<Vec<_>>();
+            let flags = [
+                FLAG_MUST_SCAN_SUBDIRS,
+                FLAG_USER_DROPPED,
+                FLAG_KERNEL_DROPPED,
+                FLAG_IDS_WRAPPED,
+                FLAG_ROOT_CHANGED,
+            ];
+            let ids = [9, 10, 11, 0, 1];
+            for expected in 1..=2 {
+                unsafe {
+                    event_callback(
+                        ptr::null(),
+                        (&state as *const CallbackState).cast_mut().cast(),
+                        pointers.len(),
+                        pointers.as_mut_ptr().cast(),
+                        flags.as_ptr(),
+                        ids.as_ptr(),
+                    );
+                }
+                let batch = state.inbox.take_batch(Duration::ZERO);
+                assert_eq!(batch.pending.raw_counts.user_dropped, 1);
+                let lifetime = state.filter.counters.callback_signal_counts();
+                assert_eq!(lifetime.must_scan, expected);
+                assert_eq!(lifetime.user_dropped, expected);
+                assert_eq!(lifetime.kernel_dropped, expected);
+                assert_eq!(lifetime.ids_wrapped, expected);
+                assert_eq!(lifetime.root_changed, expected);
+                assert_eq!((lifetime.first_id, lifetime.last_id), (Some(9), Some(1)));
+            }
+            // This read/swap is deliberately independent of lifetime counters.
+            state.filter.counters.flags.swap(0, Ordering::Relaxed);
+            assert_eq!(
+                state.filter.counters.callback_signal_counts().user_dropped,
+                2
+            );
+        }
+
+        #[test]
+        fn raw_signal_counts_saturate_without_wrapping() {
+            let max = RawEventCounts {
+                must_scan: u64::MAX,
+                user_dropped: u64::MAX,
+                kernel_dropped: u64::MAX,
+                ids_wrapped: u64::MAX,
+                root_changed: u64::MAX,
+                first_id: Some(u64::MAX),
+                last_id: Some(u64::MAX),
+            };
+            let mut counts = max;
+            counts.record(0x2f, 0);
+            let mut incoming = RawEventCounts::default();
+            incoming.record(0x2f, 1);
+            counts.merge(incoming);
+            assert_eq!(counts.must_scan, u64::MAX);
+            assert_eq!(counts.user_dropped, u64::MAX);
+            assert_eq!(counts.kernel_dropped, u64::MAX);
+            assert_eq!(counts.ids_wrapped, u64::MAX);
+            assert_eq!(counts.root_changed, u64::MAX);
+            assert_eq!((counts.first_id, counts.last_id), (Some(u64::MAX), Some(1)));
+            let counters = FilterCounters::default();
+            *counters.callback_signals.lock().unwrap() = max;
+            counters.record_callback_signals(0x2f, 0);
+            assert_eq!(counters.callback_signal_counts().user_dropped, u64::MAX);
+        }
+
+        #[test]
+        fn startup_summary_is_private_bounded_and_survives_trigger_rotation() {
+            use std::os::unix::fs::symlink;
+            let temp = temp_dir("watch-startup");
+            fs::create_dir_all(&temp).unwrap();
+            let db_path = temp.join("secret-index.sqlite");
+            let mut log = TriggerLog::new(&db_path);
+            log.startup_summary(3, 7, false, 0x16).unwrap();
+            let path = temp.join(STARTUP_FILE_NAME);
+            let original = fs::read(&path).unwrap();
+            let value = String::from_utf8(original.clone()).unwrap();
+            assert!(value.contains("\"roots\":3,"));
+            assert!(value.contains("\"upstream_requested\":7,"));
+            assert!(value.contains("\"upstream_accepted\":false,"));
+            assert!(value.contains("\"create_flags\":22,"));
+            assert!(value.contains("\"latency_ms\":350}"));
+            let session = format!("\"session\":\"{:016x}\"", log.session);
+            assert!(value.contains(&session));
+            assert_eq!(
+                fs::metadata(&path).unwrap().permissions().mode() & 0o777,
+                0o600
+            );
+            assert!(original.len() <= STARTUP_FILE_BYTES);
+            assert!(!String::from_utf8_lossy(&original).contains("secret-index"));
+            let pending = PendingWork::default();
+            log.counters.record_callback_signals(FLAG_USER_DROPPED, 42);
+            for _ in 0..3 {
+                private_log_file(&log.path)
+                    .unwrap()
+                    .set_len(LOG_FILE_BYTES - 1)
+                    .unwrap();
+                log.record("test", "roots", &pending, None, LogInfo::default());
+                let line = fs::read_to_string(&log.path).unwrap();
+                assert!(line.contains("\"callback_signals\":{\"must_scan\":0,\"user_dropped\":1,"));
+                assert!(line.contains(&session));
+                assert!(fs::metadata(&log.path).unwrap().len() <= LOG_RECORD_BYTES as u64);
+                assert_eq!(fs::read(&path).unwrap(), original);
+            }
+            let filter = EventFilter::new(&db_path, &[]);
+            assert!(!filter.accepts(path.to_str().unwrap(), 0));
+            assert!(!filter.accepts(path.with_extension("lock").to_str().unwrap(), 0));
+            assert_eq!(filter.counters.received.load(Ordering::Relaxed), 0);
+            assert!(write_startup_summary(&path, &vec![0; STARTUP_FILE_BYTES + 1]).is_err());
+            assert_eq!(fs::read(&path).unwrap(), original);
+            let victim = temp.join("keep");
+            fs::write(&victim, "untouched").unwrap();
+            fs::remove_file(&path).unwrap();
+            symlink(&victim, &path).unwrap();
+            assert!(log.startup_summary(1, 0, true, 0x16).is_err());
+            fs::remove_file(&path).unwrap();
+            fs::hard_link(&victim, &path).unwrap();
+            assert!(log.startup_summary(1, 0, true, 0x16).is_err());
+            assert_eq!(fs::read_to_string(&victim).unwrap(), "untouched");
+            fs::remove_file(&path).unwrap();
+            fs::write(&path, vec![0; STARTUP_FILE_BYTES + 1]).unwrap();
+            assert!(log.startup_summary(1, 0, true, 0x16).is_err());
+            fs::remove_dir_all(temp).unwrap();
+        }
+
+        #[test]
         fn diagnostic_rate_limits_reserve_recovery_slots_and_report_suppression() {
             let temp = temp_dir("watch-diagnostic-rate");
             std::fs::create_dir_all(&temp).unwrap();
             let mut log = TriggerLog::new(&temp.join("index.sqlite"));
+            log.counters.record_callback_signals(FLAG_USER_DROPPED, 17);
             let pending = PendingWork::default();
             for _ in 0..(LOG_RECORDS_PER_WINDOW + 5) {
                 log.record(
@@ -2986,6 +3435,7 @@ mod macos_impl {
             log.record("scan_complete", "roots", &pending, None, LogInfo::default());
             assert_eq!(log.records, 1);
             assert_eq!(log.suppressed, 0);
+            assert_eq!(log.counters.callback_signal_counts().user_dropped, 1);
             std::fs::remove_dir_all(temp).unwrap();
         }
 
@@ -3028,6 +3478,8 @@ mod macos_impl {
             let temp = temp_dir("watch-diagnostic-error");
             let db = Database::open(temp.join("index.sqlite")).unwrap();
             let mut log = TriggerLog::new(&temp.join("missing-parent/index.sqlite"));
+            log.counters.record_callback_signals(FLAG_USER_DROPPED, 29);
+            assert!(log.startup_summary(1, 0, false, 0x16).is_err());
             let mut pending = PendingWork::default();
             pending.add(event(Path::new("/root/new"), 10));
             process_pending_logged(
@@ -3057,6 +3509,9 @@ mod macos_impl {
             assert!(std::fs::read_to_string(&log.path)
                 .unwrap()
                 .contains("\"io_failures\":1"));
+            assert!(std::fs::read_to_string(&log.path)
+                .unwrap()
+                .contains("\"callback_signals\":{\"must_scan\":0,\"user_dropped\":1,"));
             drop(db);
             std::fs::remove_dir_all(temp).unwrap();
         }

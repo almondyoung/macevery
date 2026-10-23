@@ -23,6 +23,23 @@ private func pump(for interval: TimeInterval) {
     }
 }
 
+private final class LockedCount: @unchecked Sendable {
+    private let lock = NSLock()
+    private var count = 0
+
+    var value: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return count
+    }
+
+    func increment() {
+        lock.lock()
+        count += 1
+        lock.unlock()
+    }
+}
+
 private final class SearchProtocol: URLProtocol, @unchecked Sendable {
     private static let lock = NSLock()
     private static var requests: [String: Int] = [:]
@@ -59,7 +76,7 @@ private final class SearchProtocol: URLProtocol, @unchecked Sendable {
         Self.lock.unlock()
         let status: Int
         switch query {
-        case "busy", "old-busy": status = 503
+        case "busy", "old-busy", "release-busy": status = 503
         case "limited": status = 429
         case "recover": status = attempt < 4 ? 503 : 200
         case "old-failure": status = 500
@@ -219,6 +236,7 @@ elif mode == 'search':
         try statusChecks()
         try bootstrapChecks(directory)
         try commandChecks(cli)
+        try cancelledResponseChecks(cli, events: events)
         try searchChecks(cli, events: events)
         print("PASS: GUI search generation/cancellation/backpressure/single-flight and CLI pipe/timeout/output checks")
     }
@@ -573,6 +591,64 @@ with open(os.path.join(root, 'events.log'), 'a') as stream:
         print("PASS: running and queued command cancellation")
     }
 
+    private static func cancelledResponseChecks(_ cli: MacEveryCLI, events: URL) throws {
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [SearchProtocol.self]
+        let session = URLSession(configuration: config)
+        defer { session.invalidateAndCancel() }
+
+        for clear in [true, false] {
+            let entered = LockedCount()
+            let decodedOld = LockedCount()
+            let skippedOld = LockedCount()
+            let decodedLatest = LockedCount()
+            let release = DispatchSemaphore(value: 0)
+            defer { release.signal() }
+            let model = SearchViewModel(cli: cli, searchSession: session, managesChildProcesses: false,
+                                        searchDebounceDelay: 0.005)
+            model.searchResponseGateForTesting = {
+                entered.increment()
+                _ = release.wait(timeout: .now() + 5)
+            }
+            model.searchDecodeObserverForTesting = { decodedOld.increment() }
+            model.searchDecodeSkippedObserverForTesting = { skippedOld.increment() }
+            model.query = clear ? "gated-clear" : "gated-replace"
+            try pump(until: { entered.value == 1 })
+            // The old HTTP200 body already arrived. Its completion is held at
+            // the decode boundary, so URL-task cancellation alone is too late.
+            model.searchResponseGateForTesting = nil
+            model.searchDecodeObserverForTesting = { decodedLatest.increment() }
+            model.searchDecodeSkippedObserverForTesting = nil
+            model.query = clear ? "" : "gated-latest"
+            release.signal()
+            try pump(until: { skippedOld.value == 1 })
+            try check(decodedOld.value == 0, "Cancelled delivered body was decoded")
+            if clear {
+                try check(model.results.isEmpty && model.selectedPath == nil && !model.isSearching,
+                          "Clearing at decode boundary retained old results or busy state")
+                model.query = "gated-after-clear"
+            }
+            let expected = clear ? "gated-after-clear" : "gated-latest"
+            try pump(until: { model.results.first?.basename == expected && !model.isSearching })
+            try check(decodedLatest.value == 1, "Latest response did not decode exactly once")
+            try check(model.selectedPath == "/fixture/\(expected)", "Latest selection was not published")
+        }
+        try check(((try? String(contentsOf: events, encoding: .utf8)) ?? "").isEmpty,
+                  "Discarding a delivered stale body launched CLI fallback")
+        print("PASS: clear/replace after HTTP200 delivery skips stale decode and latest query succeeds")
+
+        var retryModel: SearchViewModel? = SearchViewModel(cli: cli, searchSession: session,
+                                                         managesChildProcesses: false, searchDebounceDelay: 0.005)
+        retryModel!.query = "release-busy"
+        try pump(until: { retryModel!.hasPendingSearchRetryForTesting })
+        weak let weakRetryModel = retryModel
+        retryModel = nil
+        try check(weakRetryModel == nil, "Pending busy retry retained the released model")
+        pump(for: 0.25)
+        try check(SearchProtocol.count("release-busy") == 1, "Released model's cancelled retry sent a request")
+        print("PASS: pending busy retry releases model and never resends after deinit")
+    }
+
     private static func searchChecks(_ cli: MacEveryCLI, events: URL) throws {
         let config = URLSessionConfiguration.ephemeral
         config.protocolClasses = [SearchProtocol.self]
@@ -624,9 +700,9 @@ with open(os.path.join(root, 'events.log'), 'a') as stream:
         try check(ProcessInfo.processInfo.systemUptime - recoveryStarted > 0.45,
                   "Recovery did not exercise a service busy for longer than 450 ms")
         model.query = "old-busy"
-        try pump(until: { SearchProtocol.count("old-busy") == 1 })
-        pump(for: 0.04)
+        try pump(until: { SearchProtocol.count("old-busy") == 1 && model.hasPendingSearchRetryForTesting })
         model.query = "latest-again"
+        try check(!model.hasPendingSearchRetryForTesting, "Query replacement retained its old retry slot")
         try pump(until: { model.results.first?.basename == "latest-again" })
         pump(for: 0.5)
         try check(SearchProtocol.count("old-busy") == 1, "Superseded busy query retried")

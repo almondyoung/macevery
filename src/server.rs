@@ -1,4 +1,4 @@
-use crate::compact_index::{ApplyOutcome, CompactIndex};
+use crate::compact_index::{ApplyOutcome, CompactIndex, SnapshotDiff, SnapshotDiffLimits};
 use crate::config::default_db_path;
 use crate::db::{ContentObserver, ContentStamp, Database, FileChange, FileChangeRead};
 use crate::error::{MacEveryError, Result};
@@ -25,6 +25,12 @@ const DEFAULT_MAX_ACTIVE_REQUESTS: usize = 64;
 const DEFAULT_MAX_ACTIVE_SEARCHES: usize = 2;
 const MAX_INCREMENTAL_EVENTS: usize = 4096;
 const MAX_INCREMENTAL_IDS: usize = 4096;
+const SNAPSHOT_DIFF_LIMITS: SnapshotDiffLimits = SnapshotDiffLimits {
+    max_changes: MAX_INCREMENTAL_IDS,
+    max_payload_bytes: crate::db::FILE_CHANGE_MAX_PAYLOAD_BYTES,
+    max_scan_rows: 10_000_000,
+    max_duration: Duration::from_secs(6),
+};
 const REQUEST_HEADER_LIMIT: usize = 64 * 1024;
 const REQUEST_READ_TIMEOUT: Duration = Duration::from_millis(250);
 const REQUEST_TOTAL_TIMEOUT: Duration = Duration::from_secs(5);
@@ -498,6 +504,10 @@ impl ServiceState {
     }
 
     fn reload_if_changed(&mut self) -> Result<()> {
+        self.reload_if_changed_with_limits(SNAPSHOT_DIFF_LIMITS)
+    }
+
+    fn reload_if_changed_with_limits(&mut self, limits: SnapshotDiffLimits) -> Result<()> {
         // Recheck after taking the write lock: competing requests apply one batch.
         if !self.needs_reload()? {
             return Ok(());
@@ -520,10 +530,33 @@ impl ServiceState {
             return self.full_reload("fallback_full", Some("backend_not_packed"));
         }
         self.incremental_attempts = self.incremental_attempts.saturating_add(1);
+        let mut refresh_method = "incremental";
         let delta: Result<FileChangeRead> = (|| {
             let db = Database::open_read_only(self.db_path.clone())?;
-            let (_, delta) = with_read_snapshot(&db, |_| {
-                db.file_changes_since(&base, MAX_INCREMENTAL_EVENTS, MAX_INCREMENTAL_IDS)
+            let (_, delta) = with_read_snapshot(&db, |target| {
+                let delta =
+                    db.file_changes_since(&base, MAX_INCREMENTAL_EVENTS, MAX_INCREMENTAL_IDS)?;
+                if matches!(
+                    delta,
+                    FileChangeRead::Fallback {
+                        reason: "history_gap"
+                    }
+                ) {
+                    let Backend::Packed(index) = &self.backend else {
+                        return Ok(delta);
+                    };
+                    return match index.snapshot_diff(&db, limits)? {
+                        SnapshotDiff::Available(changes) => {
+                            refresh_method = "snapshot_reconcile";
+                            Ok(FileChangeRead::Available {
+                                target: target.clone(),
+                                changes,
+                            })
+                        }
+                        SnapshotDiff::Fallback(reason) => Ok(FileChangeRead::Fallback { reason }),
+                    };
+                }
+                Ok(delta)
             })?;
             Ok(delta)
         })();
@@ -531,7 +564,9 @@ impl ServiceState {
             Ok(FileChangeRead::Fallback { reason }) => {
                 self.full_reload("fallback_full", Some(reason))
             }
-            Ok(FileChangeRead::Available { target, changes }) => self.apply_delta(target, changes),
+            Ok(FileChangeRead::Available { target, changes }) => {
+                self.apply_delta_with_method(target, changes, refresh_method)
+            }
             Err(error) => {
                 // No packed mutation occurred. Keep the old snapshot labelled
                 // stale; callers receive 503 until a refresh succeeds.
@@ -543,7 +578,17 @@ impl ServiceState {
         }
     }
 
+    #[cfg(test)]
     fn apply_delta(&mut self, target: ContentStamp, changes: Vec<FileChange>) -> Result<()> {
+        self.apply_delta_with_method(target, changes, "incremental")
+    }
+
+    fn apply_delta_with_method(
+        &mut self,
+        target: ContentStamp,
+        changes: Vec<FileChange>,
+        method: &'static str,
+    ) -> Result<()> {
         let change_ids = changes.len();
         self.publish_memory("incremental_before");
         let outcome = match &mut self.backend {
@@ -589,7 +634,7 @@ impl ServiceState {
                     .incremental_change_ids
                     .saturating_add(change_ids as u64);
                 self.last_incremental_change_ids = change_ids;
-                self.last_refresh_method = "incremental";
+                self.last_refresh_method = method;
                 self.last_fallback_reason = None;
                 self.last_load_error = None;
                 self.last_refresh_error = None;
@@ -1275,14 +1320,155 @@ mod tests {
     }
 
     #[test]
-    fn journal_gap_missing_and_event_overflow_fall_back_to_full_and_recover() {
-        for (label, mutation, reason) in [
+    fn history_gap_reconciles_complete_snapshot_without_a_full_load() {
+        let (directory, path) = test_database("gap-reconcile");
+        seed_records(&path, 8);
+        let mut state = ServiceState::load(path.clone(), BackendPreference::Memory).unwrap();
+        let writer = crate::sqlite::Connection::open(&path).unwrap();
+        writer.execute_batch("BEGIN IMMEDIATE; UPDATE files SET basename='ΟΣİ-renamed',basename_lower='οςi-renamed',path_lower=NULL,size=NULL,mtime=-123,ctime=456,dev=77,inode=88,indexed_at=987654321 WHERE id=1; DELETE FROM files WHERE id=9; INSERT INTO files(id,path,path_lower,basename,basename_lower,kind,indexed_at) VALUES(100,'/fixture/appended.txt','/fixture/appended.txt','appended.txt','appended.txt','file',2); DELETE FROM macevery_file_changes; COMMIT;").unwrap();
+        state.reload_if_changed().unwrap();
+        assert_eq!(state.successful_loads, 1);
+        assert_eq!(state.last_refresh_method, "snapshot_reconcile");
+        assert_eq!(state.incremental_applies, 1);
+        assert_eq!(state.last_incremental_change_ids, 3);
+        assert!(!state.needs_reload().unwrap());
+        assert_matches_full_snapshot(&state, &path);
+        writer.execute_batch("BEGIN IMMEDIATE; UPDATE files SET size=42 WHERE id=1; UPDATE files SET size=NULL WHERE id=1; DELETE FROM macevery_file_changes; COMMIT;").unwrap();
+        state.reload_if_changed().unwrap();
+        assert_eq!(state.last_incremental_change_ids, 0);
+        assert_eq!(state.successful_loads, 1);
+        assert_eq!(state.last_refresh_method, "snapshot_reconcile");
+        assert!(!state.needs_reload().unwrap());
+        assert_matches_full_snapshot(&state, &path);
+        drop(writer);
+        drop(state);
+        std::fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn history_gap_reconcile_publishes_only_pinned_target_and_rolls_back_read_errors() {
+        let (directory, path) = test_database("gap-snapshot");
+        let mut state = ServiceState::load(path.clone(), BackendPreference::Memory).unwrap();
+        let writer = crate::sqlite::Connection::open(&path).unwrap();
+        writer
+            .execute_batch(
+                "UPDATE files SET size=10 WHERE id=1; DELETE FROM macevery_file_changes;",
+            )
+            .unwrap();
+        let reader = Database::open_read_only(path.clone()).unwrap();
+        let original = state.loaded_stamp.clone();
+        let failed: Result<(ContentStamp, SnapshotDiff)> = with_read_snapshot(&reader, |_| {
+            let Backend::Packed(index) = &state.backend else {
+                panic!("packed expected")
+            };
+            let _ = index.snapshot_diff(&reader, SNAPSHOT_DIFF_LIMITS)?;
+            Err(MacEveryError::Cli(
+                "injected failure after complete diff".into(),
+            ))
+        });
+        assert!(failed.is_err());
+        assert_eq!(state.loaded_stamp, original);
+        // A new BEGIN proves the failed read transaction was rolled back.
+        reader.begin_read().unwrap();
+        reader.commit().unwrap();
+        let concurrent_path = path.clone();
+        let (target, outcome) = with_read_snapshot(&reader, |_| {
+            thread::spawn(move || {
+                let writer = crate::sqlite::Connection::open(&concurrent_path).unwrap();
+                writer
+                    .execute_batch("UPDATE files SET size=20 WHERE id=1;")
+                    .unwrap();
+            })
+            .join()
+            .unwrap();
+            let Backend::Packed(index) = &state.backend else {
+                panic!("packed expected")
+            };
+            index.snapshot_diff(&reader, SNAPSHOT_DIFF_LIMITS)
+        })
+        .unwrap();
+        let SnapshotDiff::Available(changes) = outcome else {
+            panic!("complete diff expected")
+        };
+        state
+            .apply_delta_with_method(target.clone(), changes, "snapshot_reconcile")
+            .unwrap();
+        assert_eq!(state.loaded_stamp, Some(target));
+        assert_eq!(
+            state.search(&query("alpha")).unwrap()[0].record.size,
+            Some(10)
+        );
+        assert!(state.needs_reload().unwrap());
+        state.reload_if_changed().unwrap();
+        assert_eq!(state.successful_loads, 1);
+        assert_eq!(
+            state.search(&query("alpha")).unwrap()[0].record.size,
+            Some(20)
+        );
+        assert_matches_full_snapshot(&state, &path);
+        drop(reader);
+        drop(writer);
+        drop(state);
+        std::fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn history_gap_reconcile_limits_nonmonotonic_and_fragmentation_keep_full_fallback() {
+        for (label, mutation, limits, reason) in [
+            ("scan", "UPDATE files SET size=2;", SnapshotDiffLimits { max_scan_rows: 0, ..SNAPSHOT_DIFF_LIMITS }, "reconcile_scan_limit"),
+            ("time", "UPDATE files SET size=2;", SnapshotDiffLimits { max_duration: Duration::ZERO, ..SNAPSHOT_DIFF_LIMITS }, "reconcile_time_limit"),
+            ("bytes", "UPDATE files SET size=2;", SnapshotDiffLimits { max_payload_bytes: 1, ..SNAPSHOT_DIFF_LIMITS }, "reconcile_byte_limit"),
+            ("changes", "UPDATE files SET size=2;", SnapshotDiffLimits { max_changes: 0, ..SNAPSHOT_DIFF_LIMITS }, "reconcile_change_limit"),
+            ("nonmonotonic", "INSERT INTO files(id,path,path_lower,basename,basename_lower,kind,indexed_at) VALUES(-50,'/fixture/new','/fixture/new','new','new','file',2);", SNAPSHOT_DIFF_LIMITS, "new non-monotonic record ID"),
+        ] {
+            let (directory, path) = test_database(label);
+            let mut state = ServiceState::load(path.clone(), BackendPreference::Memory).unwrap();
+            let writer = crate::sqlite::Connection::open(&path).unwrap();
+            writer.execute_batch(mutation).unwrap();
+            writer.execute_batch("DELETE FROM macevery_file_changes;").unwrap();
+            state.reload_if_changed_with_limits(limits).unwrap();
+            assert_eq!(state.successful_loads, 2, "{label}");
+            assert_eq!(state.incremental_applies, 0, "{label}");
+            assert_eq!(state.last_fallback_reason, Some(reason), "{label}");
+            assert_matches_full_snapshot(&state, &path);
+            drop(writer); drop(state); std::fs::remove_dir_all(directory).unwrap();
+        }
+        for (label, count, mutation, reason) in [
             (
-                "gap",
-                "UPDATE files SET size=99 WHERE id=1; DELETE FROM macevery_file_changes;"
-                    .to_string(),
-                "history_gap",
+                "many-changes",
+                4096,
+                "UPDATE files SET indexed_at=2;",
+                "reconcile_change_limit",
             ),
+            (
+                "fragmentation",
+                2048,
+                "DELETE FROM files WHERE id<=1025;",
+                "packed tombstone budget exceeded",
+            ),
+        ] {
+            let (directory, path) = test_database(label);
+            seed_records(&path, count);
+            let mut state = ServiceState::load(path.clone(), BackendPreference::Memory).unwrap();
+            let writer = crate::sqlite::Connection::open(&path).unwrap();
+            writer.execute_batch(mutation).unwrap();
+            writer
+                .execute_batch("DELETE FROM macevery_file_changes; UPDATE macevery_content_state SET journal_floor=revision;")
+                .unwrap();
+            state.reload_if_changed().unwrap();
+            assert_eq!(state.successful_loads, 2, "{label}");
+            assert_eq!(state.incremental_applies, 0, "{label}");
+            assert_eq!(state.last_fallback_reason, Some(reason), "{label}");
+            assert_matches_full_snapshot(&state, &path);
+            drop(writer);
+            drop(state);
+            std::fs::remove_dir_all(directory).unwrap();
+        }
+    }
+
+    #[test]
+    fn missing_journal_and_event_overflow_fall_back_to_full_and_recover() {
+        for (label, mutation, reason) in [
             (
                 "missing",
                 "UPDATE files SET size=99 WHERE id=1; DROP TABLE macevery_file_changes;"

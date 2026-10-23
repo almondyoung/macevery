@@ -3,7 +3,7 @@ use crate::model::{
     BootstrapStatus, FileKind, FileRecord, IndexStats, PathFilter, PathFilterMode, SearchOptions,
 };
 use crate::sqlite::{Connection, Statement, Step};
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::os::unix::fs::{DirBuilderExt, MetadataExt, PermissionsExt};
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
@@ -15,6 +15,11 @@ const DELETE_STALE_PREFIX_SQL: &str = "DELETE FROM files
     WHERE indexed_at < ?1
       AND (path = ?2 COLLATE BINARY
            OR (path >= ?3 COLLATE BINARY AND path < ?4 COLLATE BINARY));";
+const SCANNER_CANDIDATES_SQL: &str = "SELECT id, path FROM files
+    WHERE path >= ?1 COLLATE BINARY AND path < ?2 COLLATE BINARY
+      AND (path > ?1 COLLATE BINARY OR ?5)
+      AND (path = ?3 COLLATE BINARY OR path >= ?4 COLLATE BINARY)
+    ORDER BY path COLLATE BINARY LIMIT 256;";
 
 const FILE_UPSERT_SQL: &str = "INSERT INTO files (
     path, path_lower, basename, basename_lower, ext_lower, kind, size, mtime, ctime,
@@ -39,6 +44,74 @@ ON CONFLICT(path) DO UPDATE SET
     dev=excluded.dev,
     inode=excluded.inode,
     indexed_at=excluded.indexed_at;";
+
+// Scanner generations describe the last observed content change, not every
+// successful visit. The generic upsert above retains its indexed_at contract.
+const SCANNER_FILE_UPSERT_SQL: &str = "INSERT INTO files (
+    path, path_lower, basename, basename_lower, ext_lower, kind, size, mtime, ctime,
+    dev, inode, indexed_at
+) SELECT ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12
+WHERE NOT EXISTS (
+    SELECT 1 FROM files WHERE path = ?1 COLLATE BINARY
+      AND path_lower IS ?2 AND basename IS ?3 AND basename_lower IS ?4
+      AND ext_lower IS ?5 AND kind IS ?6 AND size IS ?7 AND mtime IS ?8
+      AND ctime IS ?9 AND dev IS ?10 AND inode IS ?11
+)
+ON CONFLICT(path) DO UPDATE SET
+    path_lower=excluded.path_lower,
+    basename=excluded.basename,
+    basename_lower=excluded.basename_lower,
+    ext_lower=excluded.ext_lower,
+    kind=excluded.kind,
+    size=excluded.size,
+    mtime=excluded.mtime,
+    ctime=excluded.ctime,
+    dev=excluded.dev,
+    inode=excluded.inode,
+    indexed_at=excluded.indexed_at;";
+
+const SEEN_PAGE_BITS: i64 = 4096;
+/// At most 2 MiB of bit payload plus bounded map/allocation overhead. Dense
+/// seven-million-row indexes need about 0.9 MiB; sparse IDs cannot grow it
+/// without bound. Exhaustion causes caller rollback and a legacy rescan.
+pub(crate) const SCANNER_SEEN_MAX_PAGES: usize = 4096;
+
+pub(crate) struct SeenIds {
+    pages: BTreeMap<i64, Box<[u64; 64]>>,
+    max_pages: usize,
+}
+
+impl SeenIds {
+    fn new(max_pages: usize) -> Self {
+        Self {
+            pages: BTreeMap::new(),
+            max_pages,
+        }
+    }
+
+    fn insert(&mut self, id: i64) -> bool {
+        // Euclidean division also covers negative IDs and i64::MIN without
+        // abs/negation overflow. Membership is exact, never probabilistic.
+        let page = id.div_euclid(SEEN_PAGE_BITS);
+        let bit = id.rem_euclid(SEEN_PAGE_BITS) as usize;
+        if !self.pages.contains_key(&page) {
+            if self.pages.len() >= self.max_pages {
+                return false;
+            }
+            self.pages.insert(page, Box::new([0; 64]));
+        }
+        self.pages.get_mut(&page).unwrap()[bit / 64] |= 1 << (bit % 64);
+        true
+    }
+
+    fn contains(&self, id: i64) -> bool {
+        let page = id.div_euclid(SEEN_PAGE_BITS);
+        let bit = id.rem_euclid(SEEN_PAGE_BITS) as usize;
+        self.pages
+            .get(&page)
+            .is_some_and(|words| words[bit / 64] & (1 << (bit % 64)) != 0)
+    }
+}
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct DatabaseFileIdentity {
@@ -96,12 +169,20 @@ pub struct Database {
 pub struct FileUpsert<'db> {
     conn: &'db Connection,
     statement: Statement<'db>,
+    scanner: Option<ScannerUpsert<'db>>,
+}
+
+struct ScannerUpsert<'db> {
+    id_statement: Statement<'db>,
+    seen: SeenIds,
+    exceeded: bool,
 }
 
 impl FileUpsert<'_> {
     /// Return whether the outer files statement inserted or updated a row.
     /// The input ID is intentionally ignored, preserving upsert_file's existing
-    /// path-keyed identity contract. A generation change is still a row change.
+    /// path-keyed identity contract. The generic writer treats a generation
+    /// change as a row change; the scanner writer preserves unchanged rows.
     pub fn upsert(&mut self, record: &FileRecord) -> Result<bool> {
         self.statement.reset()?;
         self.statement.bind_text(1, Some(&record.path))?;
@@ -123,7 +204,35 @@ impl FileUpsert<'_> {
             let _ = self.statement.reset();
             return Err(error);
         }
-        Ok(self.conn.changes() != 0)
+        let changed = self.conn.changes() != 0;
+        if let Some(scanner) = &mut self.scanner {
+            scanner.id_statement.reset()?;
+            scanner.id_statement.bind_text(1, Some(&record.path))?;
+            let id = match scanner.id_statement.step()? {
+                Step::Row => scanner.id_statement.column_i64(0).ok_or_else(|| {
+                    MacEveryError::Sqlite("scanner upsert returned a NULL file ID".into())
+                })?,
+                Step::Done => {
+                    return Err(MacEveryError::Sqlite(
+                        "scanner upsert did not retain its path".into(),
+                    ))
+                }
+            };
+            scanner.exceeded |= !scanner.seen.insert(id);
+            // Do not retain an active read cursor while later writes run.
+            scanner.id_statement.reset()?;
+        }
+        Ok(changed)
+    }
+
+    pub(crate) fn seen_limit_exceeded(&self) -> bool {
+        self.scanner
+            .as_ref()
+            .is_some_and(|scanner| scanner.exceeded)
+    }
+
+    pub(crate) fn into_seen_ids(self) -> Option<SeenIds> {
+        self.scanner.map(|scanner| scanner.seen)
     }
 }
 
@@ -1018,6 +1127,21 @@ impl Database {
         Ok(FileUpsert {
             conn: &self.conn,
             statement: self.conn.prepare(FILE_UPSERT_SQL)?,
+            scanner: None,
+        })
+    }
+
+    pub(crate) fn prepare_scanner_upsert(&self, max_pages: usize) -> Result<FileUpsert<'_>> {
+        Ok(FileUpsert {
+            conn: &self.conn,
+            statement: self.conn.prepare(SCANNER_FILE_UPSERT_SQL)?,
+            scanner: Some(ScannerUpsert {
+                id_statement: self
+                    .conn
+                    .prepare("SELECT id FROM files WHERE path = ?1 COLLATE BINARY;")?,
+                seen: SeenIds::new(max_pages),
+                exceeded: false,
+            }),
         })
     }
 
@@ -1069,6 +1193,64 @@ impl Database {
             stmt.bind_text(4, Some(&upper))?;
             expect_done(stmt.step()?)?;
             deleted += self.conn.changes();
+        }
+        Ok(deleted)
+    }
+
+    /// Delete only rows absent from a complete scanner visit. Caller owns a
+    /// write transaction, so another writer cannot replace/reuse IDs between
+    /// membership checks and deletion. Read cursors are closed before DELETE:
+    /// mutating a table while stepping its SELECT has undefined visibility.
+    pub(crate) fn delete_unseen_under_roots(
+        &self,
+        roots: &[PathBuf],
+        seen: &SeenIds,
+    ) -> Result<u64> {
+        const BATCH: usize = 256;
+        let mut delete = self.conn.prepare("DELETE FROM files WHERE id = ?1;")?;
+        let mut deleted = 0;
+        for root in roots {
+            let Some((root, lower, upper)) = path_prefix_bounds(&root.to_string_lossy()) else {
+                continue;
+            };
+            let mut cursor = root.clone();
+            let mut first = true;
+            loop {
+                let mut stale = Vec::new();
+                let mut visited = 0;
+                {
+                    // Keyset pagination follows the unique binary path index;
+                    // neither a whole-scope ID sort nor a full ID set is needed.
+                    let mut select = self.conn.prepare(SCANNER_CANDIDATES_SQL)?;
+                    select.bind_text(1, Some(&cursor))?;
+                    select.bind_text(2, Some(&upper))?;
+                    select.bind_text(3, Some(&root))?;
+                    select.bind_text(4, Some(&lower))?;
+                    select.bind_i64(5, Some(i64::from(first)))?;
+                    while let Step::Row = select.step()? {
+                        let id = select.column_i64(0).ok_or_else(|| {
+                            MacEveryError::Sqlite("NULL ID during scanner cleanup".into())
+                        })?;
+                        cursor = select.column_text(1).ok_or_else(|| {
+                            MacEveryError::Sqlite("NULL path during scanner cleanup".into())
+                        })?;
+                        if !seen.contains(id) {
+                            stale.push(id);
+                        }
+                        visited += 1;
+                    }
+                }
+                for id in stale {
+                    delete.reset()?;
+                    delete.bind_i64(1, Some(id))?;
+                    expect_done(delete.step()?)?;
+                    deleted += self.conn.changes();
+                }
+                if visited < BATCH {
+                    break;
+                }
+                first = false;
+            }
         }
         Ok(deleted)
     }
@@ -1895,6 +2077,225 @@ mod content_revision_tests {
         fn drop(&mut self) {
             let _ = std::fs::remove_dir_all(&self.0);
         }
+    }
+
+    #[test]
+    fn scanner_seen_bitmap_is_exact_for_signed_extremes_and_bounded_sparse_pages() {
+        let mut seen = SeenIds::new(4);
+        for id in [i64::MIN, -1, 0, i64::MAX] {
+            assert!(seen.insert(id));
+            assert!(seen.insert(id), "duplicates do not consume more pages");
+            assert!(seen.contains(id));
+        }
+        assert_eq!(seen.pages.len(), 4);
+        for id in [i64::MIN + 1, -2, 1, i64::MAX - 1, 4096] {
+            assert!(!seen.contains(id), "unvisited bits never produce a match");
+        }
+        assert!(!seen.insert(4096));
+        assert!(!seen.contains(4096));
+        assert!(seen.insert(1), "a new bit on an admitted page still fits");
+        assert!(seen.contains(1));
+        let mut dense = SeenIds::new(3);
+        for id in -4096..8192 {
+            assert!(dense.insert(id));
+        }
+        assert_eq!(dense.pages.len(), 3);
+        assert!(!dense.insert(8192));
+    }
+
+    #[test]
+    fn scanner_cleanup_candidates_seek_the_path_index_without_temp_sort() {
+        let fixture = Fixture::new("scanner-keyset-plan");
+        let db = Database::open(fixture.database()).unwrap();
+        for first in [false, true] {
+            let mut stmt = db
+                .conn
+                .prepare(&format!("EXPLAIN QUERY PLAN {SCANNER_CANDIDATES_SQL}"))
+                .unwrap();
+            for (index, value) in ["/root/目录", "/root0", "/root", "/root/"]
+                .into_iter()
+                .enumerate()
+            {
+                stmt.bind_text(index as i32 + 1, Some(value)).unwrap();
+            }
+            stmt.bind_i64(5, Some(i64::from(first))).unwrap();
+            let mut plan = Vec::new();
+            while let Step::Row = stmt.step().unwrap() {
+                plan.push(stmt.column_text(3).unwrap());
+            }
+            assert!(plan.iter().any(|line| line.contains("SEARCH files") && line.contains("path>? AND path<?")), "{plan:?}");
+            assert!(
+                !plan
+                    .iter()
+                    .any(|line| line.contains("SCAN files") || line.contains("TEMP B-TREE")),
+                "{plan:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn scanner_upsert_preserves_generation_without_dml_and_tracks_actual_replaced_id() {
+        let fixture = Fixture::new("scanner-content-noop");
+        let db = Database::open(fixture.database()).unwrap();
+        let mut value = record("/root/目录/seen", 7);
+        db.upsert_file(&value).unwrap();
+        db.conn
+            .execute_batch("UPDATE files SET id=-9223372036854775808;")
+            .unwrap();
+        let original = db.all_records().unwrap()[0].clone();
+        let stamp = db.content_stamp().unwrap();
+        let total = scalar(&db, "SELECT total_changes();");
+        value.indexed_at = 99;
+        value.id = i64::MAX; // caller identity is still ignored
+        db.begin().unwrap();
+        let mut writer = db.prepare_scanner_upsert(4).unwrap();
+        assert!(!writer.upsert(&value).unwrap());
+        assert_eq!(scalar(&db, "SELECT total_changes();"), total);
+        assert_eq!(db.content_stamp().unwrap(), stamp);
+        assert_eq!(db.all_records().unwrap(), [original]);
+        // External SQL may have assigned a new/sparse/signed identity before
+        // the scanner transaction. Never infer it from last_insert_rowid/input.
+        db.conn
+            .execute_batch("UPDATE files SET id=9223372036854775807;")
+            .unwrap();
+        assert!(!writer.upsert(&value).unwrap());
+        value.size = Some(123);
+        assert!(writer.upsert(&value).unwrap());
+        let seen = writer.into_seen_ids().unwrap();
+        assert!(seen.contains(i64::MIN));
+        assert!(seen.contains(i64::MAX));
+        let actual = db.all_records().unwrap().pop().unwrap();
+        assert_eq!(actual.id, i64::MAX);
+        assert_eq!(actual.indexed_at, 99);
+        db.commit().unwrap();
+        let stamp = db.content_stamp().unwrap();
+        value.indexed_at = 100;
+        db.upsert_file(&value).unwrap();
+        assert_eq!(
+            db.content_stamp().unwrap().revision,
+            stamp.revision + 1,
+            "generic indexed_at-only updates retain their public contract"
+        );
+    }
+
+    #[test]
+    fn scanner_upsert_compares_all_material_fields_and_null_empty_distinctions() {
+        let fixture = Fixture::new("scanner-material-columns");
+        let db = Database::open(fixture.database()).unwrap();
+        let base = record("/root/Base.RS", 7);
+        let mut cases = Vec::new();
+        macro_rules! changed {
+            ($field:ident, $value:expr) => {{
+                let mut value = base.clone();
+                value.$field = $value;
+                value.indexed_at = 8;
+                cases.push((stringify!($field), value));
+            }};
+        }
+        changed!(path_lower, String::new());
+        changed!(basename, "independent/长名".into());
+        changed!(basename_lower, String::new());
+        changed!(ext_lower, None);
+        changed!(ext_lower, Some(String::new()));
+        changed!(kind, FileKind::Directory);
+        for value in [i64::MIN, 0, i64::MAX] {
+            changed!(size, Some(value));
+            changed!(mtime, Some(value));
+            changed!(ctime, Some(value));
+            changed!(dev, Some(value));
+            changed!(inode, Some(value));
+        }
+        db.begin().unwrap();
+        db.upsert_file(&base).unwrap();
+        let id = assert_upserted_columns(&db, &base);
+        let mut writer = db.prepare_scanner_upsert(1).unwrap();
+        for (field, value) in cases {
+            db.upsert_file(&base).unwrap();
+            let before = db.content_stamp().unwrap();
+            assert!(writer.upsert(&value).unwrap(), "{field}");
+            assert_eq!(assert_upserted_columns(&db, &value), id, "{field}");
+            assert_eq!(
+                db.content_stamp().unwrap().revision,
+                before.revision + 1,
+                "{field}"
+            );
+            let total = scalar(&db, "SELECT total_changes();");
+            let mut newer_visit = value;
+            newer_visit.indexed_at = 9;
+            assert!(!writer.upsert(&newer_visit).unwrap(), "{field}");
+            assert_eq!(scalar(&db, "SELECT total_changes();"), total, "{field}");
+        }
+        let mut other_path = base;
+        other_path.path = "/root/base.rs".into();
+        assert!(writer.upsert(&other_path).unwrap());
+        assert_ne!(assert_upserted_columns(&db, &other_path), id);
+        drop(writer);
+        db.commit().unwrap();
+    }
+
+    #[test]
+    fn exact_scanner_cleanup_batches_binary_paths_and_preserves_seen_signed_ids() {
+        let fixture = Fixture::new("scanner-exact-cleanup");
+        let db = Database::open(fixture.database()).unwrap();
+        for path in [
+            "/root",
+            "/root-old/neighbor",
+            "/root.ignored",
+            "/elsewhere/keep",
+            "/root/目录/seen",
+        ] {
+            db.upsert_file(&record(path, i64::MAX)).unwrap();
+        }
+        for n in 0..610 {
+            db.upsert_file(&record(&format!("/root/item-{n:04}"), i64::MAX))
+                .unwrap();
+        }
+        db.conn
+            .execute_batch(
+                "UPDATE files SET id=-9223372036854775808 WHERE path='/root';
+             UPDATE files SET id=9223372036854775807 WHERE path='/root/目录/seen';",
+            )
+            .unwrap();
+        let before = db.all_records().unwrap();
+        let mut seen = SeenIds::new(8);
+        let kept = |row: &FileRecord| {
+            row.path == "/root"
+                || row.path.ends_with("/seen")
+                || row
+                    .path
+                    .rsplit('-')
+                    .next()
+                    .and_then(|n| n.parse::<usize>().ok())
+                    .is_some_and(|n| n % 3 == 0)
+        };
+        for row in &before {
+            if kept(row) {
+                assert!(seen.insert(row.id));
+            }
+        }
+        let expected = before
+            .iter()
+            .filter(|row| !row.path.starts_with("/root/") || kept(row))
+            .cloned()
+            .collect::<Vec<_>>();
+        db.begin().unwrap();
+        let removed = db
+            .delete_unseen_under_roots(&[PathBuf::from("/root/")], &seen)
+            .unwrap();
+        db.commit().unwrap();
+        assert_eq!(removed as usize, before.len() - expected.len());
+        assert_eq!(db.all_records().unwrap(), expected);
+        // The filesystem root includes every absolute namespace and still
+        // respects exact membership rather than a timestamp sentinel.
+        db.begin().unwrap();
+        db.delete_unseen_under_roots(&[PathBuf::from("/")], &seen)
+            .unwrap();
+        db.commit().unwrap();
+        assert!(db
+            .all_records()
+            .unwrap()
+            .iter()
+            .all(|row| seen.contains(row.id)));
     }
 
     #[test]
@@ -3093,8 +3494,17 @@ mod content_revision_tests {
             .find(|row| row.path == existing_path.to_string_lossy())
             .unwrap();
         assert_eq!(updated.size, Some(b"after-change-longer".len() as i64));
-        assert_eq!(db.content_stamp().unwrap().revision, before.revision + 3);
-        assert_eq!(journal().len(), before_journal.len() + 3);
+        let changed_rows = rows
+            .iter()
+            .filter(|row| before_rows.iter().find(|old| old.id == row.id) != Some(*row))
+            .cloned()
+            .collect::<Vec<_>>();
+        assert_eq!(summary.rows_written as usize, changed_rows.len());
+        assert_eq!(
+            db.content_stamp().unwrap().revision,
+            before.revision + changed_rows.len() as i64
+        );
+        assert_eq!(journal().len(), before_journal.len() + changed_rows.len());
         assert_eq!(metadata(), before_metadata);
         db.begin_read().unwrap();
         let FileChangeRead::Available { target, changes } =
@@ -3103,13 +3513,13 @@ mod content_revision_tests {
             panic!("retry after failed COMMIT must retain full delta coverage");
         };
         db.commit().unwrap();
-        assert_eq!(target.revision, before.revision + 3);
+        assert_eq!(target.revision, before.revision + changed_rows.len() as i64);
         assert_eq!(
             changes
                 .into_iter()
                 .filter_map(|change| change.record)
                 .collect::<Vec<_>>(),
-            rows
+            changed_rows
         );
     }
 

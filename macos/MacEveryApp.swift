@@ -673,6 +673,25 @@ final class CommandCancellation: @unchecked Sendable {
     }
 }
 
+// URLSession completions run off the main queue. Keep cancellation readable
+// there without reading the model's main-queue search generation.
+private final class SearchCancellation: @unchecked Sendable {
+    private let lock = NSLock()
+    private var cancelled = false
+
+    var isCancelled: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return cancelled
+    }
+
+    func cancel() {
+        lock.lock()
+        cancelled = true
+        lock.unlock()
+    }
+}
+
 private final class CommandOutputBuffer: @unchecked Sendable {
     private let lock = NSLock()
     private var data = Data()
@@ -841,6 +860,8 @@ final class SearchViewModel: ObservableObject {
         return queue
     }()
     private var activeSearchTask: URLSessionDataTask?
+    private var searchCancellation = SearchCancellation()
+    private var pendingServiceSearchRetry: DispatchWorkItem?
     private var activeCLICancellation: CommandCancellation?
     private var pendingSearch: DispatchWorkItem?
     private var searchGeneration = 0
@@ -876,6 +897,10 @@ final class SearchViewModel: ObservableObject {
     var watchProcessForTesting: Process? { watchProcess }
     var watchStderrForTesting: Pipe? { watchStderr }
     var watchMessageRelayForTesting: WatchMessageRelay? { watchMessageRelay }
+    var searchResponseGateForTesting: (() -> Void)?
+    var searchDecodeObserverForTesting: (() -> Void)?
+    var searchDecodeSkippedObserverForTesting: (() -> Void)?
+    var hasPendingSearchRetryForTesting: Bool { pendingServiceSearchRetry != nil }
 #endif
     private let authToken: String = {
         var bytes = [UInt8](repeating: 0, count: 24)
@@ -1551,6 +1576,8 @@ final class SearchViewModel: ObservableObject {
     deinit {
         cancelStatusRefresh()
         pendingSearch?.cancel()
+        searchCancellation.cancel()
+        pendingServiceSearchRetry?.cancel()
         activeSearchTask?.cancel()
         activeCLICancellation?.cancel()
         cliSearchQueue.cancelAllOperations()
@@ -1564,6 +1591,10 @@ final class SearchViewModel: ObservableObject {
         searchGeneration += 1
         let generation = searchGeneration
         pendingSearch?.cancel()
+        searchCancellation.cancel()
+        searchCancellation = SearchCancellation()
+        pendingServiceSearchRetry?.cancel()
+        pendingServiceSearchRetry = nil
         activeSearchTask?.cancel()
         activeSearchTask = nil
         activeCLICancellation?.cancel()
@@ -1593,6 +1624,9 @@ final class SearchViewModel: ObservableObject {
     }
 
     private func performServiceSearch(_ query: String, generation: Int, busyAttempt: Int = 0) {
+        guard generation == searchGeneration else { return }
+        let cancellation = searchCancellation
+        guard !cancellation.isCancelled else { return }
         guard let url = serviceSearchURL(for: query) else {
             performCLISearch(query, generation: generation)
             return
@@ -1601,16 +1635,35 @@ final class SearchViewModel: ObservableObject {
         var request = URLRequest(url: url)
         request.timeoutInterval = 15
         request.setValue("Bearer \(authToken)", forHTTPHeaderField: "Authorization")
+#if MACEVERY_TESTING
+        // Capture hooks per request so a fixture can hold an already-delivered
+        // response while the main queue replaces or clears its query.
+        let responseGate = searchResponseGateForTesting
+        let decodeObserver = searchDecodeObserverForTesting
+        let decodeSkippedObserver = searchDecodeSkippedObserverForTesting
+#endif
         let task = searchSession.dataTask(with: request) { [weak self] data, response, error in
-            guard let self else { return }
             let decoded: [SearchResult]?
             if error == nil, (response as? HTTPURLResponse)?.statusCode == 200, let data {
+#if MACEVERY_TESTING
+                responseGate?()
+#endif
+                guard !cancellation.isCancelled else {
+#if MACEVERY_TESTING
+                    decodeSkippedObserver?()
+#endif
+                    return
+                }
+#if MACEVERY_TESTING
+                decodeObserver?()
+#endif
                 decoded = try? JSONDecoder().decode([SearchResult].self, from: data)
             } else {
                 decoded = nil
             }
-            DispatchQueue.main.async {
-                guard generation == self.searchGeneration else { return }
+            guard !cancellation.isCancelled else { return }
+            DispatchQueue.main.async { [weak self] in
+                guard let self, generation == self.searchGeneration, !cancellation.isCancelled else { return }
                 self.activeSearchTask = nil
                 // Cancellation is intentional and must never launch a CLI fallback.
                 if (error as? URLError)?.code == .cancelled {
@@ -1623,10 +1676,14 @@ final class SearchViewModel: ObservableObject {
                     // would bypass that CPU limit, so retry only the latest query.
                     if busyAttempt < Self.serviceBusyRetryDelays.count {
                         let delay = Self.serviceBusyRetryDelays[busyAttempt]
-                        DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
-                            guard generation == self.searchGeneration else { return }
+                        let retry = DispatchWorkItem { [weak self] in
+                            guard let self, generation == self.searchGeneration, !cancellation.isCancelled else { return }
+                            self.pendingServiceSearchRetry = nil
                             self.performServiceSearch(query, generation: generation, busyAttempt: busyAttempt + 1)
                         }
+                        self.pendingServiceSearchRetry?.cancel()
+                        self.pendingServiceSearchRetry = retry
+                        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: retry)
                     } else {
                         self.isSearching = false
                         self.message = "Search service busy; try again"

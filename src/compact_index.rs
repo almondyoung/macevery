@@ -7,6 +7,7 @@ use std::collections::hash_map::RandomState;
 use std::collections::HashMap;
 use std::hash::BuildHasher;
 use std::mem::size_of;
+use std::time::{Duration, Instant};
 
 const ARENA_BYTES: usize = 64 * 1024 * 1024;
 const RECORDS_PER_BLOCK: usize = 64 * 1024;
@@ -27,6 +28,20 @@ const NO_TEXT_PARENT: u8 = 3;
 pub enum ApplyOutcome {
     Applied,
     NeedsFullReload(&'static str),
+}
+
+#[derive(Clone, Copy)]
+pub(crate) struct SnapshotDiffLimits {
+    pub max_changes: usize,
+    pub max_payload_bytes: usize,
+    pub max_scan_rows: usize,
+    pub max_duration: Duration,
+}
+
+#[derive(Debug)]
+pub(crate) enum SnapshotDiff {
+    Available(Vec<FileChange>),
+    Fallback(&'static str),
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -718,6 +733,158 @@ impl CompactIndex {
         self.fragmentation
     }
 
+    /// Compare every row in the caller's pinned read transaction. The index is
+    /// only borrowed: a budget/error cannot expose a partially reconciled view.
+    pub(crate) fn snapshot_diff(
+        &self,
+        db: &Database,
+        limits: SnapshotDiffLimits,
+    ) -> Result<SnapshotDiff> {
+        if !self.ids_sorted {
+            return Ok(SnapshotDiff::Fallback("reconcile_record_order"));
+        }
+        let started = Instant::now();
+        let mut cursor = 0usize;
+        let mut scanned = 0usize;
+        let mut payload_bytes = 0usize;
+        let mut changes = Vec::new();
+        let mut fallback = None;
+        let stopped = |fallback: &mut Option<&'static str>, reason| {
+            *fallback = Some(reason);
+            MacEveryError::Cli("bounded snapshot diff stopped".into())
+        };
+        let result = db.for_each_record_ref(|record| {
+            if scanned >= limits.max_scan_rows {
+                return Err(stopped(&mut fallback, "reconcile_scan_limit"));
+            }
+            if started.elapsed() >= limits.max_duration {
+                return Err(stopped(&mut fallback, "reconcile_time_limit"));
+            }
+            scanned += 1;
+            while cursor < self.physical_len && self.record_at(cursor).id < record.id {
+                let old = self.record_at(cursor);
+                if old.is_live() {
+                    if changes.len() >= limits.max_changes {
+                        return Err(stopped(&mut fallback, "reconcile_change_limit"));
+                    }
+                    changes.push(FileChange {
+                        id: old.id,
+                        record: None,
+                    });
+                }
+                cursor += 1;
+                if started.elapsed() >= limits.max_duration {
+                    return Err(stopped(&mut fallback, "reconcile_time_limit"));
+                }
+            }
+            let slot = (cursor < self.physical_len && self.record_at(cursor).id == record.id)
+                .then_some(cursor);
+            if slot.is_none() && cursor < self.physical_len {
+                // apply_changes cannot insert a new ID into the packed middle.
+                return Err(stopped(&mut fallback, "new non-monotonic record ID"));
+            }
+            // Bound fallback-lowercase scratch before constructing RowText.
+            let lower_bytes = record
+                .path_lower
+                .filter(|value| !value.is_empty())
+                .map_or_else(
+                    || {
+                        record
+                            .path
+                            .chars()
+                            .flat_map(char::to_lowercase)
+                            .fold(0usize, |sum, value| sum.saturating_add(value.len_utf8()))
+                    },
+                    str::len,
+                );
+            let row_bytes = [
+                record.path.len(),
+                lower_bytes,
+                record.basename.len(),
+                record.basename_lower.len(),
+                record.ext_lower.map_or(0, str::len),
+            ]
+            .into_iter()
+            .try_fold(0usize, usize::checked_add);
+            let Some(row_bytes) = row_bytes.filter(|bytes| *bytes <= limits.max_payload_bytes)
+            else {
+                return Err(stopped(&mut fallback, "reconcile_byte_limit"));
+            };
+            let text = RowText::new(&record)?;
+            let unchanged = slot.is_some_and(|slot| {
+                let old = self.record_at(slot);
+                let metadata = &self.metadata[slot / self.records_per_block];
+                old.is_live()
+                    && old.kind == record.kind
+                    && self.ext(old) == record.ext_lower
+                    && metadata_input(&record)
+                        .iter()
+                        .enumerate()
+                        .all(|(field, value)| {
+                            let present = field == 5 || old.present & (1 << field) != 0;
+                            present == value.is_some()
+                                && value.is_none_or(|value| {
+                                    metadata.value(slot % self.records_per_block, field) == value
+                                })
+                        })
+                    && self.same_strings(old, &record, &text)
+            });
+            if !unchanged {
+                if changes.len() >= limits.max_changes {
+                    return Err(stopped(&mut fallback, "reconcile_change_limit"));
+                }
+                let bytes = payload_bytes.checked_add(row_bytes);
+                let Some(bytes) = bytes.filter(|bytes| *bytes <= limits.max_payload_bytes) else {
+                    return Err(stopped(&mut fallback, "reconcile_byte_limit"));
+                };
+                payload_bytes = bytes;
+                changes.push(FileChange {
+                    id: record.id,
+                    record: Some(FileRecord {
+                        id: record.id,
+                        path: record.path.to_owned(),
+                        path_lower: text.lowered.into_owned(),
+                        basename: record.basename.to_owned(),
+                        basename_lower: record.basename_lower.to_owned(),
+                        ext_lower: record.ext_lower.map(str::to_owned),
+                        kind: record.kind,
+                        size: record.size,
+                        mtime: record.mtime,
+                        ctime: record.ctime,
+                        dev: record.dev,
+                        inode: record.inode,
+                        indexed_at: record.indexed_at,
+                    }),
+                });
+            }
+            if slot.is_some() {
+                cursor += 1;
+            }
+            Ok(())
+        });
+        if let Some(reason) = fallback {
+            return Ok(SnapshotDiff::Fallback(reason));
+        }
+        result?;
+        while cursor < self.physical_len {
+            if started.elapsed() >= limits.max_duration {
+                return Ok(SnapshotDiff::Fallback("reconcile_time_limit"));
+            }
+            let old = self.record_at(cursor);
+            if old.is_live() {
+                if changes.len() >= limits.max_changes {
+                    return Ok(SnapshotDiff::Fallback("reconcile_change_limit"));
+                }
+                changes.push(FileChange {
+                    id: old.id,
+                    record: None,
+                });
+            }
+            cursor += 1;
+        }
+        Ok(SnapshotDiff::Available(changes))
+    }
+
     /// NeedsFullReload is returned before any mutation. On Err, callers must
     /// discard this index: a previous change in this batch may already be applied.
     pub fn apply_changes(&mut self, changes: &[FileChange]) -> Result<ApplyOutcome> {
@@ -1314,6 +1481,229 @@ mod tests {
     use crate::db::Database;
     use std::fs;
     use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn diff_limits() -> SnapshotDiffLimits {
+        SnapshotDiffLimits {
+            max_changes: 4096,
+            max_payload_bytes: 32 * 1024 * 1024,
+            max_scan_rows: 100_000,
+            max_duration: Duration::from_secs(10),
+        }
+    }
+
+    fn pinned_diff(index: &CompactIndex, db: &Database) -> Vec<FileChange> {
+        match db
+            .with_read_snapshot(|| index.snapshot_diff(db, diff_limits()))
+            .unwrap()
+        {
+            SnapshotDiff::Available(changes) => changes,
+            SnapshotDiff::Fallback(reason) => panic!("unexpected diff fallback: {reason}"),
+        }
+    }
+
+    fn assert_diff_matches_fresh(index: &CompactIndex, db: &Database) {
+        let options = SearchOptions {
+            query: "*".into(),
+            limit: 100,
+            ..Default::default()
+        };
+        assert_eq!(
+            index.search(&options),
+            CompactIndex::load(db).unwrap().search(&options)
+        );
+    }
+
+    #[test]
+    fn snapshot_diff_preserves_every_record_field_and_unicode_lower_fallback() {
+        let temp = unique_temp_dir("snapshot-diff-fields");
+        fs::create_dir_all(&temp).unwrap();
+        let path = temp.join("index.sqlite");
+        let db = Database::open(path.clone()).unwrap();
+        db.upsert_file(&FileRecord::new(
+            "/fixture/ΟΣİ.TXT".into(),
+            FileKind::File,
+            1,
+        ))
+        .unwrap();
+        let mut index = CompactIndex::load(&db).unwrap();
+        let writer = crate::sqlite::Connection::open(&path).unwrap();
+        for sql in [
+            "UPDATE files SET path='/fixture/OtherΣİ.TXT' WHERE id=1;",
+            "UPDATE files SET path_lower=NULL WHERE id=1;",
+            "UPDATE files SET path_lower='' WHERE id=1;",
+            "UPDATE files SET path_lower='/deliberately/different' WHERE id=1;",
+            "UPDATE files SET basename='differentΣ.txt' WHERE id=1;",
+            "UPDATE files SET basename_lower='differentσ.txt' WHERE id=1;",
+            "UPDATE files SET ext_lower='' WHERE id=1;",
+            "UPDATE files SET ext_lower=NULL WHERE id=1;",
+            "UPDATE files SET kind='dir' WHERE id=1;",
+            "UPDATE files SET size=-9223372036854775808 WHERE id=1;",
+            "UPDATE files SET size=NULL WHERE id=1;",
+            "UPDATE files SET mtime=9223372036854775807 WHERE id=1;",
+            "UPDATE files SET ctime=-123 WHERE id=1;",
+            "UPDATE files SET dev=77 WHERE id=1;",
+            "UPDATE files SET inode=88 WHERE id=1;",
+            "UPDATE files SET indexed_at=987654321 WHERE id=1;",
+        ] {
+            writer.execute_batch(sql).unwrap();
+            let before = index.memory_usage_bytes();
+            let changes = pinned_diff(&index, &db);
+            assert_eq!(index.memory_usage_bytes(), before, "diff mutated storage");
+            assert!(changes.len() <= 1);
+            // NULL and empty path_lower decode to the same fallback value.
+            assert_eq!(
+                index.apply_changes(&changes).unwrap(),
+                ApplyOutcome::Applied
+            );
+            assert_diff_matches_fresh(&index, &db);
+        }
+        writer
+            .execute_batch("UPDATE files SET id=100 WHERE id=1;")
+            .unwrap();
+        let changes = pinned_diff(&index, &db);
+        assert_eq!(
+            changes.iter().map(|change| change.id).collect::<Vec<_>>(),
+            [1, 100]
+        );
+        assert_eq!(
+            index.apply_changes(&changes).unwrap(),
+            ApplyOutcome::Applied
+        );
+        assert_diff_matches_fresh(&index, &db);
+        drop(writer);
+        drop(db);
+        fs::remove_dir_all(temp).unwrap();
+    }
+
+    #[test]
+    fn snapshot_diff_finds_deleted_tail_and_reuses_a_tombstoned_id() {
+        let temp = unique_temp_dir("snapshot-diff-delete-reuse");
+        fs::create_dir_all(&temp).unwrap();
+        let path = temp.join("index.sqlite");
+        let db = Database::open(path.clone()).unwrap();
+        for name in ["one", "two", "three"] {
+            db.upsert_file(&FileRecord::new(
+                format!("/fixture/{name}"),
+                FileKind::File,
+                1,
+            ))
+            .unwrap();
+        }
+        let mut index = CompactIndex::load(&db).unwrap();
+        let writer = crate::sqlite::Connection::open(&path).unwrap();
+        writer
+            .execute_batch("DELETE FROM files WHERE id>=2;")
+            .unwrap();
+        let changes = pinned_diff(&index, &db);
+        assert_eq!(
+            changes.iter().map(|change| change.id).collect::<Vec<_>>(),
+            [2, 3]
+        );
+        index.apply_changes(&changes).unwrap();
+        writer.execute_batch("INSERT INTO files(id,path,path_lower,basename,basename_lower,kind,indexed_at) VALUES(2,'/fixture/reused','/fixture/reused','reused','reused','file',2),(10,'/fixture/appended','/fixture/appended','appended','appended','file',2);").unwrap();
+        let changes = pinned_diff(&index, &db);
+        assert_eq!(
+            changes.iter().map(|change| change.id).collect::<Vec<_>>(),
+            [2, 10]
+        );
+        assert_eq!(
+            index.apply_changes(&changes).unwrap(),
+            ApplyOutcome::Applied
+        );
+        assert_diff_matches_fresh(&index, &db);
+        drop(writer);
+        drop(db);
+        fs::remove_dir_all(temp).unwrap();
+    }
+
+    #[test]
+    fn snapshot_diff_limits_and_read_failure_never_mutate_the_index() {
+        let temp = unique_temp_dir("snapshot-diff-limits");
+        fs::create_dir_all(&temp).unwrap();
+        let path = temp.join("index.sqlite");
+        let db = Database::open(path.clone()).unwrap();
+        for name in ["one", "two"] {
+            db.upsert_file(&FileRecord::new(
+                format!("/fixture/{name}"),
+                FileKind::File,
+                1,
+            ))
+            .unwrap();
+        }
+        let index = CompactIndex::load(&db).unwrap();
+        let before = index.search(&SearchOptions {
+            query: "*".into(),
+            limit: 100,
+            ..Default::default()
+        });
+        let capacity = index.memory_usage_bytes();
+        let writer = crate::sqlite::Connection::open(&path).unwrap();
+        writer
+            .execute_batch("UPDATE files SET indexed_at=indexed_at+1;")
+            .unwrap();
+        for (limits, reason) in [
+            (
+                SnapshotDiffLimits {
+                    max_changes: 1,
+                    ..diff_limits()
+                },
+                "reconcile_change_limit",
+            ),
+            (
+                SnapshotDiffLimits {
+                    max_payload_bytes: 1,
+                    ..diff_limits()
+                },
+                "reconcile_byte_limit",
+            ),
+            (
+                SnapshotDiffLimits {
+                    max_scan_rows: 1,
+                    ..diff_limits()
+                },
+                "reconcile_scan_limit",
+            ),
+            (
+                SnapshotDiffLimits {
+                    max_duration: Duration::ZERO,
+                    ..diff_limits()
+                },
+                "reconcile_time_limit",
+            ),
+        ] {
+            let outcome = db
+                .with_read_snapshot(|| index.snapshot_diff(&db, limits))
+                .unwrap();
+            assert!(matches!(outcome, SnapshotDiff::Fallback(actual) if actual == reason));
+            assert_eq!(index.memory_usage_bytes(), capacity);
+            assert_eq!(
+                index.search(&SearchOptions {
+                    query: "*".into(),
+                    limit: 100,
+                    ..Default::default()
+                }),
+                before
+            );
+        }
+        writer
+            .execute_batch("ALTER TABLE files RENAME TO unavailable;")
+            .unwrap();
+        assert!(db
+            .with_read_snapshot(|| index.snapshot_diff(&db, diff_limits()))
+            .is_err());
+        assert_eq!(index.memory_usage_bytes(), capacity);
+        assert_eq!(
+            index.search(&SearchOptions {
+                query: "*".into(),
+                limit: 100,
+                ..Default::default()
+            }),
+            before
+        );
+        drop(writer);
+        drop(db);
+        fs::remove_dir_all(temp).unwrap();
+    }
 
     #[test]
     fn compact_index_matches_glob_case_insensitive_search() {
