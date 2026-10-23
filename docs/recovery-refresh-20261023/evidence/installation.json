@@ -1,0 +1,163 @@
+{
+  "status": "LOCAL_ACCEPTANCE_COMPLETE",
+  "source_commit": "b027a42c2cb859235b2a354c4c4bd8187a785a77",
+  "build_label": "0.1.3-gb027a42",
+  "source_remote_exact_readback": true,
+  "strict_signature_verified": true,
+  "tested_payload_normalized_only_signature_linkedit_proof": true,
+  "GUI_transport": {
+    "status": "PASS",
+    "cases": [
+      {
+        "count": 300,
+        "name": "cold_immediate_code",
+        "oracle_route": "http-memory",
+        "status": "PASS",
+        "wall_seconds": 2.2583714583306573
+      },
+      {
+        "name": "clear_inflight",
+        "stale_publications": 0,
+        "status": "PASS"
+      },
+      {
+        "name": "rapid_latest_only",
+        "stale_publications": 0,
+        "status": "PASS"
+      },
+      {
+        "count": 300,
+        "name": "warm_code",
+        "oracle_route": "http-memory",
+        "status": "PASS"
+      },
+      {
+        "cancelled": false,
+        "count": 300,
+        "name": "transport_timeout_cli_success",
+        "oracle_route": "cli-sqlite",
+        "owned_child_pid": 58037,
+        "status": "PASS",
+        "transport_wait_seconds": 15.052798499993514
+      },
+      {
+        "cancelled": true,
+        "count": 0,
+        "name": "transport_timeout_cli_cancel",
+        "oracle_route": "cli-sqlite",
+        "owned_child_pid": 58661,
+        "status": "PASS",
+        "transport_wait_seconds": 15.049605166655965
+      },
+      {
+        "name": "final_clear",
+        "status": "PASS"
+      }
+    ],
+    "cleanup_complete": true,
+    "raw_summary_sha256": "a58e54ebabcceca585380a0ee2fb8943108f37f70f60aa569337aa3a0c5d62f5"
+  },
+  "native": {
+    "build_label": "0.1.3-gb027a42",
+    "Fastest_code_footer": 300,
+    "LowMemory_code_footer": 300,
+    "full_ordered_300_boundary": "AX visible leading rows/footer; full six-field300 equality is isolated transport/topk proof",
+    "fixture_counts": [
+      1,
+      1,
+      1,
+      0
+    ],
+    "modified_size_bytes": 1234,
+    "old_rename_path_absent": true,
+    "query_restored": "汽车",
+    "mode_restored": "memory",
+    "shortcut_restored": "command_shift_space",
+    "permissions_before": "Limited",
+    "permissions_initial_after": "Unknown",
+    "permissions_final": "Limited",
+    "TCC_not_changed": true
+  },
+  "live_database_inode_preserved": true,
+  "roots_excludes_and_critical_preferences_preserved": true,
+  "native_fixture_directory_removed": true,
+  "old_App_original_inode_preserved": true,
+  "new_independent_rollback": {
+    "sha256": "ba6f642423e9b16737dfe09c055b9d1a398d7ec761dd27bf1db413a14d7f3c50",
+    "bytes": 5117845504,
+    "closed_integrity_verified": true,
+    "original_historical_rollback_untouched": true
+  },
+  "ordinary": {
+    "before": {
+      "awake_seconds": 80.130781292,
+      "continuous_seconds": 80.13078175,
+      "same_identity_per_role": true,
+      "roles": {
+        "gui": {
+          "RSS_first_MiB": 132.78125,
+          "RSS_last_MiB": 132.84375,
+          "FP_first_MiB": 68.9698715209961,
+          "FP_last_MiB": 69.0636215209961,
+          "CPU_seconds": 0.075082584,
+          "CPU_one_core_percent": 0.09370005232620389
+        },
+        "serve": {
+          "RSS_first_MiB": 745.8125,
+          "RSS_last_MiB": 746.21875,
+          "FP_first_MiB": 1561.8924102783203,
+          "FP_last_MiB": 1561.9236602783203,
+          "CPU_seconds": 0.001701208,
+          "CPU_one_core_percent": 0.0021230393271728194
+        },
+        "watch": {
+          "RSS_first_MiB": 24.71875,
+          "RSS_last_MiB": 21.296875,
+          "FP_first_MiB": 9.250595092773438,
+          "FP_last_MiB": 9.234970092773438,
+          "CPU_seconds": 0.024680958,
+          "CPU_one_core_percent": 0.03080084532067837
+        }
+      }
+    },
+    "after": {
+      "awake_seconds": 77.325305709,
+      "continuous_seconds": 77.325308333,
+      "same_identity_per_role": true,
+      "roles": {
+        "gui": {
+          "RSS_first_MiB": 149.078125,
+          "RSS_last_MiB": 149.046875,
+          "FP_first_MiB": 64.7510757446289,
+          "FP_last_MiB": 64.7198257446289,
+          "CPU_seconds": 0.103278375,
+          "CPU_one_core_percent": 0.1335634874676988
+        },
+        "serve": {
+          "RSS_first_MiB": 1571.171875,
+          "RSS_last_MiB": 1571.171875,
+          "FP_first_MiB": 1567.3766708374023,
+          "FP_last_MiB": 1567.3766708374023,
+          "CPU_seconds": 0.001897166,
+          "CPU_one_core_percent": 0.0024534865819213774
+        },
+        "watch": {
+          "RSS_first_MiB": 10.96875,
+          "RSS_last_MiB": 11.234375,
+          "FP_first_MiB": 3.7348556518554688,
+          "FP_last_MiB": 3.7348556518554688,
+          "CPU_seconds": 0.027793333,
+          "CPU_one_core_percent": 0.03594338586205562
+        }
+      }
+    }
+  },
+  "ordinary_boundary": "Two separate identities/query histories, not causal A/B. Low old serve RSS does not mean released footprint. After includes native mode switches/queries. No leak verdict.",
+  "private_receipt_sha256": {
+    "native-final.local.json": "b36bfd65b342c832eaf36ef82ca0c099794cf44862adf2b892a5609630d2ef88",
+    "native-lowmemory.local.json": "d04ae8d9805c5042f74c319a29df97cb40463b90460d1d7d2a1716d356bcd51c",
+    "installation/verify.local.json": "9ad48280fc6f026baed7f2a854429439d6263ff6afc322e70354d70d9106538a",
+    "installation/backup-copy.local.json": "342bdc4ac42c0ddb06ec677ca3a44d0d58d8741359a907d02e928c2ff569faf0",
+    "installation/replaced.local.json": "5874ffc1a06b762ff4519ffdaa2cf2c2f4e79114f12f828a72849475c0433c58"
+  }
+}

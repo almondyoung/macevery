@@ -1,6 +1,6 @@
 # MacEvery 恢复写放大与history_gap优化
 
-2026-10-23，r1，隔离验收完成，GUI真实传输集成及App替换待验。基线4dc3e4b；当前运行App、真实库、模式、权限仍未改动。原24小时数据/完整异常/329文件封存、旧窗口与冻结App/源码、真实索引回滚保持，未拼接、未清理、未新开观察。
+2026-10-23，r2，本机限定验收和App替换完成，收尾文档待推送。基线4dc3e4b；运行App已按授权替换为0.1.3-gb027a42，真实库inode和配置保留；原模式/快捷键/查询已恢复，系统权限未改。原24小时数据/完整异常/329文件封存、旧窗口与冻结App/源码、真实索引回滚保持，未拼接、未清理、未新开观察。
 
 ## 改了什么与合同
 
@@ -39,4 +39,10 @@ UserDropped上游底因仍UNKNOWN。GUI末80分钟+3.766MiB、watch恢复后残�
 
 资源与正确性脱敏数值见evidence/isolated.json；完整响应、采样、失败、源码/rlib/driver和原始SHA留在本轮私有根及owned tmp。GUI同生产formatter的两组A/B/A也已通过，正常300结果/clear及offscreen工作量一致；寿命CPU配对+2.17%、model阶段+1.26%、idle-after FP约+0.31%，没有证明GUI整体更省或旧增长原因。formatter本轮未改，测到的该阶段变化不作收益。
 
-GUI真实15秒集成、干净制品、可逆替换、原生双模式/文件生命周期与最终推送回读尚待完成。
+GUI真实传输7场景全部通过：首次code300约2.258秒，真实超时15.0527985/15.0496052秒后CLI完整回退/取消回收闭合；0旧回填。源码b027a42已推送并git ls-remote精确回读；干净App严格验签，受测CLI与签名App逐字节payload核对（仅私有副本规范化已证明的签名LINKEDIT映射残留），旧App原inode保留。先正常Quit且三角色/DBFD关闭，再RO新备份和闭合quick_check后App-only替换；真实DB未采用隔离库、未重建或替换。
+
+原生Fastest/Low Memory均显示code300，Low Memory实际serve --backend sqlite；随后恢复Fastest、Command-Shift-Space及原查询“汽车”。增/改/改名/删实际元数据与界面1/1/1/0通过，修改1234B、旧路径无行、fixture目录清理。AX为虚拟化可见行与footer，不冒充完整300字段遍历；完整300合同由隔离层闭合。权限UI初始Unknown后Limited，原先也是Limited，未改TCC；受保护目录未新验收。
+
+普通使用末端FP MiB（旧→新）：GUI69.064→64.720，serve1561.924→1567.377（+5.453MiB/+0.349%），watch9.235→3.735。两段不同实际身份/历史，不作优化因果A/B；旧serve低RSS不等于已释放内存。精确CPU覆盖、RSS/FP与备份SHA见evidence/installation.json。该普通serve增加与历史安装/台阶均保留，不能称总内存降低或无泄漏。
+
+用户随后明确授权：本轮收尾推送后固定b027a42开始新的独立24小时观察。此前“不自动新观察”的边界作为当时合同保留；新窗口另建docs/watch-observation-20261023，不拼接本轮验收或旧24小时。重点UserDropped/watch高CPU/history_gap全量回退与三角色FP趋势，正常无变化安静，到期统一封存汇总。
