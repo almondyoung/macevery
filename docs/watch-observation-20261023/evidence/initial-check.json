@@ -1,0 +1,35 @@
+{
+  "status": "INITIAL_PREFIX_AND_WORKER_VERIFIED_NOT_STABILITY_PASS",
+  "endpoint_count": 3,
+  "committed_prefix_verified": true,
+  "actual_worker_alive": true,
+  "single_collector": true,
+  "writer_lock_held": true,
+  "source_and_DB_match": true,
+  "no_sample_inserted": true,
+  "watch_high_cpu_candidates": 0,
+  "retained_log_scope": "Partial retained window/identity/prefix-matched rows only; not full raw-trigger audit",
+  "serve_retained": {
+    "verified_rows": 4,
+    "phases": {
+      "idle": 2,
+      "full_before": 1,
+      "full_after": 1
+    },
+    "history_gap_full_before_attempt_keys_observed": 0,
+    "history_gap_fallback_full_after_operation_keys_observed": 0,
+    "snapshot_reconcile_after_operation_keys_observed": 0,
+    "fallback_full_after_operations_by_reason": {
+      "event_limit": 1
+    },
+    "cached_refresh_snapshot_keys_not_operations": 1
+  },
+  "watch_retained_rows": 44,
+  "watch_drop_positive_rows": 0,
+  "private_sha256": {
+    "latest-health.local.json": "1fe698ce6c933855854c50deffc9cae23635b48161f279bc86be8ca2973435f0",
+    "latest-trends.local.json": "0f593522fcee74a52ebcd6bd4a12fb5a68d4ea76fbf32912cdf1b1d7f8c5f648",
+    "monitoring-tools.local.json": "7d8873be1a3337215d92799ea8ca45eda20c96e956a4138b84d30bb6c6d31c04",
+    "helper-independent-review.local.json": "2989089763af1629cad48471525032f9edc9daa54c5397b954b59d76053c4d35"
+  }
+}

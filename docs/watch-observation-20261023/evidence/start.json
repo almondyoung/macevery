@@ -1,0 +1,73 @@
+{
+  "schema": 1,
+  "status": "OBSERVING_NOT_FINAL",
+  "source_commit": "b027a42c2cb859235b2a354c4c4bd8187a785a77",
+  "build_label": "0.1.3-gb027a42",
+  "app_fingerprint": "76f233510003c4c507e8eef3775a7165ddeb36e424bb626263aa0c374571de3b",
+  "app_payload_hashes": {
+    "plist": "82b1b39fc48b86ec6ec1c5f260dcf0975dbbac1aa119eddf4646617f5eee95cb",
+    "gui": "fd8742cf7a2753e2c09febbfc482bee31ea5403d96a23b93eee3bb52652e4c17",
+    "cli": "884ef51d10d4e41cf73f9c039771b070eac292b115ef657b9e8ff9c2da10fef9"
+  },
+  "source_archive_sha256": "d5dc94279680ef68620d7097f4b173240383bdebe3789337366353652937ef22",
+  "window_start_utc": "2026-10-23T07:24:53.957679+00:00",
+  "window_deadline_utc": "2026-10-24T07:24:53.957679+00:00",
+  "window_start_asia_shanghai": "2026-10-23T15:24:53.957679+08:00",
+  "window_deadline_asia_shanghai": "2026-10-24T15:24:53.957679+08:00",
+  "duration_seconds": 86400,
+  "interval_seconds": 60,
+  "first_endpoint_utc": "2026-10-23T07:24:54.015544+00:00",
+  "first_endpoint_elapsed_seconds": 0.057852083,
+  "first_roles": {
+    "gui": {
+      "rss_bytes": 156565504,
+      "footprint_bytes": 68977768
+    },
+    "serve": {
+      "rss_bytes": 1647493120,
+      "footprint_bytes": 1643513560
+    },
+    "watch": {
+      "rss_bytes": 18563072,
+      "footprint_bytes": 5472784
+    }
+  },
+  "mode_at_start": "memory",
+  "one_bounded_resource_collector": true,
+  "actual_worker_identity_and_writer_lock_verified": true,
+  "worker_macho_arch": "arm64",
+  "worker_macho_uuid_matches": true,
+  "private_helpers_sha256": {
+    "runtime_identity.py": "db3ab606398a9fe4d2da22dd70e275b8141769c68bdf95bc0eca2bb46205eb82",
+    "launch_observer.py": "415eef615c5e20e3df6895b66decb01f6db43caf8f521b43412a21f52090c039",
+    "health_check.py": "730146faf719d4a8be3861ea9b5ee46e7fb0aa66b5fb8f5c30c1947728c64366",
+    "analyze_committed.py": "cf7544b6fd52b930b22840ef61cde32b0f3aac60e2a11826ab70b664e9c5d474"
+  },
+  "public_tools_sha256": {
+    "tools/observe_app_resources.py": "781564a67a55defaa9778357e3f45b1adc5dd40a02f689922963ce01cb3caefe",
+    "tools/check_service_round2.py": "41e09df119b34b0a84832e759a1068c09eb88bb82f7cb21ec02ef0bb2cac2e59"
+  },
+  "maximum_hourly_diagnostic_snapshot_bytes": 39321600,
+  "maximum_startup_baseline_bytes": 1024,
+  "diagnostic_limit": "At most25 hourlyslots;watch active+one rotation256KiB each,serve512KiB each;no App writer lock/no old slot refill;FD/rotation/tail/truncation/loss boundaries retained. Startupconfigured does not mean started.",
+  "analyzer_constraint": "Absolute helper path with no arguments; only fixed new state/default latest-trends cache; arbitrary state/output options removed.",
+  "frozen_App_source_baseline_old_data_anomalies_rollbacks_preserved": true,
+  "no_App_restart_search_DB_write_configuration_or_permission_change_at_launch": true,
+  "historical_windows_not_joined": true,
+  "coverage_boundary": "No CPU coverage before first endpoint. All measured high candidates and strict source/DB/no barrier set retained. Minute averages do not exclude shorter peaks. No missing-data refill or deadline extension.",
+  "memory_boundary": "Ordinary initial usage point, not controlled causal A/B. RSS decline does not mean footprint release; staircase/plateau alone does not prove/exclude leak.",
+  "helper_review_sha256": "2989089763af1629cad48471525032f9edc9daa54c5397b954b59d76053c4d35",
+  "prelaunch_acceptance_final_docs_remote": "90298444f57f400677a3fc8aa762b933faf24db8",
+  "new_observation_explicitly_authorized_after_native_acceptance": true,
+  "automation": {
+    "status": "ACTIVE",
+    "id": "macevery-48",
+    "same_id_reused": true,
+    "same_thread": true,
+    "hourly_schedule_preserved": true,
+    "normal_changes_silent": true,
+    "anomalies_and_completion_notify": true,
+    "configuration_sha256": "2bfa10451300dd01e0950563bcf4a0b210d38ad61b247ad117ed53b5cd891a82",
+    "prompt_sha256": "0b68faa4d8ec1fea30152bfca7e4c93c87abdbf6c8a0486ed693891c7293e02b"
+  }
+}
