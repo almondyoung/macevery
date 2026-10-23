@@ -1,0 +1,620 @@
+{
+  "schema": 1,
+  "revision": "r2",
+  "status": "NATURALLY_ENDED_SEALED_WITH_RECORDED_ANOMALIES_NOT_STABILITY_PASS",
+  "source_commit": "4dc3e4b5d05136ecb75ca72eaa6dc3f6ce18b114",
+  "build_label": "0.1.3-g4dc3e4b",
+  "app_fingerprint": "7f296ab2cbcbfd23fb10a9d758e7bf3782101b3d1afaf65ed684c52365f249ce",
+  "app_payload_sha256": {
+    "plist": "5dcaab4256258baae28ee4f087d163594fbf28a2ab26e1a6ba291d80e0736390",
+    "gui": "4ba40075704708e9da9a3f2b3ad82005b1f130cfa673247da33299279a818494",
+    "cli": "0f8f5df95b2275ee29a2fdec7314e7752723da645ced096f25131ca589117284"
+  },
+  "window": {
+    "start_utc": "2026-10-22T05:22:00.017045+00:00",
+    "deadline_utc": "2026-10-23T05:22:00.017045+00:00",
+    "nominal_seconds": 86400,
+    "last_endpoint_utc": "2026-10-23T05:22:00.505140+00:00",
+    "first_endpoint_elapsed_continuous_seconds": 0.052540958,
+    "last_endpoint_elapsed_continuous_seconds": 86400.023725083,
+    "actual_endpoint_wall_span_seconds": 86400.43557,
+    "actual_endpoint_continuous_span_seconds": 86399.971184125,
+    "actual_endpoint_awake_span_seconds": 86399.971181458,
+    "wall_minus_continuous_span_seconds": 0.464385875,
+    "valid_measured_CPU_awake_seconds_each_role": 86399.97118145808,
+    "estimated_valid_CPU_awake_seconds_clipped_to_nominal_deadline": 86399.9474563751,
+    "deadline_spill_continuous_seconds": 0.023725082995952107,
+    "initial_CPU_uncovered_seconds": 0.052540958,
+    "sleep_gap_unknown_identity_clock_barriers_excluding_initial": 0,
+    "sleep_and_power_UUID_changes": 0,
+    "clock_boundary": "Analyzer endpoint_wall_span_seconds is actually elapsed/continuous span; true wall_ns span is recorded here. Tiny clock residuals within1ms/interval are not classified as sleep. Terminal endpoint straddles deadline; clipped CPU is a uniform-within-minute estimate, not a new sample."
+  },
+  "end_verification": {
+    "window_finished": true,
+    "last_exit": {
+      "at_utc": "2026-10-23T05:22:00.619754+00:00",
+      "reason": "window_elapsed",
+      "exit_code": 0,
+      "sequence": 1441
+    },
+    "actual_original_worker_pid_absent": true,
+    "collector_inventory_empty": true,
+    "writer_lock_free": true,
+    "raw_state_files_stable_two_checks": true,
+    "app_payload_hashes_unchanged": true,
+    "database_device_inode_match": true
+  },
+  "committed_journal": {
+    "sequence": 1441,
+    "bytes": 4660148,
+    "sha256": "df565640b7367657846c6b182b07b3ce2c903bdd966f6f60a4b8f593c932dd0a",
+    "continuous_sequences": true,
+    "last_equals_state": true,
+    "one_collector_session": true,
+    "source_status_counts": {
+      "match": 1441
+    },
+    "database_pin_status_counts": {
+      "match": 1441
+    },
+    "barrier_counts": {
+      "initial_endpoint": 1
+    },
+    "invalid_memory_endpoints": [],
+    "CPU_exclusions": []
+  },
+  "roles": {
+    "gui": {
+      "identity_segment_count": 1,
+      "segments": [
+        {
+          "segment": 1,
+          "first_sequence": 1,
+          "last_sequence": 1441,
+          "first_utc": "2026-10-22T05:22:00.069570+00:00",
+          "last_utc": "2026-10-23T05:22:00.505140+00:00",
+          "first_RSS_MiB": 131.09375,
+          "first_footprint_MiB": 51.0792236328125,
+          "last_RSS_MiB": 110.65625,
+          "last_footprint_MiB": 55.6260986328125,
+          "memory_overall": {
+            "endpoints": 1441,
+            "first_sequence": 1,
+            "last_sequence": 1441,
+            "first_elapsed_seconds": 0.052540958,
+            "last_elapsed_seconds": 86400.023725083,
+            "observed_endpoint_span_seconds": 86399.971184125,
+            "context_unverified_endpoints": 0,
+            "rss_bytes": {
+              "n": 1441,
+              "median": 116015104,
+              "p95": 123879424,
+              "max": 142655488,
+              "end": 116031488
+            },
+            "footprint_bytes": {
+              "n": 1441,
+              "median": 54609024,
+              "p95": 57607296,
+              "max": 69616792,
+              "end": 58328192
+            }
+          },
+          "cpu_overall": {
+            "interval_parts": 1440,
+            "distinct_intervals": 1440,
+            "valid_awake_seconds": 86399.97118145808,
+            "cpu_seconds": 59.51547604199991,
+            "weighted_average_percent_one_core": 0.06888367580239688,
+            "interval_percent_one_core": {
+              "n": 1440,
+              "median": 0.0,
+              "p95": 0.2911597034217078,
+              "max": 3.045815224570081,
+              "end": 0.0017324365264307284
+            },
+            "awake_weighted_median_percent": 0.0,
+            "awake_weighted_p95_percent": 0.2911597034217078,
+            "split_boundary_parts": 0
+          },
+          "process_measured_cpu_overall": {
+            "interval_parts": 1440,
+            "distinct_intervals": 1440,
+            "valid_awake_seconds": 86399.97118145808,
+            "cpu_seconds": 59.51547604199991,
+            "weighted_average_percent_one_core": 0.06888367580239688,
+            "interval_percent_one_core": {
+              "n": 1440,
+              "median": 0.0,
+              "p95": 0.2911597034217078,
+              "max": 3.045815224570081,
+              "end": 0.0017324365264307284
+            },
+            "awake_weighted_median_percent": 0.0,
+            "awake_weighted_p95_percent": 0.2911597034217078,
+            "split_boundary_parts": 0
+          },
+          "tail_60_endpoints": {
+            "requested_endpoints": 60,
+            "actual_endpoints": 60,
+            "memory": {
+              "endpoints": 60,
+              "first_sequence": 1382,
+              "last_sequence": 1441,
+              "first_elapsed_seconds": 82860.015966875,
+              "last_elapsed_seconds": 86400.023725083,
+              "observed_endpoint_span_seconds": 3540.0077582079975,
+              "context_unverified_endpoints": 0,
+              "rss_bytes": {
+                "n": 60,
+                "median": 116047872.0,
+                "p95": 116047872,
+                "max": 116064256,
+                "end": 116031488,
+                "slopes": {
+                  "status": "measured_observed_endpoints",
+                  "ols_mib_per_hour": -0.021646606700649253,
+                  "theil_sen_mib_per_hour": 0.0,
+                  "theil_sen_pairs": 1770
+                }
+              },
+              "footprint_bytes": {
+                "n": 60,
+                "median": 57844864.0,
+                "p95": 58295424,
+                "max": 58328192,
+                "end": 58328192,
+                "slopes": {
+                  "status": "measured_observed_endpoints",
+                  "ols_mib_per_hour": 1.3904352683522485,
+                  "theil_sen_mib_per_hour": 1.3719498231641585,
+                  "theil_sen_pairs": 1770
+                }
+              }
+            },
+            "cpu": {
+              "interval_parts": 59,
+              "distinct_intervals": 59,
+              "valid_awake_seconds": 3540.007755958,
+              "cpu_seconds": 1.9311735840000004,
+              "weighted_average_percent_one_core": 0.05455280657930041,
+              "interval_percent_one_core": {
+                "n": 59,
+                "median": 0.0,
+                "p95": 0.4781780751641572,
+                "max": 0.7682627986161333,
+                "end": 0.0017324365264307284
+              },
+              "awake_weighted_median_percent": 0.0,
+              "awake_weighted_p95_percent": 0.4781780751641572,
+              "split_boundary_parts": 0
+            },
+            "tail_memory_is_current_endpoint": true,
+            "incident_sequences": [],
+            "continuous_coverage_not_claimed": true
+          }
+        }
+      ],
+      "CPU_exclusion_reason_counts": {}
+    },
+    "serve": {
+      "identity_segment_count": 1,
+      "segments": [
+        {
+          "segment": 1,
+          "first_sequence": 1,
+          "last_sequence": 1441,
+          "first_utc": "2026-10-22T05:22:00.069570+00:00",
+          "last_utc": "2026-10-23T05:22:00.505140+00:00",
+          "first_RSS_MiB": 798.09375,
+          "first_footprint_MiB": 1550.1579208374023,
+          "last_RSS_MiB": 5.828125,
+          "last_footprint_MiB": 1468.9548873901367,
+          "memory_overall": {
+            "endpoints": 1441,
+            "first_sequence": 1,
+            "last_sequence": 1441,
+            "first_elapsed_seconds": 0.052540958,
+            "last_elapsed_seconds": 86400.023725083,
+            "observed_endpoint_span_seconds": 86399.971184125,
+            "context_unverified_endpoints": 0,
+            "rss_bytes": {
+              "n": 1441,
+              "median": 8077312,
+              "p95": 982892544,
+              "max": 1651408896,
+              "end": 6111232
+            },
+            "footprint_bytes": {
+              "n": 1441,
+              "median": 1540261664,
+              "p95": 1650034464,
+              "max": 1650083640,
+              "end": 1540310840
+            }
+          },
+          "cpu_overall": {
+            "interval_parts": 1440,
+            "distinct_intervals": 1440,
+            "valid_awake_seconds": 86399.97118145808,
+            "cpu_seconds": 4.8923594170000095,
+            "weighted_average_percent_one_core": 0.005662454917635363,
+            "interval_percent_one_core": {
+              "n": 1440,
+              "median": 0.002006317958509589,
+              "p95": 0.002397388586360008,
+              "max": 5.368889995720536,
+              "end": 0.0021585817491089876
+            },
+            "awake_weighted_median_percent": 0.0020064593421142084,
+            "awake_weighted_p95_percent": 0.002397388586360008,
+            "split_boundary_parts": 0
+          },
+          "process_measured_cpu_overall": {
+            "interval_parts": 1440,
+            "distinct_intervals": 1440,
+            "valid_awake_seconds": 86399.97118145808,
+            "cpu_seconds": 4.8923594170000095,
+            "weighted_average_percent_one_core": 0.005662454917635363,
+            "interval_percent_one_core": {
+              "n": 1440,
+              "median": 0.002006317958509589,
+              "p95": 0.002397388586360008,
+              "max": 5.368889995720536,
+              "end": 0.0021585817491089876
+            },
+            "awake_weighted_median_percent": 0.0020064593421142084,
+            "awake_weighted_p95_percent": 0.002397388586360008,
+            "split_boundary_parts": 0
+          },
+          "tail_60_endpoints": {
+            "requested_endpoints": 60,
+            "actual_endpoints": 60,
+            "memory": {
+              "endpoints": 60,
+              "first_sequence": 1382,
+              "last_sequence": 1441,
+              "first_elapsed_seconds": 82860.015966875,
+              "last_elapsed_seconds": 86400.023725083,
+              "observed_endpoint_span_seconds": 3540.0077582079975,
+              "context_unverified_endpoints": 0,
+              "rss_bytes": {
+                "n": 60,
+                "median": 6111232.0,
+                "p95": 6144000,
+                "max": 6144000,
+                "end": 6111232,
+                "slopes": {
+                  "status": "measured_observed_endpoints",
+                  "ols_mib_per_hour": -0.034358400728668984,
+                  "theil_sen_mib_per_hour": -0.022865944566768964,
+                  "theil_sen_pairs": 1770
+                }
+              },
+              "footprint_bytes": {
+                "n": 60,
+                "median": 1540310840.0,
+                "p95": 1540310840,
+                "max": 1540310840,
+                "end": 1540310840,
+                "slopes": {
+                  "status": "measured_observed_endpoints",
+                  "ols_mib_per_hour": 0.0,
+                  "theil_sen_mib_per_hour": 0.0,
+                  "theil_sen_pairs": 1770
+                }
+              }
+            },
+            "cpu": {
+              "interval_parts": 59,
+              "distinct_intervals": 59,
+              "valid_awake_seconds": 3540.007755958,
+              "cpu_seconds": 0.069225791,
+              "weighted_average_percent_one_core": 0.00195552653475094,
+              "interval_percent_one_core": {
+                "n": 59,
+                "median": 0.0020624421666194954,
+                "p95": 0.0022910829399198627,
+                "max": 0.002321181824644846,
+                "end": 0.0021585817491089876
+              },
+              "awake_weighted_median_percent": 0.0020624421666194954,
+              "awake_weighted_p95_percent": 0.0022910829399198627,
+              "split_boundary_parts": 0
+            },
+            "tail_memory_is_current_endpoint": true,
+            "incident_sequences": [],
+            "continuous_coverage_not_claimed": true
+          }
+        }
+      ],
+      "CPU_exclusion_reason_counts": {}
+    },
+    "watch": {
+      "identity_segment_count": 1,
+      "segments": [
+        {
+          "segment": 1,
+          "first_sequence": 1,
+          "last_sequence": 1441,
+          "first_utc": "2026-10-22T05:22:00.069570+00:00",
+          "last_utc": "2026-10-23T05:22:00.505140+00:00",
+          "first_RSS_MiB": 18.171875,
+          "first_footprint_MiB": 4.953651428222656,
+          "last_RSS_MiB": 26.515625,
+          "last_footprint_MiB": 8.563095092773438,
+          "memory_overall": {
+            "endpoints": 1441,
+            "first_sequence": 1,
+            "last_sequence": 1441,
+            "first_elapsed_seconds": 0.052540958,
+            "last_elapsed_seconds": 86400.023725083,
+            "observed_endpoint_span_seconds": 86399.971184125,
+            "context_unverified_endpoints": 0,
+            "rss_bytes": {
+              "n": 1441,
+              "median": 13238272,
+              "p95": 29196288,
+              "max": 107429888,
+              "end": 27803648
+            },
+            "footprint_bytes": {
+              "n": 1441,
+              "median": 6423104,
+              "p95": 8979056,
+              "max": 96420464,
+              "end": 8979056
+            }
+          },
+          "cpu_overall": {
+            "interval_parts": 1440,
+            "distinct_intervals": 1440,
+            "valid_awake_seconds": 86399.97118145808,
+            "cpu_seconds": 288.2989920419999,
+            "weighted_average_percent_one_core": 0.3336795002356094,
+            "interval_percent_one_core": {
+              "n": 1440,
+              "median": 0.002367130742063433,
+              "p95": 0.09670589921542819,
+              "max": 76.02755953425844,
+              "end": 0.002117465017306451
+            },
+            "awake_weighted_median_percent": 0.0023670553659035196,
+            "awake_weighted_p95_percent": 0.09670589921542819,
+            "split_boundary_parts": 0
+          },
+          "process_measured_cpu_overall": {
+            "interval_parts": 1440,
+            "distinct_intervals": 1440,
+            "valid_awake_seconds": 86399.97118145808,
+            "cpu_seconds": 288.2989920419999,
+            "weighted_average_percent_one_core": 0.3336795002356094,
+            "interval_percent_one_core": {
+              "n": 1440,
+              "median": 0.002367130742063433,
+              "p95": 0.09670589921542819,
+              "max": 76.02755953425844,
+              "end": 0.002117465017306451
+            },
+            "awake_weighted_median_percent": 0.0023670553659035196,
+            "awake_weighted_p95_percent": 0.09670589921542819,
+            "split_boundary_parts": 0
+          },
+          "tail_60_endpoints": {
+            "requested_endpoints": 60,
+            "actual_endpoints": 60,
+            "memory": {
+              "endpoints": 60,
+              "first_sequence": 1382,
+              "last_sequence": 1441,
+              "first_elapsed_seconds": 82860.015966875,
+              "last_elapsed_seconds": 86400.023725083,
+              "observed_endpoint_span_seconds": 3540.0077582079975,
+              "context_unverified_endpoints": 0,
+              "rss_bytes": {
+                "n": 60,
+                "median": 29212672.0,
+                "p95": 29245440,
+                "max": 29245440,
+                "end": 27803648,
+                "slopes": {
+                  "status": "measured_observed_endpoints",
+                  "ols_mib_per_hour": -1.9939102376645816,
+                  "theil_sen_mib_per_hour": -0.3124980381737966,
+                  "theil_sen_pairs": 1770
+                }
+              },
+              "footprint_bytes": {
+                "n": 60,
+                "median": 8979056.0,
+                "p95": 8979056,
+                "max": 8979056,
+                "end": 8979056,
+                "slopes": {
+                  "status": "measured_observed_endpoints",
+                  "ols_mib_per_hour": 0.0,
+                  "theil_sen_mib_per_hour": 0.0,
+                  "theil_sen_pairs": 1770
+                }
+              }
+            },
+            "cpu": {
+              "interval_parts": 59,
+              "distinct_intervals": 59,
+              "valid_awake_seconds": 3540.007755958,
+              "cpu_seconds": 0.6215252080000001,
+              "weighted_average_percent_one_core": 0.017557170798678162,
+              "interval_percent_one_core": {
+                "n": 59,
+                "median": 0.002170129354321946,
+                "p95": 0.16938463718576924,
+                "max": 0.17962502298081634,
+                "end": 0.002117465017306451
+              },
+              "awake_weighted_median_percent": 0.002170129354321946,
+              "awake_weighted_p95_percent": 0.16938463718576924,
+              "split_boundary_parts": 0
+            },
+            "tail_memory_is_current_endpoint": true,
+            "incident_sequences": [],
+            "continuous_coverage_not_claimed": true
+          }
+        }
+      ],
+      "CPU_exclusion_reason_counts": {}
+    }
+  },
+  "watch_high_CPU": {
+    "all_process_measured_candidates": 6,
+    "strict_candidates": 6,
+    "strict_excluded_candidates": 0,
+    "segments": [
+      {
+        "start_sequence": 1300,
+        "start_utc": "2026-10-23T03:01:00.343914+00:00",
+        "intervals": [
+          {
+            "sequence": 1301,
+            "from_sequence": 1300,
+            "start_elapsed_seconds": 77940.023412208,
+            "end_elapsed_seconds": 78000.022552083,
+            "start_utc": "2026-10-23T03:01:00.343914+00:00",
+            "end_utc": "2026-10-23T03:02:00.342413+00:00",
+            "cpu_seconds": 30.901088042,
+            "awake_seconds": 59.9991405,
+            "percent": 51.502551177378955,
+            "revision_delta": 16,
+            "last_indexed_at_before": "1792637394",
+            "last_indexed_at_after": "1792637394"
+          },
+          {
+            "sequence": 1302,
+            "from_sequence": 1301,
+            "start_elapsed_seconds": 78000.022552083,
+            "end_elapsed_seconds": 78060.019893166,
+            "start_utc": "2026-10-23T03:02:00.342413+00:00",
+            "end_utc": "2026-10-23T03:03:00.339130+00:00",
+            "cpu_seconds": 45.554755958,
+            "awake_seconds": 59.997341209,
+            "percent": 75.92795787285068,
+            "revision_delta": 0,
+            "last_indexed_at_before": "1792637394",
+            "last_indexed_at_after": "1792637394"
+          },
+          {
+            "sequence": 1303,
+            "from_sequence": 1302,
+            "start_elapsed_seconds": 78060.019893166,
+            "end_elapsed_seconds": 78120.020060166,
+            "start_utc": "2026-10-23T03:03:00.339130+00:00",
+            "end_utc": "2026-10-23T03:04:00.338647+00:00",
+            "cpu_seconds": 44.945902834,
+            "awake_seconds": 60.000166916,
+            "percent": 74.90962966307092,
+            "revision_delta": 0,
+            "last_indexed_at_before": "1792637394",
+            "last_indexed_at_after": "1792637394"
+          },
+          {
+            "sequence": 1304,
+            "from_sequence": 1303,
+            "start_elapsed_seconds": 78120.020060166,
+            "end_elapsed_seconds": 78180.013095291,
+            "start_utc": "2026-10-23T03:04:00.338647+00:00",
+            "end_utc": "2026-10-23T03:05:00.331018+00:00",
+            "cpu_seconds": 45.61124075,
+            "awake_seconds": 59.993035459,
+            "percent": 76.02755953425844,
+            "revision_delta": 0,
+            "last_indexed_at_before": "1792637394",
+            "last_indexed_at_after": "1792637394"
+          },
+          {
+            "sequence": 1305,
+            "from_sequence": 1304,
+            "start_elapsed_seconds": 78180.013095291,
+            "end_elapsed_seconds": 78240.015851625,
+            "start_utc": "2026-10-23T03:05:00.331018+00:00",
+            "end_utc": "2026-10-23T03:06:00.333104+00:00",
+            "cpu_seconds": 41.734665874,
+            "awake_seconds": 60.002756041,
+            "percent": 69.55458153535918,
+            "revision_delta": 0,
+            "last_indexed_at_before": "1792637394",
+            "last_indexed_at_after": "1792637394"
+          },
+          {
+            "sequence": 1306,
+            "from_sequence": 1305,
+            "start_elapsed_seconds": 78240.015851625,
+            "end_elapsed_seconds": 78300.018841541,
+            "start_utc": "2026-10-23T03:06:00.333104+00:00",
+            "end_utc": "2026-10-23T03:07:00.335432+00:00",
+            "cpu_seconds": 41.067395375,
+            "awake_seconds": 60.00299,
+            "percent": 68.44224825296206,
+            "revision_delta": 0,
+            "last_indexed_at_before": "1792637394",
+            "last_indexed_at_after": "1792637394"
+          }
+        ],
+        "cpu_seconds": 249.815048833,
+        "valid_awake_seconds": 359.995430125,
+        "peak_percent_one_core": 76.02755953425844,
+        "end_sequence": 1306,
+        "end_utc": "2026-10-23T03:07:00.335432+00:00"
+      }
+    ]
+  },
+  "diagnostic_snapshots": {
+    "hour_slots_saved": [
+      0,
+      1,
+      2,
+      4,
+      5,
+      6,
+      7,
+      8,
+      10,
+      12,
+      14,
+      15,
+      17,
+      18,
+      19,
+      20,
+      21,
+      22,
+      24
+    ],
+    "missing_slots_not_backfilled": [
+      3,
+      9,
+      11,
+      13,
+      16,
+      23
+    ],
+    "maximum_hourly_raw_bytes": 39321600,
+    "actual_hourly_raw_file_bytes": 20041413,
+    "extra_anomaly_snapshot_raw_bytes": 925377,
+    "boundary": "Missing log slots are not resource gaps. Source rate suppression, event sampling, rotation and pre/post-window rows retained. No complete raw-trigger, query, allocation or path-specific audit."
+  },
+  "app_mode_boundary": "Startup memory/Fastest is known. JSONL mode=run is collector mode; App mode is not continuously independently logged. Actual three process identities remain single segments; no status/search requests were added.",
+  "preservation": {
+    "current_frozen_App_and_source": true,
+    "real_index_rollback_retained_in_place": true,
+    "older_frozen_Apps_source_and_raw_windows_retained": true,
+    "no_old_window_join": true,
+    "no_agent_search_status_control_App_restart_DB_mutation_build_or_tool_change": true,
+    "natural_App_writes_observed": true
+  },
+  "limits": [
+    "Window completion is not continuous24h stability or no-leak PASS.",
+    "Minute CPU averages and discrete memory endpoints can miss shorter peaks and short-lived helpers.",
+    "No current search/update correctness tests, code short-query benchmarks, protected-directory permission acceptance or new causal A/B were run.",
+    "Read-only source investigations do not uniquely attribute OS UserDropped cause, GUI allocations or retained VM bytes.",
+    "Historical failures and previous acceptance remain separate; final FP lower than initial is not an optimization saving claim."
+  ]
+}

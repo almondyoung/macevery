@@ -1,32 +1,101 @@
-# MacEvery 修复版独立24小时观察
+# MacEvery 4dc 修复版独立24小时观察
 
-2026-10-22，r1，进行中。当前仅完成启动核验，不提供长期趋势或稳定结论。
+2026-10-23，r2，原窗口自然结束并封存。**UserDropped和监听高CPU复发已确认，不能标为连续24小时稳定或无泄漏PASS。**
 
-固定 **0.1.3-g4dc3e4b**；源码 `4dc3e4b5d05136ecb75ca72eaa6dc3f6ce18b114`。窗口从 **2026-10-22 13:22:00.017045** 到 **2026-10-23 13:22:00.017045**（北京时间），每60秒已有唯一有界采样器。App与三个原进程保持，未发搜索/状态请求、改库、重启、重建、换版本或改权限。精确启动证据见[evidence/start.json](evidence/start.json)。
+固定App **0.1.3-g4dc3e4b**，源码 **4dc3e4b5d05136ecb75ca72eaa6dc3f6ce18b114**。观察及收尾未重建、替换、重启App，未发搜索/status/control请求，未由观察操作修改DB、配置、权限或冻结工具；App自然索引写入如实记录。本轮只定位和封存，没有实施新优化或重跑正确性/性能验收。
 
-本轮基线含当前App、精确source archive、上轮正确性/性能/原生验收和普通资源点，另保留历史失败及异常。原真实索引回滚保留原位，已有SHA/文件身份留存；未为本轮再复制大库。旧冻结版、旧67点/两个旧24h原始观察、逐小时私有材料与封存记录均保留；本轮不与旧数据拼接。
+## 结果
 
-首端点 `2026-10-22T05:22:00.069570+00:00`，距开始0.052540958秒；此前CPU无覆盖。以下为普通使用起点，非受控A/B。Fastest/memory模式；后续自然模式切换按真实身份另段。
+- **UserDropped和监听高CPU复发**：10月23日11:01原始flags3含UserDropped，与一轮全根恢复衔接；6个连续有效分钟区间单核≥50%，峰 **76.027560%**，合计 **249.815049 CPU秒／359.995430秒有效时长**。不能据有界日志宣称全窗仅发生一次原始drop。
+- **搜索服务末段平台**：FP末值 **1468.954887MiB**，末60点持平；19:25、20:36台阶及21:53真实FP回落均保留。低RSS不表示索引内存已释放。
+- **监听末段平台，仍高于恢复前**：FP峰 **91.953720MiB**，恢复后先降至11.281845，11:46再降至8.313095，末值 **8.563095MiB**；仍比恢复前6.375549高 **2.187546MiB**，具体保留来源未唯一归因。
+- **GUI未确认平台**：12:02至13:22由51.860474升至 **55.626099MiB**，80分钟增加 **3.765625MiB**。末60点跨度约59分钟，OLS **+1.390435MiB/小时**、TheilSen **+1.371950MiB/小时**；最后20分钟仅+0.03125MiB，已放缓，但缺后续多小时覆盖确认平台或排除泄漏。不延长本窗补结论。
 
-| 角色 | RSS MiB | footprint MiB |
-| --- | ---: | ---: |
-| GUI | 131.094 | 51.079 |
-| serve | 798.094 | 1550.158 |
-| watch | 18.172 | 4.954 |
+三角色各保持原实际身份。以下是普通使用点，不是同输入A/B；服务末值低于首值不作为优化节省结论。
 
-启动已验证：唯一writer、实际PID/start cookie/UUID/boot/executable/exact argv、运行arm64 Mach-O slice、单一collector_session；App fingerprint/DB pin匹配、三角色known，committed字节前缀、连续sequence、行数与state.last_sample一致。private helper经独立静态审查；派生分析有9项合成测试。analyzer仅按固定解释器、绝对路径、无参数运行，默认只更新本轮latest-trends派生缓存；任意--output存在可覆盖其他私有文件的保护缺口，未获本轮使用批准，原review保留。
+| 角色 | 首FP MiB | 峰FP MiB | 末FP MiB | 末RSS MiB | 全窗有效CPU秒 | 有效平均单核CPU |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| GUI | 51.079224 | 66.391747 | 55.626099 | 110.656250 | 59.515476 | 0.068884% |
+| serve | 1550.157921 | 1573.642387 | 1468.954887 | 5.828125 | 4.892359 | 0.005662% |
+| watch | 4.953651 | 91.953720 | 8.563095 | 26.515625 | 288.298992 | 0.333680% |
 
-每小时跟进读取同一worker已提交端点，不增加资源采样点；每个elapsed-hour slot至多一次复制watch active+一个轮转（各256KiB）、serve active+一个轮转（各512KiB），最多25组、总原始上限37.5MiB。无锁FD读取保留轮转/路径竞态、大小/mtime变化、截断和尾行完整性。快照可能包含窗前/窗后记录，按时间及进程身份过滤；源限频/事件采样和小时之间轮转会遗失细节，不能宣称完整触发或内存分配审计。
+## 窗口、身份与覆盖
 
-主要观察口径：
+原定北京时间 **2026-10-22 13:22:00.017045至2026-10-23 13:22:00.017045**，86400秒，每60秒唯一采样器。终态 **1441端点／1440CPU区间**；没有插点、续跑、补窗或拼旧数据。
 
-- 逐有效、同身份、无sleep/gap/unknown/clock屏障的分钟CPU区间，检查watch单核>=50%的次数、峰值、CPU秒和连续区段。所有原记录process-measured高CPU候选与source/DB一致的严格归因集合分别保留，DBunknown不能隐藏高CPU。分钟均值不能排除更短峰值。
-- UserDropped需以原始recovery flags/事件ID、worker计划/边界、完成/失败/重试和revision/last_indexed_at关联；batch OR flags不等于每条原始flags，缺快照不等于未发生。不把必要恢复默认判为冗余。
-- GUI/serve/watch按实际boot/PID/start cookie/UUID/executable身份分别计算单小时CPU/RSS/footprint中位/p95/峰/端点、OLS/TheilSen及尾60有效内存端点的平台。累计hourly summary不当单小时；跨小时CPU按该分钟内均匀分配估计并注明，原分钟总量保留。尾60端点不必等于60分钟；第24小时末单点不当额外完整小时；非正内存端点单列无效，不作释放。
-- 睡眠/电源UUID变化/缺口/角色未知/重启分段，缺失不补齐。RSS回落不表示footprint释放；单台阶不直接认定泄漏，平台也不能排除泄漏。连续数小时趋势候选需说明区间、样本数/有效时长和普通使用上下文。
+已核实window_finished、last_exit.reason=window_elapsed、exit_code=0；原worker实际PID不存在，精确argv盘点无剩余collector，writer锁空闲。35个原始状态文件隔2秒两次字节数、mtime和SHA稳定。不是仅凭state.running或exit0判定自然到期。4个private helper和2个public tool实际SHA、App三制品SHA、DB文件身份匹配。
 
-保留的历史事实：旧29b24h有4次flags3 UserDropped全根恢复、24个watch分钟区间>=50%、峰82.080153%，upstream缓冲压力和每次恢复必要性未唯一归因；旧18:48 serve footprint+47.578125MiB后平台、旧GUI多次台阶原因仍未知。更早watch9区间>=50%峰85.6349%、revision+7341204且无持久原始触发；TopK安装普通点总footprint+17.690%、上轮29b安装serve+40.844MiB/+2.717%独立保留。
+已提交JSONL **4660148字节**，实际文件等于提交长度；1441行sequence连续，末行等于state.last_sample，单一collector_session。所有端点source/DB pin匹配；GUI/serve/watch各只有一个真实boot/PID/cookie/UUID/executable身份，没有未知角色、无效内存端点或额外CLI。私有身份原件保留，公开汇总脱敏。
 
-当前优化受控收益和限制保持原[验收报告](../watch-memory-20261022/REPORT.md)：合成预到达drop恢复3→1、扫描CPU/写量约-67%；真实小树事件CPU-18.64%；code CPU+1.602%、短词组+0.356%在+5%门槛内。短词离散尾footprint+2.320MiB、容量固定；普通安装serve+0.968658MiB；原生首次查询关联约432MiB footprint台阶，均不能唯一解释旧47.578MiB，也不能概括整体内存下降。本新观察不是历史优化因果A/B。
+| 口径 | 实际值与边界 |
+| --- | --- |
+| 首点前无CPU覆盖 | 0.052540958秒，未补齐 |
+| 首末实际wall/UTC跨度 | **86400.435570秒** |
+| 首末continuous跨度 | **86399.971184125秒** |
+| 每角色有效CPU awake | **86399.971181458秒**，约23小时59分59.971秒 |
+| 终界越过名义截止 | continuous **0.023725083秒**，原采样器终端点跨界，不是续跑 |
+| 裁到名义截止CPU覆盖 | **约86399.947456375秒**，按末分钟均匀分配估计，非新测量 |
+| 屏障/睡眠/缺样 | 仅首端点屏障；无检出sleep/gap/unknown/身份/时钟屏障，boot与电源UUID未变 |
 
-自然到期后复核writer退出原因/锁和原始稳定性，再保存逐文件SHA与独立脱敏逐小时统计、异常时间线、实际wall/CPU有效覆盖/睡眠缺口及未覆盖项，提交推送收尾记录并精确远端回读；App继续固定4dc。到期不自动重开，不将窗口结束标为连续24h稳定或无泄漏PASS。
+wall与continuous累计差约0.464386秒，不作睡眠缺口。冻结analyzer字段endpoint_wall_span_seconds实际是elapsed/continuous差；不改helper或原件，本报告与[最终证据](evidence/final.json)另列真实wall_ns跨度。每区间微小残差低于既定1ms容差，不能累加正值当睡眠。
+
+启动Fastest/memory已知；JSONL的mode=run是collector模式，**不能证明App运行期从未切换模式**。本轮未请求状态，App模式连续性未独立完整记录；没有跨已知身份或模式屏障连接趋势。
+
+[逐小时JSON](evidence/hourly.json)/[CSV](evidence/hourly.csv)包含各角色、实际身份段、单小时CPU/RSS/FP中位/p95/峰/首末、OLS/TheilSen、样本数和有效CPU时长。[原分钟CPU量](evidence/cpu-intervals.json)另存。以窗口起点分小时，跨小时CPU按分钟内均匀分配估计；私有observer/hourly是累计快照，不当单小时。slot24仅一个内存点和约0.023725秒CPU片段，不当完整第25小时或计算单点斜率。
+
+## 完整已识别异常线
+
+时间均为北京时间。[异常JSON](evidence/anomaly-timeline.json)另含全部相邻≥1MiB FP变化、全部process-measured高CPU候选及严格集合；本轮两集合均6条，无被DBunknown隐藏的高段。时间线不是完整原始触发或分配审计。
+
+| 时间 | 事实与界限 |
+| --- | --- |
+| 10月22日13:40–13:44 | GUI升至约65.8MiB后回约51.45MiB，具体对象来源未知。 |
+| 15:42–15:43 | serve FP1550.126671→1478.892296MiB，真实下降71.234375MiB，未唯一归因对象释放。 |
+| 17:23 | 已通知watch早期增长候选；首4小时FP中位约5.204/5.977/6.172/6.266MiB，之后放缓，19:38附近回落；不抹去早期增长。 |
+| 19:25–19:26 | history_gap后一轮全量加载；GUI+15.234421MiB、serve+46.531296MiB；GUI19:45回51.844872MiB。 |
+| 20:36 | serve再+48.015625MiB，保存日志中load/search计数未增加；VM记账/压缩相关，非唯一分配或泄漏归因。 |
+| 21:53 | serve FP1573.642387→1468.876740MiB，真实下降104.765648MiB，随后长时近平台。 |
+| 10月23日10:39–10:44 | GUI峰66.391747MiB后回约51.8MiB，在监听恢复前，不能归入后者。 |
+| 11:01–11:08 | 原始UserDropped、全根恢复、六个高CPU分钟关联；11:08分钟CPU降至24.74435%，其后没有新增≥50%分钟。 |
+| 11:46之后 | watch FP再次真实回落，末8.563095MiB，尾60点平台但高于事前。 |
+| 12:02–13:22 | GUI继续增长80分钟，最后20分钟放缓，尚无多小时平台证据；serve/watch尾60点FP斜率均0。 |
+
+### UserDropped、重复重扫与写放大
+
+11:01:17.580保存的原始flags3含MustScanSubDirs和UserDropped，recovery ID与11:01:17.581 roots计划衔接；11:07:27.529完成，**369952ms、indexed=rows_written7390140、unchanged0、warnings0**；11:07:27.654 checkpoint完成。11:08 revision跳增 **7394179**，last_indexed_at推进至11:07:22。
+
+3次callback、6个admitted事件合为一轮已记录恢复，coalesced5不是5轮扫描。first3+last1保存4条原始flags，另外2条未逐条采样，不能称6条都独立drop。扫描期间新入4357事件，合并142后4215路径/545859B，overflow0；后续子树处理可能重访路径，但新事件越过前次扫描边界，不能仅因重叠就丢弃。根路径交叠未得到完整证据。
+
+[EventInbox](../../src/watch.rs)有界，take_batch交换批次边界，预到达标记合并；DB工作在另一线程。保存callback耗时短，未见长callback阻塞；应用overflow不会伪造原始0x2。OS/FSEvents此前压力、交付/调度、噪声来源和上游排除启动配置未完整持久化，**上游底因未知**；inbox等待年龄不是OS交付延迟。未确认重复全根恢复实现缺陷，也不宣称全窗无重复的完整审计。
+
+**写放大机制已从源码确认**：[refresh_roots](../../src/scanner.rs)生成新indexed_at代次；[FILE_UPSERT_SQL与触发器](../../src/db.rs)把它纳入持久值比较、stale清理和当前可观察revision合同，因此其他元数据不变也可能写入并推进revision/日志。已有no-op guard只在包括代次的所有持久字段相等时跳过。
+
+直接忽略indexed_at会让stale清理误删未改动的存活行；只抑制代次revision也改变当前API合同。7390140是扫描写操作量，不是独立变化文件数或物理WAL字节；revision多出的4039不是重复扫描次数。实际元数据空写比例和物理写放大量未测。新floor已超过保存的serve loaded_revision，后端若仍未刷新，未来刷新会命中history_gap是源码推论；未发搜索验证，也不记为已发生第二次重载。
+
+扫描流式DFS，无持有全739万路径集合；语句/绑定容器在清理提交前drop/finalize，inbox/pending有界且取走替换。长生命周期SQLite连接、cache/temp工作、分配器/OS高水位是watch残留候选，缺watch堆/VM细分不能唯一解释。11:46是真实FP回落，但不证明全部对象释放或排除泄漏。
+
+### 19:25 history_gap、服务内存与GUI
+
+loaded_revision **48147456** 低于journal_floor **48190464**；floor在14:34–14:35越过loaded，到19:25查询才lazy refresh。当前保留16384 revision、每1024 prune，增量还受4096事件预算。按完整增量合同此次回退有必要，仅扩历史保留也未必解决预算限制。两次接受的搜索仅 **一次full load**，写锁内复查去重，搜索计算本身未合并。
+
+[server](../../src/server.rs)在加载新backend前释放旧backend，查询读锁与加载写锁串行；未发现旧索引Arc代保留路径。逻辑释放不等于VM即时返还。[arena](../../src/compact_index.rs)容量 **905969664→939524096B（+32MiB）**，实际使用仅+1746598B，slack **293192→32101026B（约30.614MiB）**。arena从64KiB几何增长、最多64MiB；尾arena32→64MiB仅是相符推论，没有逐arena日志。部分新增空间必要，整32MiB是可评估容量策略，容量不等于FP。
+
+19:25:07 full_after至19:25:30 idle的internal/FP关联增加约447.734MiB，与两次查询重叠，不能拆成特定缓冲、触页、分配器或泄漏。GUI同分钟升15.234MiB后回落；未找到无界历史结果/应用自有图标cache，但解码、排序、结果替换、回调可能短时重叠，旧响应可能在generation检查前解码。缺逐请求/UI/对象证据，GUI不能唯一归给服务重载。
+
+20:36台阶没有新的load/search计数；idle复用19:25的snapshot_at_ms容量/原因元数据，重复history_gap文字不是再次重载。VM相邻日志internal−23281664、compressed+73629696、FP+50348032、reusable−50331648B支持记账相关；之后RSS大降FP未变，到21:53 FP才下降。低RSS不代表索引释放。
+
+## 日志、封存和未覆盖项
+
+保存19组小时slot：0/1/2/4/5/6/7/8/10/12/14/15/17/18/19/20/21/22/24；缺 **3/9/11/13/16/23**，不补旧slot。它们是诊断日志缺口，**不是资源端点缺样**。小时原始日志 **20041413B**，低于37.5MiB上限；11:20额外异常快照 **925377B**单列，非资源采样。
+
+FD/路径轮转、大小/mtime、尾行、截断收据保留。源限频、事件抽样、小时之间轮转会丢细节；11:08 suppressed_records7664不是文件系统事件数。最后slot24有窗后1条watch、5条serve单列；窗内未见新增原始drop/roots，serve保存446条均idle且计数不变，不能据缺记录保证不存在。hour22之后约71分57秒无新原始watch覆盖，slot24窗内还报告抑制333/375/369。watch日志缺逐行cookie/UUID，其PID/时间与资源身份关联的限制保留。
+
+本轮私有根保留原manifest/state/JSONL/累计hourly/启动回执/所有诊断和收据、阶段检查点、两次调查及独立复核。封存副本逐文件SHA核验，[封存索引](evidence/seal.json)给出根哈希及脱敏文件SHA；私有原件不提交远端。冻结App/source archive、前轮验收/普通点/异常、8096e0a/a4418a7/29b冻结版、旧67点及两个旧24h原件、真实索引回滚保留，不重拷/重hash大库、不再次清理、不拼窗。
+
+未覆盖：亚分钟CPU峰、短命helper、完整触发来源、GUI对象、watch分配、实际空写比例/物理IO，以及本轮新增搜索/索引更新/code短词性能、睡眠恢复和受保护目录权限验收。[前轮验收](../watch-memory-20261022/REPORT.md)保留原范围，本轮不扩大为新PASS。
+
+历史29b的4轮UserDropped/24个高分钟/峰82.080153%、旧serve+47.578125MiB和GUI阶跃、更早9高分钟峰85.6349%/revision+7341204无原始触发均保留；TopK普通点总FP+17.690%、29b安装serve+40.844MiB/+2.717%、4dc受控短词尾FP+2.320MiB/普通安装serve+0.968658MiB/首次原生查询关联约432MiB分别保留。不同输入与时段不是因果A/B，不能概括整体内存降低。
+
+后续另获优化授权后，可在隔离副本验证访问代次/内容更新分离、arena尾部增长、有界刷新/历史预算、GUI过期响应工作；必须保持完整有序Top300、更新/恢复正确性和code等短词CPU/延迟门禁，再作同输入CPU/RSS/FP对照。**本轮未实施，不自动新开观察。**
+
+收尾只提交本轮脱敏文档与证据，推送后git ls-remote精确回读；App仍4dc不随docs HEAD重建。同步本周登记，个人项目不计PFT人天。完成后暂停同ID macevery-48，不归档聊天；推送/暂停回执另外保存于私有收尾记录。

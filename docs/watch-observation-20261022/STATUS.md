@@ -1,19 +1,17 @@
-# MacEvery 独立24小时观察
+# MacEvery 4dc 独立24小时观察
 
-2026-10-22，r1，OBSERVING_NOT_FINAL。
+2026-10-23，r2，**NATURALLY_ENDED_SEALED_WITH_ANOMALIES**。原窗口已结束；不恢复、补足、延长、重开、拼旧数据或新增资源采样/搜索。结束不是连续24小时稳定或无泄漏PASS。
 
-固定App **0.1.3-g4dc3e4b**，源码 **4dc3e4b5d05136ecb75ca72eaa6dc3f6ce18b114**。独立窗口 **2026-10-22 13:22:00.017045 至 2026-10-23 13:22:00.017045**（Asia/Shanghai），86400秒，每60秒。没有重启、替换、重建App、发搜索或修改索引/配置；既有三进程继续运行。用户自然使用、模式切换和睡眠按实际身份分段。
+固定App **0.1.3-g4dc3e4b**，源码 **4dc3e4b5d05136ecb75ca72eaa6dc3f6ce18b114**，不随文档HEAD重建、重启或替换。原窗口北京时间2026-10-22 13:22:00.017045至23日13:22:00.017045。唯一采样器自然window_elapsed/exit0，原worker实际PID不存在、collector盘点空、writer锁空闲，35个状态原文件两次稳定核验。
 
-已完成启动：私有根 `.build/watch-observation-20261022`；新state为其 `observation-24h`。唯一worker PID97567、cookie9393741510187、session `run-b55d8c6c568a4741a18f4a6fa66f4cf0`；实际arm64 Mach-O UUID、boot、executable、精确argv、写锁、committed prefix及三角色已核实。常量不能代替后续实际存活检查。首端点+0.052540958秒，此前无CPU覆盖，不补窗。精确哈希和普通使用起点见[启动证据](evidence/start.json)。
+1441行／4660148B，连续sequence/末行/单session/source/DB pin及三角色各单一实际身份匹配。实际wall端点跨度86400.435570秒，有效CPU awake86399.971181458秒；首0.052540958秒无CPU，终界跨出0.023725083秒保留，裁窗有效时长仅均匀分配估计。仅初始屏障，无检出sleep/gap/unknown/身份屏障。App模式未完整独立记录，mode=run只是collector模式；冻结analyzer误名wall字段实为continuous差，报告另列真实wall，不改helper。
 
-当前App/精确源码、验收基线和异常原件已冻结到本轮baseline；已有真实索引回滚按原路径/身份/既有SHA保留，没有再复制或全库hash。旧8096e0a/a4418a7/29b冻结版、旧67点与两个旧24h原件/逐小时材料/封存哈希保持；旧临时大库不重建。本轮不拼旧窗口。
+11:01确认一轮原始flags3 UserDropped关联全根恢复，7390140行写入，6个有效分钟≥50%，峰76.027560%，249.815049CPU秒。未确认重复全根恢复缺陷；新indexed_at代次导致元数据未变行也写入/revision的机制已确认，当前stale/API语义不能直接忽略。上游drop原因、实际空写比例/物理IO未知。
 
-每次先读本STATUS和[REPORT](REPORT.md)、新manifest/state/launch；比对已提交start.json与monitoring-tools中的4个private helper及2个public tool SHA。使用现成解释器 `/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/Resources/Python.app/Contents/MacOS/Python`，PYTHONPYCACHEPREFIX仅本轮pycache。只运行本轮 `health_check.py`、`analyze_committed.py`（各自绝对路径且无参数），以及现有 `tools/observe_app_resources.py summarize --state` 指向本轮绝对state。**analyzer的任意--output不能防止覆盖其他私有原件，本轮只批准无参数默认派生缓存命令**；该限制已独立review记录，冻结helper不改。
+末FP MiB：GUI **55.626099**，12:02以来80分钟+3.765625，尾60点OLS+1.390435MiB/h，临近终点放缓但未确认多小时平台；serve **1468.954887**、watch **8.563095**尾60点均平台。watch较恢复前仍+2.187546MiB，来源未唯一归因。19:25一次history_gap加载、arena容量和GUI关联、20:36服务VM台阶及21:53真实FP回落均纳入终报。
 
-health检查实际PID/cookie/UUID/boot/exe/exact argv/写锁和新鲜度，读committed prefix前核实实际journal字节数>=state.journal_bytes、连续sequence/行数/最后记录与state一致；若state推进，可重新读取同一snapshot验证一次，不修补原始证据。不能只信state.running或summarize。每个小时slot最多一组有界诊断快照，不能补旧slot。
+详见[REPORT](REPORT.md)、[最终证据](evidence/final.json)、[逐小时](evidence/hourly.json)、[异常线](evidence/anomaly-timeline.json)、[封存索引](evidence/seal.json)。小时诊断缺slot3/9/11/13/16/23未补，不等于资源缺样；源限频/抽样/轮转和窗后行保留，不称完整触发审计。
 
-关注UserDropped/必要恢复和watch单核>=50%有效分钟区间是否复发，关联有界日志的具体trigger/recovery计划/完成、revision与last_indexed_at，不能把batch OR flags当每事件原始flags，也不凭日志缺失声称无drop。分别保留所有process-measured高CPU候选和source/DB匹配的严格归因集合，不以DBunknown静默丢掉高CPU。GUI/serve/watch逐实际身份计算单小时CPU/RSS/footprint中位/p95/峰/端点、斜率和尾60平台；不跨重启/模式切换连线。
+私有根`.build/watch-observation-20261022`内原始manifest/state/journal/hourly/launch/诊断/收据/调查/阶段/独立复核封存并逐文件SHA核验。当前冻结App/source archive、验收/普通点/异常、真实索引回滚、所有旧冻结/旧窗口保留；不重建/再清理大库。私有原件不推送。
 
-仅有显著复发、连续数小时增长候选、未解释长缺样/提前退出/身份失配或需用户操作时通知；正常及无需操作的已解释变化保持安静。锁屏无需暂停；睡眠/电源UUID变化/缺口独立记录，不补足/延长/重开窗口。禁止另启collector、sample插点、resume、搜索/status/control请求、全表COUNT、App/DB/配置/权限/工具修改、构建或压测。
-
-到期：先确认window_finished、last_exit.reason=window_elapsed/exit_code=0、原worker实际退出或身份不存在且writer锁空闲、原始文件稳定；exit0本身不足以证明自然到期。保留manifest/state/journal/hourly/启动回执/原始有界诊断快照及逐文件SHA，保存脱敏逐小时摘要、完整异常时间线与实际wall/CPU覆盖/睡眠缺口/角色身份段。更新本REPORT/STATUS和本周登记，按既有授权提交推送收尾记录并git ls-remote精确回读远端SHA；App仍固定4dc，不随docs HEAD重建。完成或明确需人工处理后暂停同ID `macevery-48`，保留证据，不归档、不自动新开观察。窗口结束不是连续24h稳定/无泄漏PASS。
+收尾提交推送本轮脱敏报告/证据并精确远端SHA回读，同步本周登记；完成后暂停同ID **macevery-48**，保留聊天与证据，不自动新开任务或观察。推送/暂停外部回执另存私有收尾记录，App保持4dc。后续代码优化、新验收或替换App按用户新的任务授权推进。

@@ -1,0 +1,382 @@
+{
+  "schema": 1,
+  "timezone": "Asia/Shanghai",
+  "timeline": [
+    {
+      "local": "2026-10-22 13:40–13:44",
+      "event": "GUI early temporary footprint rise to about65.8MiB, then about51.45MiB; source attribution unknown."
+    },
+    {
+      "local": "2026-10-22 15:42–15:43",
+      "event": "serve footprint fell about71.23MiB from1550.127 to1478.892MiB; no object-release attribution."
+    },
+    {
+      "local": "2026-10-22 17:23",
+      "event": "watch early growth candidate notified: +1.421898MiB from ordinary start; hourly growth subsequently slowed."
+    },
+    {
+      "local": "2026-10-22 19:25–19:26",
+      "event": "history_gap caused one full load across two accepted searches; GUI+15.234421MiB and serve+46.531296MiB in same resource minute. Correlation is not unique GUI allocation attribution."
+    },
+    {
+      "local": "2026-10-22 19:38 /19:45",
+      "event": "watch fell toward6.079MiB; GUI returned from66.267 to51.845MiB."
+    },
+    {
+      "local": "2026-10-22 20:36",
+      "event": "serve+48.015625MiB without new load/query counters in retained logs; VM accounting/compression correlation, no unique allocation cause."
+    },
+    {
+      "local": "2026-10-22 21:53",
+      "event": "serve footprint actually fell104.765648MiB to1468.876740MiB, later near this level; RSS decline alone is not the evidence for this FP decline."
+    },
+    {
+      "local": "2026-10-23 10:39–10:44",
+      "event": "GUI temporary peak66.391747MiB then back near51.8MiB; independent of later watch root scan."
+    },
+    {
+      "local": "2026-10-23 11:01:17.580–11:07:27.654",
+      "event": "confirmed flags3 raw UserDropped root recovery: one saved scan start/complete, 369952ms, indexed=rows_written7390140, unchanged0; checkpoint complete. Six strict/measured CPU intervals>=50%, peak76.027560%; root path overlap and upstream drop origin remain unknown."
+    },
+    {
+      "local": "2026-10-23 11:08",
+      "event": "revision sampled jump+7394179, last_indexed_at advanced. Difference4039 from root rows is not duplicate-scan count; watch FP91.953720 peak fell to11.281845MiB."
+    },
+    {
+      "local": "2026-10-23 11:46",
+      "event": "watch FP fell3.03125MiB to8.313095MiB, later8.563095MiB; tail platform still2.187546MiB above immediately before recovery."
+    },
+    {
+      "local": "2026-10-23 12:02–13:22",
+      "event": "GUI footprint51.860474→55.626099MiB (+3.765625 over80min). Last60 endpoints span59min, OLS+1.390435MiB/h; growth slowed near end but sustained tail platform not established. No allocation cause or leak proof."
+    },
+    {
+      "local": "2026-10-23 13:22:00",
+      "event": "Original resource window naturally finished; no new collector/window/search or App action."
+    }
+  ],
+  "all_adjacent_footprint_steps_at_least_1MiB": [
+    {
+      "role": "gui",
+      "from_sequence": 18,
+      "sequence": 19,
+      "start_utc": "2026-10-22T05:39:00.107868+00:00",
+      "end_utc": "2026-10-22T05:40:00.111844+00:00",
+      "before_footprint_MiB": 51.4854736328125,
+      "after_footprint_MiB": 65.7511215209961,
+      "delta_MiB": 14.265647888183594,
+      "same_actual_identity": true
+    },
+    {
+      "role": "gui",
+      "from_sequence": 22,
+      "sequence": 23,
+      "start_utc": "2026-10-22T05:43:00.119310+00:00",
+      "end_utc": "2026-10-22T05:44:00.111784+00:00",
+      "before_footprint_MiB": 65.7667465209961,
+      "after_footprint_MiB": 51.4542236328125,
+      "delta_MiB": -14.312522888183594,
+      "same_actual_identity": true
+    },
+    {
+      "role": "serve",
+      "from_sequence": 141,
+      "sequence": 142,
+      "start_utc": "2026-10-22T07:42:00.296536+00:00",
+      "end_utc": "2026-10-22T07:43:00.306740+00:00",
+      "before_footprint_MiB": 1550.1266708374023,
+      "after_footprint_MiB": 1478.8922958374023,
+      "delta_MiB": -71.234375,
+      "same_actual_identity": true
+    },
+    {
+      "role": "gui",
+      "from_sequence": 364,
+      "sequence": 365,
+      "start_utc": "2026-10-22T11:25:00.424900+00:00",
+      "end_utc": "2026-10-22T11:26:00.412070+00:00",
+      "before_footprint_MiB": 51.0792236328125,
+      "after_footprint_MiB": 66.31364440917969,
+      "delta_MiB": 15.234420776367188,
+      "same_actual_identity": true
+    },
+    {
+      "role": "serve",
+      "from_sequence": 364,
+      "sequence": 365,
+      "start_utc": "2026-10-22T11:25:00.424900+00:00",
+      "end_utc": "2026-10-22T11:26:00.412070+00:00",
+      "before_footprint_MiB": 1478.8922958374023,
+      "after_footprint_MiB": 1525.4235916137695,
+      "delta_MiB": 46.53129577636719,
+      "same_actual_identity": true
+    },
+    {
+      "role": "gui",
+      "from_sequence": 383,
+      "sequence": 384,
+      "start_utc": "2026-10-22T11:44:00.424414+00:00",
+      "end_utc": "2026-10-22T11:45:00.424720+00:00",
+      "before_footprint_MiB": 66.26676940917969,
+      "after_footprint_MiB": 51.844871520996094,
+      "delta_MiB": -14.421897888183594,
+      "same_actual_identity": true
+    },
+    {
+      "role": "serve",
+      "from_sequence": 434,
+      "sequence": 435,
+      "start_utc": "2026-10-22T12:35:00.407874+00:00",
+      "end_utc": "2026-10-22T12:36:00.405486+00:00",
+      "before_footprint_MiB": 1525.5798645019531,
+      "after_footprint_MiB": 1573.5954895019531,
+      "delta_MiB": 48.015625,
+      "same_actual_identity": true
+    },
+    {
+      "role": "serve",
+      "from_sequence": 511,
+      "sequence": 512,
+      "start_utc": "2026-10-22T13:52:00.374236+00:00",
+      "end_utc": "2026-10-22T13:53:00.386514+00:00",
+      "before_footprint_MiB": 1573.6423873901367,
+      "after_footprint_MiB": 1468.8767395019531,
+      "delta_MiB": -104.7656478881836,
+      "same_actual_identity": true
+    },
+    {
+      "role": "gui",
+      "from_sequence": 1277,
+      "sequence": 1278,
+      "start_utc": "2026-10-23T02:38:00.277237+00:00",
+      "end_utc": "2026-10-23T02:39:00.275079+00:00",
+      "before_footprint_MiB": 52.0635986328125,
+      "after_footprint_MiB": 66.3917465209961,
+      "delta_MiB": 14.328147888183594,
+      "same_actual_identity": true
+    },
+    {
+      "role": "gui",
+      "from_sequence": 1282,
+      "sequence": 1283,
+      "start_utc": "2026-10-23T02:43:00.275532+00:00",
+      "end_utc": "2026-10-23T02:44:00.279815+00:00",
+      "before_footprint_MiB": 66.3448715209961,
+      "after_footprint_MiB": 51.7823486328125,
+      "delta_MiB": -14.562522888183594,
+      "same_actual_identity": true
+    },
+    {
+      "role": "watch",
+      "from_sequence": 1300,
+      "sequence": 1301,
+      "start_utc": "2026-10-23T03:01:00.343914+00:00",
+      "end_utc": "2026-10-23T03:02:00.342413+00:00",
+      "before_footprint_MiB": 6.37554931640625,
+      "after_footprint_MiB": 91.67247009277344,
+      "delta_MiB": 85.29692077636719,
+      "same_actual_identity": true
+    },
+    {
+      "role": "watch",
+      "from_sequence": 1306,
+      "sequence": 1307,
+      "start_utc": "2026-10-23T03:07:00.335432+00:00",
+      "end_utc": "2026-10-23T03:08:00.333938+00:00",
+      "before_footprint_MiB": 91.95372009277344,
+      "after_footprint_MiB": 11.281845092773438,
+      "delta_MiB": -80.671875,
+      "same_actual_identity": true
+    },
+    {
+      "role": "watch",
+      "from_sequence": 1344,
+      "sequence": 1345,
+      "start_utc": "2026-10-23T03:45:00.426955+00:00",
+      "end_utc": "2026-10-23T03:46:00.429132+00:00",
+      "before_footprint_MiB": 11.344345092773438,
+      "after_footprint_MiB": 8.313095092773438,
+      "delta_MiB": -3.03125,
+      "same_actual_identity": true
+    }
+  ],
+  "watch_strict_high_CPU_segments": [
+    {
+      "start_sequence": 1300,
+      "start_utc": "2026-10-23T03:01:00.343914+00:00",
+      "intervals": [
+        {
+          "sequence": 1301,
+          "from_sequence": 1300,
+          "start_elapsed_seconds": 77940.023412208,
+          "end_elapsed_seconds": 78000.022552083,
+          "start_utc": "2026-10-23T03:01:00.343914+00:00",
+          "end_utc": "2026-10-23T03:02:00.342413+00:00",
+          "cpu_seconds": 30.901088042,
+          "awake_seconds": 59.9991405,
+          "percent": 51.502551177378955,
+          "revision_delta": 16,
+          "last_indexed_at_before": "1792637394",
+          "last_indexed_at_after": "1792637394"
+        },
+        {
+          "sequence": 1302,
+          "from_sequence": 1301,
+          "start_elapsed_seconds": 78000.022552083,
+          "end_elapsed_seconds": 78060.019893166,
+          "start_utc": "2026-10-23T03:02:00.342413+00:00",
+          "end_utc": "2026-10-23T03:03:00.339130+00:00",
+          "cpu_seconds": 45.554755958,
+          "awake_seconds": 59.997341209,
+          "percent": 75.92795787285068,
+          "revision_delta": 0,
+          "last_indexed_at_before": "1792637394",
+          "last_indexed_at_after": "1792637394"
+        },
+        {
+          "sequence": 1303,
+          "from_sequence": 1302,
+          "start_elapsed_seconds": 78060.019893166,
+          "end_elapsed_seconds": 78120.020060166,
+          "start_utc": "2026-10-23T03:03:00.339130+00:00",
+          "end_utc": "2026-10-23T03:04:00.338647+00:00",
+          "cpu_seconds": 44.945902834,
+          "awake_seconds": 60.000166916,
+          "percent": 74.90962966307092,
+          "revision_delta": 0,
+          "last_indexed_at_before": "1792637394",
+          "last_indexed_at_after": "1792637394"
+        },
+        {
+          "sequence": 1304,
+          "from_sequence": 1303,
+          "start_elapsed_seconds": 78120.020060166,
+          "end_elapsed_seconds": 78180.013095291,
+          "start_utc": "2026-10-23T03:04:00.338647+00:00",
+          "end_utc": "2026-10-23T03:05:00.331018+00:00",
+          "cpu_seconds": 45.61124075,
+          "awake_seconds": 59.993035459,
+          "percent": 76.02755953425844,
+          "revision_delta": 0,
+          "last_indexed_at_before": "1792637394",
+          "last_indexed_at_after": "1792637394"
+        },
+        {
+          "sequence": 1305,
+          "from_sequence": 1304,
+          "start_elapsed_seconds": 78180.013095291,
+          "end_elapsed_seconds": 78240.015851625,
+          "start_utc": "2026-10-23T03:05:00.331018+00:00",
+          "end_utc": "2026-10-23T03:06:00.333104+00:00",
+          "cpu_seconds": 41.734665874,
+          "awake_seconds": 60.002756041,
+          "percent": 69.55458153535918,
+          "revision_delta": 0,
+          "last_indexed_at_before": "1792637394",
+          "last_indexed_at_after": "1792637394"
+        },
+        {
+          "sequence": 1306,
+          "from_sequence": 1305,
+          "start_elapsed_seconds": 78240.015851625,
+          "end_elapsed_seconds": 78300.018841541,
+          "start_utc": "2026-10-23T03:06:00.333104+00:00",
+          "end_utc": "2026-10-23T03:07:00.335432+00:00",
+          "cpu_seconds": 41.067395375,
+          "awake_seconds": 60.00299,
+          "percent": 68.44224825296206,
+          "revision_delta": 0,
+          "last_indexed_at_before": "1792637394",
+          "last_indexed_at_after": "1792637394"
+        }
+      ],
+      "cpu_seconds": 249.815048833,
+      "valid_awake_seconds": 359.995430125,
+      "peak_percent_one_core": 76.02755953425844,
+      "end_sequence": 1306,
+      "end_utc": "2026-10-23T03:07:00.335432+00:00"
+    }
+  ],
+  "all_recorded_measured_high_CPU_candidates": [
+    {
+      "sequence": 1301,
+      "from_sequence": 1300,
+      "at_utc": "2026-10-23T03:02:00.342413+00:00",
+      "average_cpu_percent_one_core": 51.502551177378955,
+      "cpu_seconds": 30.901088042,
+      "awake_seconds": 59.9991405,
+      "strict_eligible": true,
+      "strict_exclusion_reasons": [],
+      "process_measured_eligible": true,
+      "source_status": "match",
+      "database_pin_status": "match"
+    },
+    {
+      "sequence": 1302,
+      "from_sequence": 1301,
+      "at_utc": "2026-10-23T03:03:00.339130+00:00",
+      "average_cpu_percent_one_core": 75.92795787285068,
+      "cpu_seconds": 45.554755958,
+      "awake_seconds": 59.997341209,
+      "strict_eligible": true,
+      "strict_exclusion_reasons": [],
+      "process_measured_eligible": true,
+      "source_status": "match",
+      "database_pin_status": "match"
+    },
+    {
+      "sequence": 1303,
+      "from_sequence": 1302,
+      "at_utc": "2026-10-23T03:04:00.338647+00:00",
+      "average_cpu_percent_one_core": 74.90962966307092,
+      "cpu_seconds": 44.945902834,
+      "awake_seconds": 60.000166916,
+      "strict_eligible": true,
+      "strict_exclusion_reasons": [],
+      "process_measured_eligible": true,
+      "source_status": "match",
+      "database_pin_status": "match"
+    },
+    {
+      "sequence": 1304,
+      "from_sequence": 1303,
+      "at_utc": "2026-10-23T03:05:00.331018+00:00",
+      "average_cpu_percent_one_core": 76.02755953425844,
+      "cpu_seconds": 45.61124075,
+      "awake_seconds": 59.993035459,
+      "strict_eligible": true,
+      "strict_exclusion_reasons": [],
+      "process_measured_eligible": true,
+      "source_status": "match",
+      "database_pin_status": "match"
+    },
+    {
+      "sequence": 1305,
+      "from_sequence": 1304,
+      "at_utc": "2026-10-23T03:06:00.333104+00:00",
+      "average_cpu_percent_one_core": 69.55458153535918,
+      "cpu_seconds": 41.734665874,
+      "awake_seconds": 60.002756041,
+      "strict_eligible": true,
+      "strict_exclusion_reasons": [],
+      "process_measured_eligible": true,
+      "source_status": "match",
+      "database_pin_status": "match"
+    },
+    {
+      "sequence": 1306,
+      "from_sequence": 1305,
+      "at_utc": "2026-10-23T03:07:00.335432+00:00",
+      "average_cpu_percent_one_core": 68.44224825296206,
+      "cpu_seconds": 41.067395375,
+      "awake_seconds": 60.00299,
+      "strict_eligible": true,
+      "strict_exclusion_reasons": [],
+      "process_measured_eligible": true,
+      "source_status": "match",
+      "database_pin_status": "match"
+    }
+  ],
+  "strict_excluded_high_CPU_candidates": [],
+  "boundary": "Timeline contains all identified episodes and all adjacent >=1MiB footprint changes. It is not a complete raw-trigger or heap-allocation audit; subminute peaks, suppressed/rotated logs and unobserved path overlap remain unknown."
+}

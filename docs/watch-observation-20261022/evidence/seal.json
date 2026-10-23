@@ -1,0 +1,32 @@
+{
+  "schema": 1,
+  "at_utc": "2026-10-23T05:43:04.752548+00:00",
+  "status": "SEALED_WITH_RECORDED_ANOMALIES_NOT_STABILITY_PASS",
+  "private_archive_name": "sealed-20261023",
+  "private_manifest_sha256": "bac2081523c2539015fbce77d7c9e93933b23e4b88ee66f74fd106389675cb4f",
+  "private_SHA256SUMS_sha256": "5fe656c603dc4fb68f25715744e5f73dca3811de83c45ff1d12e199a0f105201",
+  "private_file_count": 329,
+  "private_file_bytes": 40222228,
+  "public_files_sha256": {
+    "REPORT.md": "f147f45467fe6fc5cf812f7562ba530a3b9a40b3a85c2a54fc4441444a07242b",
+    "STATUS.md": "42001be872a97ddcde3442d87db9d2b2f9bf9bc94a849584b9fe34d960aa4fa7",
+    "evidence/anomaly-timeline.json": "48e27822793fe709dec262edb4c058aa6f285f52fb2ded43e9ed8d106add86a7",
+    "evidence/cpu-intervals.json": "0569ef1ae77e8148938114de696ba8cdcf4ed085a6b714e9b851a4080ae03a71",
+    "evidence/final.json": "d4735b34cef0ccfe84d8d887e36eab54515a42f82dfad26cb08ac1f3dc1a90b7",
+    "evidence/hourly.csv": "afe22ca58ff310b8516472d55afc561fc7e407a24c9d9e44ebaddf240fba9421",
+    "evidence/hourly.json": "12b757911dfc247f0abd3a99f75b36f778e6d01fee6283199652f2ddba8dea19",
+    "evidence/start.json": "7d22fec8a65ab5a8f87320b8de06d36561bf5a8dc26eb96db5314e698c779a5b"
+  },
+  "raw_journal": {
+    "rows": 1441,
+    "bytes": 4660148,
+    "sha256": "df565640b7367657846c6b182b07b3ce2c903bdd966f6f60a4b8f593c932dd0a"
+  },
+  "independent_reviews_sha256": {
+    "closeout-independent-resource-review.local.json": "17eb9e06be4ac14780ffdbd1a3d132abc9673d3bcc76df8c3157e021355b4078",
+    "closeout-independent-trigger-review.local.json": "cb81e86b951f44c351512273fdd42fb9ca6b637a67c05eb50f6ad5cec9fa090e",
+    "closeout-independent-doc-review.local.json": "1a35d8bb93eacb428a5b6c8b1432a9ae04ed9c6cdfae8a8bb121e39cb04172f8"
+  },
+  "scope": "Private raw copies and full per-file hashes retained locally, not pushed. Public summary/hourly/CPU/anomaly material is sanitized. Existing frozen artifacts and real rollback retained; no old-window data joined or extra resource samples.",
+  "receipt_boundary": "Commit/remote-SHA and automation-pause receipts occur after sealing and are retained as separate private closeout receipts; they do not mutate sealed evidence."
+}
