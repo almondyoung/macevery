@@ -1,0 +1,841 @@
+{
+  "status": "ALL_IDENTIFIED_RETAINED_ANOMALIES_NOT_EXHAUSTIVE_OS_EVENT_AUDIT",
+  "events": [
+    {
+      "at_utc": "2026-10-23T07:24:53.957679+00:00",
+      "kind": "window_start",
+      "detail": "独立86400秒窗口；首CPU端点前缺口不补足。",
+      "at_asia_shanghai": "2026-10-23T15:24:53.957+08:00"
+    },
+    {
+      "at_utc": "2026-10-23T07:25:42.341+00:00",
+      "kind": "serve_full_after",
+      "method": "fallback_full",
+      "fallback_reason": "event_limit",
+      "load_attempts": 2,
+      "successful_loads": 2,
+      "incremental_applies": 1,
+      "records": 7397317,
+      "capacity_bytes": 1538891078,
+      "loaded_revision": 55650204,
+      "footprint_MiB": 902.8767166137695,
+      "at_asia_shanghai": "2026-10-23T15:25:42.341+08:00"
+    },
+    {
+      "at_utc": "2026-10-23T07:34:54.046862+00:00",
+      "kind": "serve_FP_rebound",
+      "sequence": 11,
+      "detail": "15:34分钟FP约+225MiB；VM reusable→internal关联，容量/加载计数未增长，具体归属未知。",
+      "at_asia_shanghai": "2026-10-23T15:34:54.046+08:00"
+    },
+    {
+      "at_utc": "2026-10-23T08:10:54.162725+00:00",
+      "end_utc": "2026-10-23T08:12:54.164013+00:00",
+      "kind": "watch_strict_high_CPU_segment",
+      "minutes": 2,
+      "peak_percent_one_core": 68.43467809732789,
+      "cpu_seconds": 78.043923542,
+      "awake_seconds": 120.00124916600001,
+      "from_sequence": 47,
+      "to_sequence": 49,
+      "at_asia_shanghai": "2026-10-23T16:10:54.162+08:00"
+    },
+    {
+      "at_utc": "2026-10-23T08:10:56.123+00:00",
+      "kind": "UserDropped_root_scan_start",
+      "flags_or": 3,
+      "recovery_event_flags": 3,
+      "admitted_raw": {
+        "must_scan": 10,
+        "user_dropped": 10,
+        "kernel_dropped": 0,
+        "ids_wrapped": 0,
+        "root_changed": 0
+      },
+      "callback_signals": {
+        "must_scan": 10,
+        "user_dropped": 10,
+        "kernel_dropped": 0,
+        "ids_wrapped": 0,
+        "root_changed": 0
+      },
+      "indexed": 0,
+      "rows_written": 0,
+      "unchanged": 0,
+      "stale_removed": 0,
+      "elapsed_ms": 0,
+      "legacy_fallback": false,
+      "warnings": 0,
+      "retry_due": false,
+      "retry_roots": false,
+      "private_original_row_sha256": "26dcaf4eeeeb8bc79eb47c0f94eb1325ce151d6dde4f14808c3b2d7936d3e894",
+      "at_asia_shanghai": "2026-10-23T16:10:56.123+08:00"
+    },
+    {
+      "at_utc": "2026-10-23T08:13:54.166431+00:00",
+      "end_utc": "2026-10-23T08:17:54.176590+00:00",
+      "kind": "watch_strict_high_CPU_segment",
+      "minutes": 4,
+      "peak_percent_one_core": 72.20885896016303,
+      "cpu_seconds": 163.761047416,
+      "awake_seconds": 240.01012104100002,
+      "from_sequence": 50,
+      "to_sequence": 54,
+      "at_asia_shanghai": "2026-10-23T16:13:54.166+08:00"
+    },
+    {
+      "at_utc": "2026-10-23T08:14:24.368+00:00",
+      "kind": "UserDropped_root_scan_complete",
+      "flags_or": 3,
+      "recovery_event_flags": 3,
+      "admitted_raw": {
+        "must_scan": 10,
+        "user_dropped": 10,
+        "kernel_dropped": 0,
+        "ids_wrapped": 0,
+        "root_changed": 0
+      },
+      "callback_signals": {
+        "must_scan": 16,
+        "user_dropped": 16,
+        "kernel_dropped": 0,
+        "ids_wrapped": 0,
+        "root_changed": 0
+      },
+      "indexed": 7397721,
+      "rows_written": 590,
+      "unchanged": 7397131,
+      "stale_removed": 0,
+      "elapsed_ms": 208244,
+      "legacy_fallback": false,
+      "warnings": 0,
+      "retry_due": false,
+      "retry_roots": false,
+      "private_original_row_sha256": "c08104d1c02108ab82da8ac7b33670f73d39f8701f09e2442320ab607eb73302",
+      "at_asia_shanghai": "2026-10-23T16:14:24.368+08:00"
+    },
+    {
+      "at_utc": "2026-10-23T08:14:24.371+00:00",
+      "kind": "watch_retained_flag_retry_or_failure_record",
+      "record_kind": "checkpoint_complete",
+      "scope": "checkpoint",
+      "flags_or": 3,
+      "admitted_raw": {
+        "must_scan": 10,
+        "user_dropped": 10,
+        "kernel_dropped": 0,
+        "ids_wrapped": 0,
+        "root_changed": 0
+      },
+      "active_retry_failure_fields": {},
+      "private_original_row_sha256": "e32794fde0bbe90af83660efaf3e7791a531a9c453e6210aca55d2125c1cc1aa",
+      "at_asia_shanghai": "2026-10-23T16:14:24.371+08:00"
+    },
+    {
+      "at_utc": "2026-10-23T08:14:24.526+00:00",
+      "kind": "watch_retained_flag_retry_or_failure_record",
+      "record_kind": "filter_summary",
+      "scope": "callback_interval",
+      "flags_or": 163843,
+      "admitted_raw": {
+        "must_scan": 6,
+        "user_dropped": 6,
+        "kernel_dropped": 0,
+        "ids_wrapped": 0,
+        "root_changed": 0
+      },
+      "active_retry_failure_fields": {},
+      "private_original_row_sha256": "85be92110fa9c7ccf4d43c971b75736dc807b434b3daa1d6d9adc3a912420599",
+      "at_asia_shanghai": "2026-10-23T16:14:24.526+08:00"
+    },
+    {
+      "at_utc": "2026-10-23T08:14:24.527+00:00",
+      "kind": "UserDropped_root_scan_start",
+      "flags_or": 163843,
+      "recovery_event_flags": 3,
+      "admitted_raw": {
+        "must_scan": 6,
+        "user_dropped": 6,
+        "kernel_dropped": 0,
+        "ids_wrapped": 0,
+        "root_changed": 0
+      },
+      "callback_signals": {
+        "must_scan": 16,
+        "user_dropped": 16,
+        "kernel_dropped": 0,
+        "ids_wrapped": 0,
+        "root_changed": 0
+      },
+      "indexed": 0,
+      "rows_written": 0,
+      "unchanged": 0,
+      "stale_removed": 0,
+      "elapsed_ms": 0,
+      "legacy_fallback": false,
+      "warnings": 0,
+      "retry_due": false,
+      "retry_roots": false,
+      "private_original_row_sha256": "ac8a943c9fd92a5a867065e8ca2b5a62cff000f985204707a9e42c0ab0c7ec72",
+      "at_asia_shanghai": "2026-10-23T16:14:24.527+08:00"
+    },
+    {
+      "at_utc": "2026-10-23T08:17:49.243+00:00",
+      "kind": "UserDropped_root_scan_complete",
+      "flags_or": 163843,
+      "recovery_event_flags": 3,
+      "admitted_raw": {
+        "must_scan": 6,
+        "user_dropped": 6,
+        "kernel_dropped": 0,
+        "ids_wrapped": 0,
+        "root_changed": 0
+      },
+      "callback_signals": {
+        "must_scan": 16,
+        "user_dropped": 16,
+        "kernel_dropped": 0,
+        "ids_wrapped": 0,
+        "root_changed": 0
+      },
+      "indexed": 7397721,
+      "rows_written": 0,
+      "unchanged": 7397721,
+      "stale_removed": 0,
+      "elapsed_ms": 204715,
+      "legacy_fallback": false,
+      "warnings": 0,
+      "retry_due": false,
+      "retry_roots": false,
+      "private_original_row_sha256": "54988a613ec2b12aa284115b7ed3c48a00a14f7f40dc4f325905bf1a1be712af",
+      "at_asia_shanghai": "2026-10-23T16:17:49.243+08:00"
+    },
+    {
+      "at_utc": "2026-10-23T08:17:49.244+00:00",
+      "kind": "watch_retained_flag_retry_or_failure_record",
+      "record_kind": "checkpoint_complete",
+      "scope": "checkpoint",
+      "flags_or": 163843,
+      "admitted_raw": {
+        "must_scan": 6,
+        "user_dropped": 6,
+        "kernel_dropped": 0,
+        "ids_wrapped": 0,
+        "root_changed": 0
+      },
+      "active_retry_failure_fields": {},
+      "private_original_row_sha256": "6827d4d0d007e691e1b6e2f250f334b9426c7bf253d958fc3cae47426a41f1aa",
+      "at_asia_shanghai": "2026-10-23T16:17:49.244+08:00"
+    },
+    {
+      "at_utc": "2026-10-23T09:34:17.505+00:00",
+      "kind": "serve_full_after",
+      "method": "fallback_full",
+      "fallback_reason": "event_limit",
+      "load_attempts": 3,
+      "successful_loads": 3,
+      "incremental_applies": 1,
+      "records": 7392415,
+      "capacity_bytes": 1539456773,
+      "loaded_revision": 55665535,
+      "footprint_MiB": 1329.1111373901367,
+      "at_asia_shanghai": "2026-10-23T17:34:17.505+08:00"
+    },
+    {
+      "at_utc": "2026-10-23T09:54:31.190+00:00",
+      "kind": "serve_incremental_after",
+      "method": "incremental",
+      "fallback_reason": null,
+      "load_attempts": 3,
+      "successful_loads": 3,
+      "incremental_applies": 2,
+      "records": 7392533,
+      "capacity_bytes": 1539457977,
+      "loaded_revision": 55665730,
+      "footprint_MiB": 1578.0798873901367,
+      "at_asia_shanghai": "2026-10-23T17:54:31.190+08:00"
+    },
+    {
+      "at_utc": "2026-10-23T10:55:54.291645+00:00",
+      "kind": "interval_barrier",
+      "detail": {
+        "from_sequence": 212,
+        "sequence": 213,
+        "start_utc": "2026-10-23T10:55:54.291645+00:00",
+        "end_utc": "2026-10-23T10:56:54.292560+00:00",
+        "start_local": "2026-10-23T18:55:54.291+08:00",
+        "end_local": "2026-10-23T18:56:54.292+08:00",
+        "interval_barriers": [
+          "power_transition"
+        ],
+        "previous_capture_barriers": [],
+        "capture_barriers": [],
+        "elapsed_seconds": 60.00037175000034,
+        "awake_seconds": 60.000372416,
+        "sleep_seconds": 0,
+        "power_uuid_changed": true,
+        "roles_known_both_endpoints": true
+      },
+      "at_asia_shanghai": "2026-10-23T18:55:54.291+08:00"
+    },
+    {
+      "at_utc": "2026-10-23T10:56:54.292560+00:00",
+      "kind": "interval_barrier",
+      "detail": {
+        "from_sequence": 213,
+        "sequence": 214,
+        "start_utc": "2026-10-23T10:56:54.292560+00:00",
+        "end_utc": "2026-10-23T11:16:46.494174+00:00",
+        "start_local": "2026-10-23T18:56:54.292+08:00",
+        "end_local": "2026-10-23T19:16:46.494+08:00",
+        "interval_barriers": [
+          "power_transition",
+          "sleep_observed",
+          "sampling_gap"
+        ],
+        "previous_capture_barriers": [],
+        "capture_barriers": [],
+        "elapsed_seconds": 1192.149998584,
+        "awake_seconds": 60.001944875,
+        "sleep_seconds": 1132.1480537090001,
+        "power_uuid_changed": true,
+        "roles_known_both_endpoints": true
+      },
+      "at_asia_shanghai": "2026-10-23T18:56:54.292+08:00"
+    },
+    {
+      "at_utc": "2026-10-23T11:16:46.494174+00:00",
+      "kind": "interval_barrier",
+      "detail": {
+        "from_sequence": 214,
+        "sequence": 215,
+        "start_utc": "2026-10-23T11:16:46.494174+00:00",
+        "end_utc": "2026-10-23T11:51:13.772337+00:00",
+        "start_local": "2026-10-23T19:16:46.494+08:00",
+        "end_local": "2026-10-23T19:51:13.772+08:00",
+        "interval_barriers": [
+          "sleep_observed",
+          "sampling_gap"
+        ],
+        "previous_capture_barriers": [],
+        "capture_barriers": [],
+        "elapsed_seconds": 2067.2496987079994,
+        "awake_seconds": 7.875081375,
+        "sleep_seconds": 2059.374617333,
+        "power_uuid_changed": false,
+        "roles_known_both_endpoints": true
+      },
+      "at_asia_shanghai": "2026-10-23T19:16:46.494+08:00"
+    },
+    {
+      "at_utc": "2026-10-23T11:51:13.772337+00:00",
+      "kind": "interval_barrier",
+      "detail": {
+        "from_sequence": 215,
+        "sequence": 216,
+        "start_utc": "2026-10-23T11:51:13.772337+00:00",
+        "end_utc": "2026-10-23T12:02:17.385840+00:00",
+        "start_local": "2026-10-23T19:51:13.772+08:00",
+        "end_local": "2026-10-23T20:02:17.385+08:00",
+        "interval_barriers": [
+          "sleep_observed",
+          "sampling_gap"
+        ],
+        "previous_capture_barriers": [],
+        "capture_barriers": [],
+        "elapsed_seconds": 663.6729799579989,
+        "awake_seconds": 40.599291542,
+        "sleep_seconds": 623.0736884160001,
+        "power_uuid_changed": false,
+        "roles_known_both_endpoints": true
+      },
+      "at_asia_shanghai": "2026-10-23T19:51:13.772+08:00"
+    },
+    {
+      "at_utc": "2026-10-23T12:02:17.385840+00:00",
+      "kind": "interval_barrier",
+      "detail": {
+        "from_sequence": 216,
+        "sequence": 217,
+        "start_utc": "2026-10-23T12:02:17.385840+00:00",
+        "end_utc": "2026-10-23T12:43:55.120190+00:00",
+        "start_local": "2026-10-23T20:02:17.385+08:00",
+        "end_local": "2026-10-23T20:43:55.120+08:00",
+        "interval_barriers": [
+          "sleep_observed",
+          "sampling_gap"
+        ],
+        "previous_capture_barriers": [],
+        "capture_barriers": [],
+        "elapsed_seconds": 2497.7185675420005,
+        "awake_seconds": 36.919804208,
+        "sleep_seconds": 2460.798763334,
+        "power_uuid_changed": false,
+        "roles_known_both_endpoints": true
+      },
+      "at_asia_shanghai": "2026-10-23T20:02:17.385+08:00"
+    },
+    {
+      "at_utc": "2026-10-23T12:44:54.332342+00:00",
+      "kind": "GUI_post_gap_step",
+      "sequence": 218,
+      "detail": "20:44后FP约78.75MiB，后续回落；不跨睡眠缺口归因。",
+      "at_asia_shanghai": "2026-10-23T20:44:54.332+08:00"
+    },
+    {
+      "at_utc": "2026-10-23T17:02:14.381+00:00",
+      "kind": "watch_retained_flag_retry_or_failure_record",
+      "record_kind": "filter_summary",
+      "scope": "callback_interval",
+      "flags_or": 3,
+      "admitted_raw": {
+        "must_scan": 20,
+        "user_dropped": 20,
+        "kernel_dropped": 0,
+        "ids_wrapped": 0,
+        "root_changed": 0
+      },
+      "active_retry_failure_fields": {},
+      "private_original_row_sha256": "4fc32f5909ce192d2e03002d124b08372bafbe9e81dd0f99942ed6d3946a9c83",
+      "at_asia_shanghai": "2026-10-24T01:02:14.381+08:00"
+    },
+    {
+      "at_utc": "2026-10-23T17:02:14.382+00:00",
+      "kind": "UserDropped_root_scan_start",
+      "flags_or": 3,
+      "recovery_event_flags": 3,
+      "admitted_raw": {
+        "must_scan": 20,
+        "user_dropped": 20,
+        "kernel_dropped": 0,
+        "ids_wrapped": 0,
+        "root_changed": 0
+      },
+      "callback_signals": {
+        "must_scan": 36,
+        "user_dropped": 36,
+        "kernel_dropped": 0,
+        "ids_wrapped": 0,
+        "root_changed": 0
+      },
+      "indexed": 0,
+      "rows_written": 0,
+      "unchanged": 0,
+      "stale_removed": 0,
+      "elapsed_ms": 0,
+      "legacy_fallback": false,
+      "warnings": 0,
+      "retry_due": false,
+      "retry_roots": false,
+      "private_original_row_sha256": "2b736f451f1360f7f8977fad31430c4be914d993769b6f8798c6e4fde5b55a5c",
+      "at_asia_shanghai": "2026-10-24T01:02:14.382+08:00"
+    },
+    {
+      "at_utc": "2026-10-23T17:02:54.465768+00:00",
+      "end_utc": "2026-10-23T17:07:54.472123+00:00",
+      "kind": "watch_strict_high_CPU_segment",
+      "minutes": 5,
+      "peak_percent_one_core": 71.0538029296117,
+      "cpu_seconds": 209.091253542,
+      "awake_seconds": 300.005416625,
+      "from_sequence": 476,
+      "to_sequence": 481,
+      "at_asia_shanghai": "2026-10-24T01:02:54.465+08:00"
+    },
+    {
+      "at_utc": "2026-10-23T17:05:02.789+00:00",
+      "kind": "UserDropped_root_scan_complete",
+      "flags_or": 3,
+      "recovery_event_flags": 3,
+      "admitted_raw": {
+        "must_scan": 20,
+        "user_dropped": 20,
+        "kernel_dropped": 0,
+        "ids_wrapped": 0,
+        "root_changed": 0
+      },
+      "callback_signals": {
+        "must_scan": 38,
+        "user_dropped": 38,
+        "kernel_dropped": 0,
+        "ids_wrapped": 0,
+        "root_changed": 0
+      },
+      "indexed": 7393204,
+      "rows_written": 87,
+      "unchanged": 7393117,
+      "stale_removed": 0,
+      "elapsed_ms": 168406,
+      "legacy_fallback": false,
+      "warnings": 0,
+      "retry_due": false,
+      "retry_roots": false,
+      "private_original_row_sha256": "d7dbe3f246ce2abbfb0fcb8dd19721a0d88456baf966a686deab411fe5636077",
+      "at_asia_shanghai": "2026-10-24T01:05:02.789+08:00"
+    },
+    {
+      "at_utc": "2026-10-23T17:05:02.794+00:00",
+      "kind": "watch_retained_flag_retry_or_failure_record",
+      "record_kind": "checkpoint_complete",
+      "scope": "checkpoint",
+      "flags_or": 3,
+      "admitted_raw": {
+        "must_scan": 20,
+        "user_dropped": 20,
+        "kernel_dropped": 0,
+        "ids_wrapped": 0,
+        "root_changed": 0
+      },
+      "active_retry_failure_fields": {},
+      "private_original_row_sha256": "3cb630e8ee70ccbc69899342a3c38ebc173da388d62753d1813368b90f55dec1",
+      "at_asia_shanghai": "2026-10-24T01:05:02.794+08:00"
+    },
+    {
+      "at_utc": "2026-10-23T17:05:02.954+00:00",
+      "kind": "watch_retained_flag_retry_or_failure_record",
+      "record_kind": "filter_summary",
+      "scope": "callback_interval",
+      "flags_or": 3,
+      "admitted_raw": {
+        "must_scan": 2,
+        "user_dropped": 2,
+        "kernel_dropped": 0,
+        "ids_wrapped": 0,
+        "root_changed": 0
+      },
+      "active_retry_failure_fields": {},
+      "private_original_row_sha256": "3511848941cecd8721695e25069e1ed0490893b5e61e426b329403dc69aa69cc",
+      "at_asia_shanghai": "2026-10-24T01:05:02.954+08:00"
+    },
+    {
+      "at_utc": "2026-10-23T17:05:02.955+00:00",
+      "kind": "UserDropped_root_scan_start",
+      "flags_or": 3,
+      "recovery_event_flags": 3,
+      "admitted_raw": {
+        "must_scan": 2,
+        "user_dropped": 2,
+        "kernel_dropped": 0,
+        "ids_wrapped": 0,
+        "root_changed": 0
+      },
+      "callback_signals": {
+        "must_scan": 38,
+        "user_dropped": 38,
+        "kernel_dropped": 0,
+        "ids_wrapped": 0,
+        "root_changed": 0
+      },
+      "indexed": 0,
+      "rows_written": 0,
+      "unchanged": 0,
+      "stale_removed": 0,
+      "elapsed_ms": 0,
+      "legacy_fallback": false,
+      "warnings": 0,
+      "retry_due": false,
+      "retry_roots": false,
+      "private_original_row_sha256": "6a156e8acb4ead7fc19b88ae0da624c898eb2afafb50b8dc80d7122bbc40de66",
+      "at_asia_shanghai": "2026-10-24T01:05:02.955+08:00"
+    },
+    {
+      "at_utc": "2026-10-23T17:08:10.767+00:00",
+      "kind": "UserDropped_root_scan_complete",
+      "flags_or": 3,
+      "recovery_event_flags": 3,
+      "admitted_raw": {
+        "must_scan": 2,
+        "user_dropped": 2,
+        "kernel_dropped": 0,
+        "ids_wrapped": 0,
+        "root_changed": 0
+      },
+      "callback_signals": {
+        "must_scan": 38,
+        "user_dropped": 38,
+        "kernel_dropped": 0,
+        "ids_wrapped": 0,
+        "root_changed": 0
+      },
+      "indexed": 7393204,
+      "rows_written": 0,
+      "unchanged": 7393204,
+      "stale_removed": 0,
+      "elapsed_ms": 187811,
+      "legacy_fallback": false,
+      "warnings": 0,
+      "retry_due": false,
+      "retry_roots": false,
+      "private_original_row_sha256": "8fc70f143aec6623689860bfd20acd1ad2d565d0deb168e386a8bfd07934fd66",
+      "at_asia_shanghai": "2026-10-24T01:08:10.767+08:00"
+    },
+    {
+      "at_utc": "2026-10-23T17:08:10.769+00:00",
+      "kind": "watch_retained_flag_retry_or_failure_record",
+      "record_kind": "checkpoint_complete",
+      "scope": "checkpoint",
+      "flags_or": 3,
+      "admitted_raw": {
+        "must_scan": 2,
+        "user_dropped": 2,
+        "kernel_dropped": 0,
+        "ids_wrapped": 0,
+        "root_changed": 0
+      },
+      "active_retry_failure_fields": {},
+      "private_original_row_sha256": "dbda462fe3932943df38874d3cb317e1424d2a8c1503c781c42e333870153377",
+      "at_asia_shanghai": "2026-10-24T01:08:10.769+08:00"
+    },
+    {
+      "at_utc": "2026-10-23T18:05:54.517253+00:00",
+      "kind": "interval_barrier",
+      "detail": {
+        "from_sequence": 539,
+        "sequence": 540,
+        "start_utc": "2026-10-23T18:05:54.517253+00:00",
+        "end_utc": "2026-10-23T18:06:54.522470+00:00",
+        "start_local": "2026-10-24T02:05:54.517+08:00",
+        "end_local": "2026-10-24T02:06:54.522+08:00",
+        "interval_barriers": [
+          "power_transition"
+        ],
+        "previous_capture_barriers": [],
+        "capture_barriers": [],
+        "elapsed_seconds": 59.995915875006176,
+        "awake_seconds": 59.995915333,
+        "sleep_seconds": 5.420000022127169e-07,
+        "power_uuid_changed": true,
+        "roles_known_both_endpoints": false
+      },
+      "at_asia_shanghai": "2026-10-24T02:05:54.517+08:00"
+    },
+    {
+      "at_utc": "2026-10-23T18:05:54.517253+00:00",
+      "kind": "last_known_App_roles",
+      "sequence": 539,
+      "detail": "最后已知三角色端点；退出只约束至下一个missing端点。",
+      "at_asia_shanghai": "2026-10-24T02:05:54.517+08:00"
+    },
+    {
+      "at_utc": "2026-10-23T18:06:54.522470+00:00",
+      "kind": "all_App_roles_missing",
+      "sequence": 540,
+      "detail": "三角色从此缺失至终点；原PID消失，退出底因UNKNOWN，不计零CPU/内存。",
+      "at_asia_shanghai": "2026-10-24T02:06:54.522+08:00"
+    },
+    {
+      "at_utc": "2026-10-23T19:04:54.591123+00:00",
+      "kind": "interval_barrier",
+      "detail": {
+        "from_sequence": 598,
+        "sequence": 599,
+        "start_utc": "2026-10-23T19:04:54.591123+00:00",
+        "end_utc": "2026-10-23T19:10:54.609228+00:00",
+        "start_local": "2026-10-24T03:04:54.591+08:00",
+        "end_local": "2026-10-24T03:10:54.609+08:00",
+        "interval_barriers": [
+          "sleep_observed",
+          "sampling_gap"
+        ],
+        "previous_capture_barriers": [],
+        "capture_barriers": [],
+        "elapsed_seconds": 360.0136239580024,
+        "awake_seconds": 59.994510916,
+        "sleep_seconds": 300.01911304199996,
+        "power_uuid_changed": false,
+        "roles_known_both_endpoints": false
+      },
+      "at_asia_shanghai": "2026-10-24T03:04:54.591+08:00"
+    },
+    {
+      "at_utc": "2026-10-23T19:10:54.609228+00:00",
+      "kind": "interval_barrier",
+      "detail": {
+        "from_sequence": 599,
+        "sequence": 600,
+        "start_utc": "2026-10-23T19:10:54.609228+00:00",
+        "end_utc": "2026-10-23T19:28:13.698910+00:00",
+        "start_local": "2026-10-24T03:10:54.609+08:00",
+        "end_local": "2026-10-24T03:28:13.698+08:00",
+        "interval_barriers": [
+          "sleep_observed",
+          "sampling_gap"
+        ],
+        "previous_capture_barriers": [],
+        "capture_barriers": [],
+        "elapsed_seconds": 1039.1418939590003,
+        "awake_seconds": 59.98529025,
+        "sleep_seconds": 979.156603709,
+        "power_uuid_changed": false,
+        "roles_known_both_endpoints": false
+      },
+      "at_asia_shanghai": "2026-10-24T03:10:54.609+08:00"
+    },
+    {
+      "at_utc": "2026-10-24T01:12:54.518069+00:00",
+      "kind": "interval_barrier",
+      "detail": {
+        "from_sequence": 945,
+        "sequence": 946,
+        "start_utc": "2026-10-24T01:12:54.518069+00:00",
+        "end_utc": "2026-10-24T01:14:54.680644+00:00",
+        "start_local": "2026-10-24T09:12:54.518+08:00",
+        "end_local": "2026-10-24T09:14:54.680+08:00",
+        "interval_barriers": [
+          "power_transition",
+          "sleep_observed",
+          "sampling_gap"
+        ],
+        "previous_capture_barriers": [],
+        "capture_barriers": [],
+        "elapsed_seconds": 120.28729833300167,
+        "awake_seconds": 59.995059708,
+        "sleep_seconds": 60.292238624999996,
+        "power_uuid_changed": true,
+        "roles_known_both_endpoints": false
+      },
+      "at_asia_shanghai": "2026-10-24T09:12:54.518+08:00"
+    },
+    {
+      "at_utc": "2026-10-24T01:14:54.680644+00:00",
+      "kind": "interval_barrier",
+      "detail": {
+        "from_sequence": 946,
+        "sequence": 947,
+        "start_utc": "2026-10-24T01:14:54.680644+00:00",
+        "end_utc": "2026-10-24T01:32:08.356064+00:00",
+        "start_local": "2026-10-24T09:14:54.680+08:00",
+        "end_local": "2026-10-24T09:32:08.356+08:00",
+        "interval_barriers": [
+          "sleep_observed",
+          "sampling_gap"
+        ],
+        "previous_capture_barriers": [],
+        "capture_barriers": [],
+        "elapsed_seconds": 1033.6801644580046,
+        "awake_seconds": 59.717442417,
+        "sleep_seconds": 973.962722041,
+        "power_uuid_changed": false,
+        "roles_known_both_endpoints": false
+      },
+      "at_asia_shanghai": "2026-10-24T09:14:54.680+08:00"
+    },
+    {
+      "at_utc": "2026-10-24T01:47:54.328462+00:00",
+      "kind": "interval_barrier",
+      "detail": {
+        "from_sequence": 963,
+        "sequence": 964,
+        "start_utc": "2026-10-24T01:47:54.328462+00:00",
+        "end_utc": "2026-10-24T01:48:54.324014+00:00",
+        "start_local": "2026-10-24T09:47:54.328+08:00",
+        "end_local": "2026-10-24T09:48:54.324+08:00",
+        "interval_barriers": [
+          "power_transition"
+        ],
+        "previous_capture_barriers": [],
+        "capture_barriers": [],
+        "elapsed_seconds": 59.99974949999887,
+        "awake_seconds": 59.999749458,
+        "sleep_seconds": 4.200000347509558e-08,
+        "power_uuid_changed": true,
+        "roles_known_both_endpoints": false
+      },
+      "at_asia_shanghai": "2026-10-24T09:47:54.328+08:00"
+    },
+    {
+      "at_utc": "2026-10-24T01:48:54.324014+00:00",
+      "kind": "interval_barrier",
+      "detail": {
+        "from_sequence": 964,
+        "sequence": 965,
+        "start_utc": "2026-10-24T01:48:54.324014+00:00",
+        "end_utc": "2026-10-24T01:54:44.082277+00:00",
+        "start_local": "2026-10-24T09:48:54.324+08:00",
+        "end_local": "2026-10-24T09:54:44.082+08:00",
+        "interval_barriers": [
+          "sleep_observed",
+          "sampling_gap"
+        ],
+        "previous_capture_barriers": [],
+        "capture_barriers": [],
+        "elapsed_seconds": 349.7642789579986,
+        "awake_seconds": 59.994971209,
+        "sleep_seconds": 289.76930774899995,
+        "power_uuid_changed": false,
+        "roles_known_both_endpoints": false
+      },
+      "at_asia_shanghai": "2026-10-24T09:48:54.324+08:00"
+    },
+    {
+      "at_utc": "2026-10-24T01:54:54.314345+00:00",
+      "kind": "interval_barrier",
+      "detail": {
+        "from_sequence": 966,
+        "sequence": 967,
+        "start_utc": "2026-10-24T01:54:54.314345+00:00",
+        "end_utc": "2026-10-24T02:15:47.169079+00:00",
+        "start_local": "2026-10-24T09:54:54.314+08:00",
+        "end_local": "2026-10-24T10:15:47.169+08:00",
+        "interval_barriers": [
+          "sleep_observed",
+          "sampling_gap"
+        ],
+        "previous_capture_barriers": [],
+        "capture_barriers": [],
+        "elapsed_seconds": 1252.8723857500008,
+        "awake_seconds": 59.99959625,
+        "sleep_seconds": 1192.8727895,
+        "power_uuid_changed": false,
+        "roles_known_both_endpoints": false
+      },
+      "at_asia_shanghai": "2026-10-24T09:54:54.314+08:00"
+    },
+    {
+      "at_utc": "2026-10-24T07:24:54.572606+00:00",
+      "kind": "natural_window_finished",
+      "detail": "window_elapsed/exit0；原worker消失、writer锁空闲、原件稳定；非连续24h稳定/无泄漏PASS。",
+      "at_asia_shanghai": "2026-10-24T15:24:54.572+08:00"
+    }
+  ],
+  "limits": [
+    "Counts apply only to saved, window-filtered, recorded-identity rows up to the committed prefix cutoff. Missing/rotated/suppressed/oversized logs do not establish zero events.",
+    "Serve stable row key is actual identity/session_ms/sequence; conflicting bodies are retained as a conflict count, not counted twice. Watch key is canonical whole-row SHA because production has no row sequence; identical emits within one millisecond may be indistinguishable.",
+    "Watch per-row cookie/UUID is absent. Attribution requires adjacent matching recorded watch identities and PID; anonymous session groups and the optional baseline anchor strengthen association but are not per-row native identity proof.",
+    "admitted_raw can repeat through start/complete/checkpoint; positive rows are not summed into event totals. callback_signals is lifetime cumulative, includes pre-window records and saturates; growth since first observed snapshot is not an independent drop/OS episode count.",
+    "Serve idle at_ms is actual VM capture, while snapshot_at_ms/method/fallback_reason can be cached before the window. Only non-idle after-phase operation keys count successful visible refresh evidence; missing after phases do not prove no refresh.",
+    "Source FD/path stability and truncation receipts are retained. Envelopes do not prove continuous logging. No missing slot is backfilled and no window is extended."
+  ],
+  "lifetime_UserDropped_counter_changes": [
+    {
+      "at_ms": 1792740304122,
+      "user_dropped": 0,
+      "previous_observed": null,
+      "record_kind": "filter_summary"
+    },
+    {
+      "at_ms": 1792743056123,
+      "user_dropped": 10,
+      "previous_observed": 0,
+      "record_kind": "scan_start"
+    },
+    {
+      "at_ms": 1792743264368,
+      "user_dropped": 16,
+      "previous_observed": 10,
+      "record_kind": "scan_complete"
+    },
+    {
+      "at_ms": 1792774934381,
+      "user_dropped": 36,
+      "previous_observed": 16,
+      "record_kind": "filter_summary"
+    },
+    {
+      "at_ms": 1792775102789,
+      "user_dropped": 38,
+      "previous_observed": 36,
+      "record_kind": "scan_complete"
+    }
+  ]
+}

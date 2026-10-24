@@ -1,0 +1,49 @@
+{
+  "status": "KNOWN_EVENT_LIMIT_FOLLOWUP_OBSERVING_NOT_FINAL",
+  "source_commit": "b027a42c2cb859235b2a354c4c4bd8187a785a77",
+  "prefix": {
+    "sequence": 179,
+    "journal_bytes": 581692,
+    "prefix_sha256": "cc93d0f10cc3d18f7c7e0e4ebe9c1398ec70c29944a0ea5e789dd5ca8459f063",
+    "actual_jsonl_bytes_before": 581692,
+    "actual_jsonl_bytes_after": 581692,
+    "bytes_after_committed_prefix_at_open": 0,
+    "state_advanced_during_read": false,
+    "later_state_sequence": 179,
+    "committed_prefix_verified": true
+  },
+  "full_reload_local": "2026-10-23 17:34:14.864 to17:34:17.505 Asia/Shanghai",
+  "full_reload_wall_seconds": 2.641,
+  "full_reload_cpu_seconds": 2.624612333,
+  "reason": "event_limit",
+  "visible_in_window_event_limit_completions": 2,
+  "history_gap_full_after_visible": 0,
+  "loaded_revision_before_after": [
+    55650204,
+    55665535
+  ],
+  "capacity_growth_bytes": 565695,
+  "incremental_local": "2026-10-23 17:54:31.190 Asia/Shanghai",
+  "incremental_change_ids": 153,
+  "incremental_applies": 2,
+  "successful_loads_including_startup": 3,
+  "last_searches_started_completed": [
+    8,
+    8
+  ],
+  "high_cpu_count": 6,
+  "new_high_cpu_after119": 0,
+  "user_dropped_lifetime_max": 16,
+  "latest_fp_MiB": {
+    "gui": 58.001075744628906,
+    "serve": 1578.1892623901367,
+    "watch": 6.79742431640625
+  },
+  "hourly_review_sha256": "4fd9641b1aec352663877026afa4f0e2715c5beb05108074d973803e8481ef49",
+  "limitations": [
+    "Second visible in-window event_limit completion, not history_gap; same existing4096-event policy. Exact delta decision snapshot target was not logged; full_after is another read transaction.",
+    "GUI peaks then falls and service has a small step; neither is consecutive multi-hour growth evidence or a no-leak result.",
+    "Analyzer hourly log summary excludes extra16:23 anomaly directory; its two root recoveries remain preserved and must be included at final archiving.",
+    "No App API request, DB change, resource sample insertion, process or window change performed."
+  ]
+}

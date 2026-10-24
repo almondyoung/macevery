@@ -1,0 +1,204 @@
+{
+  "status": "OBSERVING_ROLE_COVERAGE_LOSS_NOT_FINAL",
+  "source_commit": "b027a42c2cb859235b2a354c4c4bd8187a785a77",
+  "prefix": {
+    "sequence": 900,
+    "journal_bytes": 2336449,
+    "prefix_sha256": "d87c213b6f460f4a0c2b9afed45b233e2cb61cc4699f46caec1961b35bdb289d",
+    "actual_jsonl_bytes_before": 2336449,
+    "actual_jsonl_bytes_after": 2336449,
+    "bytes_after_committed_prefix_at_open": 0,
+    "state_advanced_during_read": false,
+    "later_state_sequence": 900,
+    "committed_prefix_verified": true
+  },
+  "cutoff_utc": "2026-10-24T00:27:54.510532+00:00",
+  "last_known_endpoint": {
+    "sequence": 539,
+    "utc": "2026-10-23T18:05:54.517253+00:00",
+    "elapsed_seconds": 38460.03838175,
+    "roles": {
+      "gui": {
+        "identity_key": "9a87bf2bef5279869588e92490e1547c81de08b16187bf4ec7f380ecd49145c6",
+        "rss_MiB": 120.90625,
+        "footprint_MiB": 59.2979736328125
+      },
+      "serve": {
+        "identity_key": "b50248b7c0684537081582e08e737c430cafeb0e8fa2542e274d1fcb320fb932",
+        "rss_MiB": 7.0625,
+        "footprint_MiB": 1578.2205123901367
+      },
+      "watch": {
+        "identity_key": "96122321633a6e8c2517103f431ea12239fa58592eec39068f49fd0103ef23cc",
+        "rss_MiB": 17.609375,
+        "footprint_MiB": 7.81304931640625
+      }
+    },
+    "measured_CPU": {
+      "gui": {
+        "status": "measured",
+        "cpu_seconds": 0.000931792,
+        "awake_seconds": 59.993291333,
+        "average_cpu_percent_one_core": 0.0015531603272572194
+      },
+      "serve": {
+        "status": "measured",
+        "cpu_seconds": 0.001201374,
+        "awake_seconds": 59.993291333,
+        "average_cpu_percent_one_core": 0.0020025139033156706
+      },
+      "watch": {
+        "status": "measured",
+        "cpu_seconds": 0.001400833,
+        "awake_seconds": 59.993291333,
+        "average_cpu_percent_one_core": 0.0023349827436946365
+      }
+    }
+  },
+  "first_missing_endpoint": {
+    "sequence": 540,
+    "utc": "2026-10-23T18:06:54.522470+00:00",
+    "elapsed_seconds": 38520.034297625,
+    "roles": {
+      "gui": {
+        "status": "missing",
+        "candidate_pids": []
+      },
+      "serve": {
+        "status": "missing",
+        "candidate_pids": []
+      },
+      "watch": {
+        "status": "missing",
+        "candidate_pids": []
+      }
+    },
+    "interval_barriers": [
+      "power_transition"
+    ]
+  },
+  "missing_segment": {
+    "through_sequence": 900,
+    "endpoints": 361,
+    "observed_endpoint_span_seconds": 22859.997719458,
+    "role_resource_values_are_unknown_not_zero": true,
+    "exit_time_is_between_last_known_and_first_missing_not_precisely_measured": true
+  },
+  "actual_original_role_pids_absent": true,
+  "actual_App_executable_inventory_empty": true,
+  "original_worker_identity_and_lock_verified": true,
+  "worker_session_unchanged": true,
+  "source_and_DB_pin_match": true,
+  "window_deadline_utc": "2026-10-24T07:24:53.957679+00:00",
+  "window_finished": false,
+  "exit_cause": "UNKNOWN_NO_CAUSAL_EXIT_RECORD",
+  "new_clock_barrier_intervals": [
+    {
+      "sequence": 540,
+      "utc": "2026-10-23T18:06:54.522470+00:00",
+      "interval_barriers": [
+        "power_transition"
+      ],
+      "elapsed_seconds": 59.995915875,
+      "awake_seconds": 59.995915333,
+      "sleep_seconds": 5.420000022127169e-07
+    },
+    {
+      "sequence": 599,
+      "utc": "2026-10-23T19:10:54.609228+00:00",
+      "interval_barriers": [
+        "sleep_observed",
+        "sampling_gap"
+      ],
+      "elapsed_seconds": 360.013623958,
+      "awake_seconds": 59.994510916,
+      "sleep_seconds": 300.01911304199996
+    },
+    {
+      "sequence": 600,
+      "utc": "2026-10-23T19:28:13.698910+00:00",
+      "interval_barriers": [
+        "sleep_observed",
+        "sampling_gap"
+      ],
+      "elapsed_seconds": 1039.141893959,
+      "awake_seconds": 59.98529025,
+      "sleep_seconds": 979.156603709
+    }
+  ],
+  "role_valid_CPU_coverage": {
+    "gui": {
+      "identity_count": 1,
+      "valid_intervals": 533,
+      "valid_awake_seconds": 31979.18890925102,
+      "CPU_seconds": 21.861294082999976,
+      "latest_memory_tail_is_current": false
+    },
+    "serve": {
+      "identity_count": 1,
+      "valid_intervals": 533,
+      "valid_awake_seconds": 31979.18890925102,
+      "CPU_seconds": 7.434545125000001,
+      "latest_memory_tail_is_current": false
+    },
+    "watch": {
+      "identity_count": 1,
+      "valid_intervals": 533,
+      "valid_awake_seconds": 31979.18890925102,
+      "CPU_seconds": 520.9740613749997,
+      "latest_memory_tail_is_current": false
+    }
+  },
+  "watch_high_candidates_total": 11,
+  "watch_high_strict_total": 11,
+  "watch_high_segments_total": 3,
+  "watch_last_retained_lifetime_counters": {
+    "must_scan": 38,
+    "user_dropped": 38,
+    "kernel_dropped": 0,
+    "ids_wrapped": 0,
+    "root_changed": 0,
+    "first_id": 838666388,
+    "last_id": 846052621
+  },
+  "last_retained_watch_at_ms": 1792778779553,
+  "serve_last_retained_counters": {
+    "at_ms": 1792778772917,
+    "snapshot_at_ms": 1792749271190,
+    "load_attempts": 3,
+    "successful_loads": 3,
+    "incremental_attempts": 4,
+    "incremental_applies": 2,
+    "searches_started": 8,
+    "searches_completed": 8,
+    "loaded_revision": 55665730,
+    "capacity_bytes": 1539457977
+  },
+  "visible_full_after_by_reason": {
+    "event_limit": 2
+  },
+  "visible_history_gap_full_after": 0,
+  "missing_hourly_log_slots": [
+    3,
+    4,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16
+  ],
+  "limitations": [
+    "No CPU or memory coverage while roles are missing; last known values are historical endpoints, not current footprint and not proof of released memory or stability.",
+    "Power UUID transition coincides with first missing endpoint, but does not identify user quit, logout, crash or their cause. Same boot persists.",
+    "Only top-level matching crash-file metadata was inspected. No relevant new record identified, which does not exclude a crash.",
+    "No new recorded high CPU after sequence494, but missing roles and bounded logs cannot establish no later UserDropped or high CPU.",
+    "Hourly log slots3/4/10-16 remain missing, not backfilled. Two additional sleep gaps are separate from missing-role coverage.",
+    "Original worker/window continues to its existing deadline; no restart, new collector, new samples, DB/App requests or modifications, extension or old-window joins."
+  ],
+  "next_action": "CONTINUE_ORIGINAL_FIXED_WINDOW_AND_ARCHIVE_UNKNOWN_ROLE_COVERAGE_AT_ORIGINAL_DEADLINE",
+  "private_incident_sha256": "4d8e8f15ce119d4b4e50cf552ace34b5424b040a47bbd8aa9548cf499c117bea",
+  "private_manifest_sha256": "b7d3feae37092b1b211f1a5651a54d46375c34685260c77227e4f9dac5f5ab4e",
+  "private_diagnostic_directory": "diagnostics-role-missing-20261024-0827"
+}

@@ -1,0 +1,1187 @@
+{
+  "status": "SLEEP_GAPS_AND_GUI_SINGLE_STEP_FOLLOWUP_OBSERVATION_CONTINUES",
+  "source_commit": "b027a42c2cb859235b2a354c4c4bd8187a785a77",
+  "prefix": {
+    "sequence": 222,
+    "journal_bytes": 720640,
+    "prefix_sha256": "ae2e6811a0743177f0a4225d7070bbdea5b71d760c8f9d36f91aeed5acbab721",
+    "actual_jsonl_bytes_before": 720640,
+    "actual_jsonl_bytes_after": 720640,
+    "bytes_after_committed_prefix_at_open": 0,
+    "state_advanced_during_read": false,
+    "later_state_sequence": 222,
+    "committed_prefix_verified": true
+  },
+  "barriers": [
+    {
+      "sequence": 213,
+      "from_utc": "2026-10-23T10:55:54.291645+00:00",
+      "to_utc": "2026-10-23T10:56:54.292560+00:00",
+      "elapsed_seconds": 60.00037175,
+      "awake_seconds": 60.000372416,
+      "sleep_seconds": 0,
+      "interval_barriers": [
+        "power_transition"
+      ],
+      "capture_barriers": [],
+      "power_uuid": "e018352e-7582-4bb3-afde-fa0679c8c424"
+    },
+    {
+      "sequence": 214,
+      "from_utc": "2026-10-23T10:56:54.292560+00:00",
+      "to_utc": "2026-10-23T11:16:46.494174+00:00",
+      "elapsed_seconds": 1192.149998584,
+      "awake_seconds": 60.001944875,
+      "sleep_seconds": 1132.1480537090001,
+      "interval_barriers": [
+        "power_transition",
+        "sleep_observed",
+        "sampling_gap"
+      ],
+      "capture_barriers": [],
+      "power_uuid": "7e6429c2-16ce-4160-bbfb-d31bd5318544"
+    },
+    {
+      "sequence": 215,
+      "from_utc": "2026-10-23T11:16:46.494174+00:00",
+      "to_utc": "2026-10-23T11:51:13.772337+00:00",
+      "elapsed_seconds": 2067.249698708,
+      "awake_seconds": 7.875081375,
+      "sleep_seconds": 2059.374617333,
+      "interval_barriers": [
+        "sleep_observed",
+        "sampling_gap"
+      ],
+      "capture_barriers": [],
+      "power_uuid": "7e6429c2-16ce-4160-bbfb-d31bd5318544"
+    },
+    {
+      "sequence": 216,
+      "from_utc": "2026-10-23T11:51:13.772337+00:00",
+      "to_utc": "2026-10-23T12:02:17.385840+00:00",
+      "elapsed_seconds": 663.672979958,
+      "awake_seconds": 40.599291542,
+      "sleep_seconds": 623.0736884160001,
+      "interval_barriers": [
+        "sleep_observed",
+        "sampling_gap"
+      ],
+      "capture_barriers": [],
+      "power_uuid": "7e6429c2-16ce-4160-bbfb-d31bd5318544"
+    },
+    {
+      "sequence": 217,
+      "from_utc": "2026-10-23T12:02:17.385840+00:00",
+      "to_utc": "2026-10-23T12:43:55.120190+00:00",
+      "elapsed_seconds": 2497.718567542,
+      "awake_seconds": 36.919804208,
+      "sleep_seconds": 2460.798763334,
+      "interval_barriers": [
+        "sleep_observed",
+        "sampling_gap"
+      ],
+      "capture_barriers": [],
+      "power_uuid": "7e6429c2-16ce-4160-bbfb-d31bd5318544"
+    }
+  ],
+  "sleep_seconds": 6275.395122792001,
+  "excluded_awake_seconds": 205.396494416,
+  "strict_cpu_coverage_seconds_per_role": 12959.185004292995,
+  "memory_segments": {
+    "gui": [
+      {
+        "first_sequence": 1,
+        "last_sequence": 212,
+        "first_utc": "2026-10-23T07:24:54.015544+00:00",
+        "last_utc": "2026-10-23T10:55:54.291645+00:00",
+        "endpoint_span_seconds": 12659.971492625,
+        "identity_key": "9a87bf2bef5279869588e92490e1547c81de08b16187bf4ec7f380ecd49145c6",
+        "rss": {
+          "n": 212,
+          "first_MiB": 149.3125,
+          "median_MiB": 135.828125,
+          "p95_MiB": 142.203125,
+          "peak_MiB": 163.28125,
+          "end_MiB": 135.875,
+          "ols_MiB_per_hour": -0.9581635440575893
+        },
+        "footprint": {
+          "n": 212,
+          "first_MiB": 65.7823257446289,
+          "median_MiB": 55.524513244628906,
+          "p95_MiB": 58.001075744628906,
+          "peak_MiB": 73.4854736328125,
+          "end_MiB": 57.938575744628906,
+          "ols_MiB_per_hour": 0.7407533503923959
+        },
+        "hourly_memory": [
+          {
+            "elapsed_hour_slot": 0,
+            "rss": {
+              "n": 60,
+              "first_MiB": 149.3125,
+              "median_MiB": 140.40625,
+              "p95_MiB": 142.46875,
+              "peak_MiB": 163.28125,
+              "end_MiB": 133.828125,
+              "ols_MiB_per_hour": -11.18631148022701
+            },
+            "footprint": {
+              "n": 60,
+              "first_MiB": 65.7823257446289,
+              "median_MiB": 55.21980285644531,
+              "p95_MiB": 55.36040496826172,
+              "peak_MiB": 69.2667007446289,
+              "end_MiB": 55.26665496826172,
+              "ols_MiB_per_hour": -2.0811960336773643
+            }
+          },
+          {
+            "elapsed_hour_slot": 1,
+            "rss": {
+              "n": 60,
+              "first_MiB": 135.828125,
+              "median_MiB": 135.484375,
+              "p95_MiB": 135.78125,
+              "peak_MiB": 135.859375,
+              "end_MiB": 135.484375,
+              "ols_MiB_per_hour": -0.3125609107934593
+            },
+            "footprint": {
+              "n": 60,
+              "first_MiB": 55.547950744628906,
+              "median_MiB": 55.524513244628906,
+              "p95_MiB": 55.579200744628906,
+              "peak_MiB": 55.579200744628906,
+              "end_MiB": 55.547950744628906,
+              "ols_MiB_per_hour": -0.020552647382056855
+            }
+          },
+          {
+            "elapsed_hour_slot": 2,
+            "rss": {
+              "n": 60,
+              "first_MiB": 135.515625,
+              "median_MiB": 140.375,
+              "p95_MiB": 144.78125,
+              "peak_MiB": 155.15625,
+              "end_MiB": 140.40625,
+              "ols_MiB_per_hour": 13.289241594131514
+            },
+            "footprint": {
+              "n": 60,
+              "first_MiB": 55.547950744628906,
+              "median_MiB": 57.922950744628906,
+              "p95_MiB": 66.5948486328125,
+              "peak_MiB": 73.4854736328125,
+              "end_MiB": 57.954200744628906,
+              "ols_MiB_per_hour": 2.9007167781073355
+            }
+          },
+          {
+            "elapsed_hour_slot": 3,
+            "rss": {
+              "n": 32,
+              "first_MiB": 140.375,
+              "median_MiB": 135.875,
+              "p95_MiB": 140.375,
+              "peak_MiB": 140.453125,
+              "end_MiB": 135.875,
+              "ols_MiB_per_hour": -8.535776675825623
+            },
+            "footprint": {
+              "n": 32,
+              "first_MiB": 57.954200744628906,
+              "median_MiB": 57.938575744628906,
+              "p95_MiB": 58.016700744628906,
+              "peak_MiB": 58.032325744628906,
+              "end_MiB": 57.938575744628906,
+              "ols_MiB_per_hour": -0.03711519481952574
+            }
+          }
+        ]
+      },
+      {
+        "first_sequence": 213,
+        "last_sequence": 213,
+        "first_utc": "2026-10-23T10:56:54.292560+00:00",
+        "last_utc": "2026-10-23T10:56:54.292560+00:00",
+        "endpoint_span_seconds": 0.0,
+        "identity_key": "9a87bf2bef5279869588e92490e1547c81de08b16187bf4ec7f380ecd49145c6",
+        "rss": {
+          "n": 1,
+          "first_MiB": 145.015625,
+          "median_MiB": 145.015625,
+          "p95_MiB": 145.015625,
+          "peak_MiB": 145.015625,
+          "end_MiB": 145.015625,
+          "ols_MiB_per_hour": null
+        },
+        "footprint": {
+          "n": 1,
+          "first_MiB": 60.0323486328125,
+          "median_MiB": 60.0323486328125,
+          "p95_MiB": 60.0323486328125,
+          "peak_MiB": 60.0323486328125,
+          "end_MiB": 60.0323486328125,
+          "ols_MiB_per_hour": null
+        },
+        "hourly_memory": [
+          {
+            "elapsed_hour_slot": 3,
+            "rss": {
+              "n": 1,
+              "first_MiB": 145.015625,
+              "median_MiB": 145.015625,
+              "p95_MiB": 145.015625,
+              "peak_MiB": 145.015625,
+              "end_MiB": 145.015625,
+              "ols_MiB_per_hour": null
+            },
+            "footprint": {
+              "n": 1,
+              "first_MiB": 60.0323486328125,
+              "median_MiB": 60.0323486328125,
+              "p95_MiB": 60.0323486328125,
+              "peak_MiB": 60.0323486328125,
+              "end_MiB": 60.0323486328125,
+              "ols_MiB_per_hour": null
+            }
+          }
+        ]
+      },
+      {
+        "first_sequence": 214,
+        "last_sequence": 214,
+        "first_utc": "2026-10-23T11:16:46.494174+00:00",
+        "last_utc": "2026-10-23T11:16:46.494174+00:00",
+        "endpoint_span_seconds": 0.0,
+        "identity_key": "9a87bf2bef5279869588e92490e1547c81de08b16187bf4ec7f380ecd49145c6",
+        "rss": {
+          "n": 1,
+          "first_MiB": 147.421875,
+          "median_MiB": 147.421875,
+          "p95_MiB": 147.421875,
+          "peak_MiB": 147.421875,
+          "end_MiB": 147.421875,
+          "ols_MiB_per_hour": null
+        },
+        "footprint": {
+          "n": 1,
+          "first_MiB": 64.8448486328125,
+          "median_MiB": 64.8448486328125,
+          "p95_MiB": 64.8448486328125,
+          "peak_MiB": 64.8448486328125,
+          "end_MiB": 64.8448486328125,
+          "ols_MiB_per_hour": null
+        },
+        "hourly_memory": [
+          {
+            "elapsed_hour_slot": 3,
+            "rss": {
+              "n": 1,
+              "first_MiB": 147.421875,
+              "median_MiB": 147.421875,
+              "p95_MiB": 147.421875,
+              "peak_MiB": 147.421875,
+              "end_MiB": 147.421875,
+              "ols_MiB_per_hour": null
+            },
+            "footprint": {
+              "n": 1,
+              "first_MiB": 64.8448486328125,
+              "median_MiB": 64.8448486328125,
+              "p95_MiB": 64.8448486328125,
+              "peak_MiB": 64.8448486328125,
+              "end_MiB": 64.8448486328125,
+              "ols_MiB_per_hour": null
+            }
+          }
+        ]
+      },
+      {
+        "first_sequence": 215,
+        "last_sequence": 215,
+        "first_utc": "2026-10-23T11:51:13.772337+00:00",
+        "last_utc": "2026-10-23T11:51:13.772337+00:00",
+        "endpoint_span_seconds": 0.0,
+        "identity_key": "9a87bf2bef5279869588e92490e1547c81de08b16187bf4ec7f380ecd49145c6",
+        "rss": {
+          "n": 1,
+          "first_MiB": 147.421875,
+          "median_MiB": 147.421875,
+          "p95_MiB": 147.421875,
+          "peak_MiB": 147.421875,
+          "end_MiB": 147.421875,
+          "ols_MiB_per_hour": null
+        },
+        "footprint": {
+          "n": 1,
+          "first_MiB": 64.8448486328125,
+          "median_MiB": 64.8448486328125,
+          "p95_MiB": 64.8448486328125,
+          "peak_MiB": 64.8448486328125,
+          "end_MiB": 64.8448486328125,
+          "ols_MiB_per_hour": null
+        },
+        "hourly_memory": [
+          {
+            "elapsed_hour_slot": 4,
+            "rss": {
+              "n": 1,
+              "first_MiB": 147.421875,
+              "median_MiB": 147.421875,
+              "p95_MiB": 147.421875,
+              "peak_MiB": 147.421875,
+              "end_MiB": 147.421875,
+              "ols_MiB_per_hour": null
+            },
+            "footprint": {
+              "n": 1,
+              "first_MiB": 64.8448486328125,
+              "median_MiB": 64.8448486328125,
+              "p95_MiB": 64.8448486328125,
+              "peak_MiB": 64.8448486328125,
+              "end_MiB": 64.8448486328125,
+              "ols_MiB_per_hour": null
+            }
+          }
+        ]
+      },
+      {
+        "first_sequence": 216,
+        "last_sequence": 216,
+        "first_utc": "2026-10-23T12:02:17.385840+00:00",
+        "last_utc": "2026-10-23T12:02:17.385840+00:00",
+        "endpoint_span_seconds": 0.0,
+        "identity_key": "9a87bf2bef5279869588e92490e1547c81de08b16187bf4ec7f380ecd49145c6",
+        "rss": {
+          "n": 1,
+          "first_MiB": 147.390625,
+          "median_MiB": 147.390625,
+          "p95_MiB": 147.390625,
+          "peak_MiB": 147.390625,
+          "end_MiB": 147.390625,
+          "ols_MiB_per_hour": null
+        },
+        "footprint": {
+          "n": 1,
+          "first_MiB": 64.8135986328125,
+          "median_MiB": 64.8135986328125,
+          "p95_MiB": 64.8135986328125,
+          "peak_MiB": 64.8135986328125,
+          "end_MiB": 64.8135986328125,
+          "ols_MiB_per_hour": null
+        },
+        "hourly_memory": [
+          {
+            "elapsed_hour_slot": 4,
+            "rss": {
+              "n": 1,
+              "first_MiB": 147.390625,
+              "median_MiB": 147.390625,
+              "p95_MiB": 147.390625,
+              "peak_MiB": 147.390625,
+              "end_MiB": 147.390625,
+              "ols_MiB_per_hour": null
+            },
+            "footprint": {
+              "n": 1,
+              "first_MiB": 64.8135986328125,
+              "median_MiB": 64.8135986328125,
+              "p95_MiB": 64.8135986328125,
+              "peak_MiB": 64.8135986328125,
+              "end_MiB": 64.8135986328125,
+              "ols_MiB_per_hour": null
+            }
+          }
+        ]
+      },
+      {
+        "first_sequence": 217,
+        "last_sequence": 222,
+        "first_utc": "2026-10-23T12:43:55.120190+00:00",
+        "last_utc": "2026-10-23T12:48:54.335548+00:00",
+        "endpoint_span_seconds": 299.2135152080009,
+        "identity_key": "9a87bf2bef5279869588e92490e1547c81de08b16187bf4ec7f380ecd49145c6",
+        "rss": {
+          "n": 6,
+          "first_MiB": 147.4375,
+          "median_MiB": 161.703125,
+          "p95_MiB": 161.71875,
+          "peak_MiB": 161.71875,
+          "end_MiB": 161.6875,
+          "ols_MiB_per_hour": 122.14455753361598
+        },
+        "footprint": {
+          "n": 6,
+          "first_MiB": 64.4385986328125,
+          "median_MiB": 78.7511215209961,
+          "p95_MiB": 78.7979965209961,
+          "peak_MiB": 78.7979965209961,
+          "end_MiB": 78.7667465209961,
+          "ols_MiB_per_hour": 122.97599246981149
+        },
+        "hourly_memory": [
+          {
+            "elapsed_hour_slot": 5,
+            "rss": {
+              "n": 6,
+              "first_MiB": 147.4375,
+              "median_MiB": 161.703125,
+              "p95_MiB": 161.71875,
+              "peak_MiB": 161.71875,
+              "end_MiB": 161.6875,
+              "ols_MiB_per_hour": 122.14455753361598
+            },
+            "footprint": {
+              "n": 6,
+              "first_MiB": 64.4385986328125,
+              "median_MiB": 78.7511215209961,
+              "p95_MiB": 78.7979965209961,
+              "peak_MiB": 78.7979965209961,
+              "end_MiB": 78.7667465209961,
+              "ols_MiB_per_hour": 122.97599246981149
+            }
+          }
+        ]
+      }
+    ],
+    "serve": [
+      {
+        "first_sequence": 1,
+        "last_sequence": 212,
+        "first_utc": "2026-10-23T07:24:54.015544+00:00",
+        "last_utc": "2026-10-23T10:55:54.291645+00:00",
+        "endpoint_span_seconds": 12659.971492625,
+        "identity_key": "b50248b7c0684537081582e08e737c430cafeb0e8fa2542e274d1fcb320fb932",
+        "rss": {
+          "n": 212,
+          "first_MiB": 1571.171875,
+          "median_MiB": 1526.71875,
+          "p95_MiB": 1578.84375,
+          "peak_MiB": 1592.6875,
+          "end_MiB": 1526.71875,
+          "ols_MiB_per_hour": 26.95840019027082
+        },
+        "footprint": {
+          "n": 212,
+          "first_MiB": 1567.3766708374023,
+          "median_MiB": 1575.8923645019531,
+          "p95_MiB": 1578.1892623901367,
+          "peak_MiB": 1578.1892623901367,
+          "end_MiB": 1578.1423873901367,
+          "ols_MiB_per_hour": 16.354400334153688
+        },
+        "hourly_memory": [
+          {
+            "elapsed_hour_slot": 0,
+            "rss": {
+              "n": 60,
+              "first_MiB": 1571.171875,
+              "median_MiB": 1578.828125,
+              "p95_MiB": 1592.6875,
+              "peak_MiB": 1592.6875,
+              "end_MiB": 1083.53125,
+              "ols_MiB_per_hour": -566.7771650711613
+            },
+            "footprint": {
+              "n": 60,
+              "first_MiB": 1567.3766708374023,
+              "median_MiB": 1575.8923416137695,
+              "p95_MiB": 1575.9392395019531,
+              "peak_MiB": 1575.9392395019531,
+              "end_MiB": 1575.9236145019531,
+              "ols_MiB_per_hour": 166.33087166416755
+            }
+          },
+          {
+            "elapsed_hour_slot": 1,
+            "rss": {
+              "n": 60,
+              "first_MiB": 1083.328125,
+              "median_MiB": 1083.265625,
+              "p95_MiB": 1083.328125,
+              "peak_MiB": 1083.328125,
+              "end_MiB": 1083.265625,
+              "ols_MiB_per_hour": -0.051003783896822995
+            },
+            "footprint": {
+              "n": 60,
+              "first_MiB": 1575.8923645019531,
+              "median_MiB": 1575.8611145019531,
+              "p95_MiB": 1575.8923645019531,
+              "peak_MiB": 1575.8923645019531,
+              "end_MiB": 1575.8611145019531,
+              "ols_MiB_per_hour": -0.03667687477486602
+            }
+          },
+          {
+            "elapsed_hour_slot": 2,
+            "rss": {
+              "n": 60,
+              "first_MiB": 1083.265625,
+              "median_MiB": 1526.921875,
+              "p95_MiB": 1560.21875,
+              "peak_MiB": 1561.84375,
+              "end_MiB": 1526.921875,
+              "ols_MiB_per_hour": 437.6784921987061
+            },
+            "footprint": {
+              "n": 60,
+              "first_MiB": 1575.8611145019531,
+              "median_MiB": 1578.0876998901367,
+              "p95_MiB": 1578.1892623901367,
+              "peak_MiB": 1578.1892623901367,
+              "end_MiB": 1578.1892623901367,
+              "ols_MiB_per_hour": 2.0865099835976606
+            }
+          },
+          {
+            "elapsed_hour_slot": 3,
+            "rss": {
+              "n": 32,
+              "first_MiB": 1526.921875,
+              "median_MiB": 1526.71875,
+              "p95_MiB": 1526.921875,
+              "peak_MiB": 1526.921875,
+              "end_MiB": 1526.71875,
+              "ols_MiB_per_hour": -0.38438144709706984
+            },
+            "footprint": {
+              "n": 32,
+              "first_MiB": 1578.1892623901367,
+              "median_MiB": 1578.1423873901367,
+              "p95_MiB": 1578.1892623901367,
+              "peak_MiB": 1578.1892623901367,
+              "end_MiB": 1578.1423873901367,
+              "ols_MiB_per_hour": -0.09021020783211584
+            }
+          }
+        ]
+      },
+      {
+        "first_sequence": 213,
+        "last_sequence": 213,
+        "first_utc": "2026-10-23T10:56:54.292560+00:00",
+        "last_utc": "2026-10-23T10:56:54.292560+00:00",
+        "endpoint_span_seconds": 0.0,
+        "identity_key": "b50248b7c0684537081582e08e737c430cafeb0e8fa2542e274d1fcb320fb932",
+        "rss": {
+          "n": 1,
+          "first_MiB": 1526.75,
+          "median_MiB": 1526.75,
+          "p95_MiB": 1526.75,
+          "peak_MiB": 1526.75,
+          "end_MiB": 1526.75,
+          "ols_MiB_per_hour": null
+        },
+        "footprint": {
+          "n": 1,
+          "first_MiB": 1578.1736373901367,
+          "median_MiB": 1578.1736373901367,
+          "p95_MiB": 1578.1736373901367,
+          "peak_MiB": 1578.1736373901367,
+          "end_MiB": 1578.1736373901367,
+          "ols_MiB_per_hour": null
+        },
+        "hourly_memory": [
+          {
+            "elapsed_hour_slot": 3,
+            "rss": {
+              "n": 1,
+              "first_MiB": 1526.75,
+              "median_MiB": 1526.75,
+              "p95_MiB": 1526.75,
+              "peak_MiB": 1526.75,
+              "end_MiB": 1526.75,
+              "ols_MiB_per_hour": null
+            },
+            "footprint": {
+              "n": 1,
+              "first_MiB": 1578.1736373901367,
+              "median_MiB": 1578.1736373901367,
+              "p95_MiB": 1578.1736373901367,
+              "peak_MiB": 1578.1736373901367,
+              "end_MiB": 1578.1736373901367,
+              "ols_MiB_per_hour": null
+            }
+          }
+        ]
+      },
+      {
+        "first_sequence": 214,
+        "last_sequence": 214,
+        "first_utc": "2026-10-23T11:16:46.494174+00:00",
+        "last_utc": "2026-10-23T11:16:46.494174+00:00",
+        "endpoint_span_seconds": 0.0,
+        "identity_key": "b50248b7c0684537081582e08e737c430cafeb0e8fa2542e274d1fcb320fb932",
+        "rss": {
+          "n": 1,
+          "first_MiB": 1526.734375,
+          "median_MiB": 1526.734375,
+          "p95_MiB": 1526.734375,
+          "peak_MiB": 1526.734375,
+          "end_MiB": 1526.734375,
+          "ols_MiB_per_hour": null
+        },
+        "footprint": {
+          "n": 1,
+          "first_MiB": 1578.1423873901367,
+          "median_MiB": 1578.1423873901367,
+          "p95_MiB": 1578.1423873901367,
+          "peak_MiB": 1578.1423873901367,
+          "end_MiB": 1578.1423873901367,
+          "ols_MiB_per_hour": null
+        },
+        "hourly_memory": [
+          {
+            "elapsed_hour_slot": 3,
+            "rss": {
+              "n": 1,
+              "first_MiB": 1526.734375,
+              "median_MiB": 1526.734375,
+              "p95_MiB": 1526.734375,
+              "peak_MiB": 1526.734375,
+              "end_MiB": 1526.734375,
+              "ols_MiB_per_hour": null
+            },
+            "footprint": {
+              "n": 1,
+              "first_MiB": 1578.1423873901367,
+              "median_MiB": 1578.1423873901367,
+              "p95_MiB": 1578.1423873901367,
+              "peak_MiB": 1578.1423873901367,
+              "end_MiB": 1578.1423873901367,
+              "ols_MiB_per_hour": null
+            }
+          }
+        ]
+      },
+      {
+        "first_sequence": 215,
+        "last_sequence": 215,
+        "first_utc": "2026-10-23T11:51:13.772337+00:00",
+        "last_utc": "2026-10-23T11:51:13.772337+00:00",
+        "endpoint_span_seconds": 0.0,
+        "identity_key": "b50248b7c0684537081582e08e737c430cafeb0e8fa2542e274d1fcb320fb932",
+        "rss": {
+          "n": 1,
+          "first_MiB": 1526.734375,
+          "median_MiB": 1526.734375,
+          "p95_MiB": 1526.734375,
+          "peak_MiB": 1526.734375,
+          "end_MiB": 1526.734375,
+          "ols_MiB_per_hour": null
+        },
+        "footprint": {
+          "n": 1,
+          "first_MiB": 1578.1423873901367,
+          "median_MiB": 1578.1423873901367,
+          "p95_MiB": 1578.1423873901367,
+          "peak_MiB": 1578.1423873901367,
+          "end_MiB": 1578.1423873901367,
+          "ols_MiB_per_hour": null
+        },
+        "hourly_memory": [
+          {
+            "elapsed_hour_slot": 4,
+            "rss": {
+              "n": 1,
+              "first_MiB": 1526.734375,
+              "median_MiB": 1526.734375,
+              "p95_MiB": 1526.734375,
+              "peak_MiB": 1526.734375,
+              "end_MiB": 1526.734375,
+              "ols_MiB_per_hour": null
+            },
+            "footprint": {
+              "n": 1,
+              "first_MiB": 1578.1423873901367,
+              "median_MiB": 1578.1423873901367,
+              "p95_MiB": 1578.1423873901367,
+              "peak_MiB": 1578.1423873901367,
+              "end_MiB": 1578.1423873901367,
+              "ols_MiB_per_hour": null
+            }
+          }
+        ]
+      },
+      {
+        "first_sequence": 216,
+        "last_sequence": 216,
+        "first_utc": "2026-10-23T12:02:17.385840+00:00",
+        "last_utc": "2026-10-23T12:02:17.385840+00:00",
+        "endpoint_span_seconds": 0.0,
+        "identity_key": "b50248b7c0684537081582e08e737c430cafeb0e8fa2542e274d1fcb320fb932",
+        "rss": {
+          "n": 1,
+          "first_MiB": 1526.734375,
+          "median_MiB": 1526.734375,
+          "p95_MiB": 1526.734375,
+          "peak_MiB": 1526.734375,
+          "end_MiB": 1526.734375,
+          "ols_MiB_per_hour": null
+        },
+        "footprint": {
+          "n": 1,
+          "first_MiB": 1578.1423873901367,
+          "median_MiB": 1578.1423873901367,
+          "p95_MiB": 1578.1423873901367,
+          "peak_MiB": 1578.1423873901367,
+          "end_MiB": 1578.1423873901367,
+          "ols_MiB_per_hour": null
+        },
+        "hourly_memory": [
+          {
+            "elapsed_hour_slot": 4,
+            "rss": {
+              "n": 1,
+              "first_MiB": 1526.734375,
+              "median_MiB": 1526.734375,
+              "p95_MiB": 1526.734375,
+              "peak_MiB": 1526.734375,
+              "end_MiB": 1526.734375,
+              "ols_MiB_per_hour": null
+            },
+            "footprint": {
+              "n": 1,
+              "first_MiB": 1578.1423873901367,
+              "median_MiB": 1578.1423873901367,
+              "p95_MiB": 1578.1423873901367,
+              "peak_MiB": 1578.1423873901367,
+              "end_MiB": 1578.1423873901367,
+              "ols_MiB_per_hour": null
+            }
+          }
+        ]
+      },
+      {
+        "first_sequence": 217,
+        "last_sequence": 222,
+        "first_utc": "2026-10-23T12:43:55.120190+00:00",
+        "last_utc": "2026-10-23T12:48:54.335548+00:00",
+        "endpoint_span_seconds": 299.2135152080009,
+        "identity_key": "b50248b7c0684537081582e08e737c430cafeb0e8fa2542e274d1fcb320fb932",
+        "rss": {
+          "n": 6,
+          "first_MiB": 1526.765625,
+          "median_MiB": 1526.75,
+          "p95_MiB": 1526.765625,
+          "peak_MiB": 1526.765625,
+          "end_MiB": 1526.75,
+          "ols_MiB_per_hour": -0.13384264263168189
+        },
+        "footprint": {
+          "n": 6,
+          "first_MiB": 1578.1736373901367,
+          "median_MiB": 1578.1423873901367,
+          "p95_MiB": 1578.1736373901367,
+          "peak_MiB": 1578.1736373901367,
+          "end_MiB": 1578.1423873901367,
+          "ols_MiB_per_hour": -0.26768528526336377
+        },
+        "hourly_memory": [
+          {
+            "elapsed_hour_slot": 5,
+            "rss": {
+              "n": 6,
+              "first_MiB": 1526.765625,
+              "median_MiB": 1526.75,
+              "p95_MiB": 1526.765625,
+              "peak_MiB": 1526.765625,
+              "end_MiB": 1526.75,
+              "ols_MiB_per_hour": -0.13384264263168189
+            },
+            "footprint": {
+              "n": 6,
+              "first_MiB": 1578.1736373901367,
+              "median_MiB": 1578.1423873901367,
+              "p95_MiB": 1578.1736373901367,
+              "peak_MiB": 1578.1736373901367,
+              "end_MiB": 1578.1423873901367,
+              "ols_MiB_per_hour": -0.26768528526336377
+            }
+          }
+        ]
+      }
+    ],
+    "watch": [
+      {
+        "first_sequence": 1,
+        "last_sequence": 212,
+        "first_utc": "2026-10-23T07:24:54.015544+00:00",
+        "last_utc": "2026-10-23T10:55:54.291645+00:00",
+        "endpoint_span_seconds": 12659.971492625,
+        "identity_key": "96122321633a6e8c2517103f431ea12239fa58592eec39068f49fd0103ef23cc",
+        "rss": {
+          "n": 212,
+          "first_MiB": 17.703125,
+          "median_MiB": 14.21875,
+          "p95_MiB": 20.65625,
+          "peak_MiB": 20.671875,
+          "end_MiB": 12.875,
+          "ols_MiB_per_hour": -1.562272090789747
+        },
+        "footprint": {
+          "n": 212,
+          "first_MiB": 5.2192535400390625,
+          "median_MiB": 6.78179931640625,
+          "p95_MiB": 6.79742431640625,
+          "peak_MiB": 15.00054931640625,
+          "end_MiB": 6.79742431640625,
+          "ols_MiB_per_hour": 0.4153487850876249
+        },
+        "hourly_memory": [
+          {
+            "elapsed_hour_slot": 0,
+            "rss": {
+              "n": 60,
+              "first_MiB": 17.703125,
+              "median_MiB": 17.21875,
+              "p95_MiB": 18.859375,
+              "peak_MiB": 18.875,
+              "end_MiB": 18.875,
+              "ols_MiB_per_hour": 2.8385688020666944
+            },
+            "footprint": {
+              "n": 60,
+              "first_MiB": 5.2192535400390625,
+              "median_MiB": 5.219276428222656,
+              "p95_MiB": 7.37554931640625,
+              "peak_MiB": 15.00054931640625,
+              "end_MiB": 6.78179931640625,
+              "ols_MiB_per_hour": 3.0529644151206212
+            }
+          },
+          {
+            "elapsed_hour_slot": 1,
+            "rss": {
+              "n": 60,
+              "first_MiB": 18.71875,
+              "median_MiB": 14.328125,
+              "p95_MiB": 20.671875,
+              "peak_MiB": 20.671875,
+              "end_MiB": 18.671875,
+              "ols_MiB_per_hour": 6.192238328852097
+            },
+            "footprint": {
+              "n": 60,
+              "first_MiB": 6.78179931640625,
+              "median_MiB": 6.71929931640625,
+              "p95_MiB": 6.78179931640625,
+              "peak_MiB": 8.81304931640625,
+              "end_MiB": 6.78179931640625,
+              "ols_MiB_per_hour": 0.3575988460643502
+            }
+          },
+          {
+            "elapsed_hour_slot": 2,
+            "rss": {
+              "n": 60,
+              "first_MiB": 18.921875,
+              "median_MiB": 12.921875,
+              "p95_MiB": 18.953125,
+              "peak_MiB": 19.21875,
+              "end_MiB": 12.265625,
+              "ols_MiB_per_hour": -6.524831041645548
+            },
+            "footprint": {
+              "n": 60,
+              "first_MiB": 6.78179931640625,
+              "median_MiB": 6.79742431640625,
+              "p95_MiB": 6.79742431640625,
+              "peak_MiB": 6.79742431640625,
+              "end_MiB": 6.79742431640625,
+              "ols_MiB_per_hour": 0.003177968925146465
+            }
+          },
+          {
+            "elapsed_hour_slot": 3,
+            "rss": {
+              "n": 32,
+              "first_MiB": 12.265625,
+              "median_MiB": 12.578125,
+              "p95_MiB": 12.90625,
+              "peak_MiB": 12.90625,
+              "end_MiB": 12.875,
+              "ols_MiB_per_hour": 1.7246487925564375
+            },
+            "footprint": {
+              "n": 32,
+              "first_MiB": 6.79742431640625,
+              "median_MiB": 6.79742431640625,
+              "p95_MiB": 6.79742431640625,
+              "peak_MiB": 6.79742431640625,
+              "end_MiB": 6.79742431640625,
+              "ols_MiB_per_hour": 0.0
+            }
+          }
+        ]
+      },
+      {
+        "first_sequence": 213,
+        "last_sequence": 213,
+        "first_utc": "2026-10-23T10:56:54.292560+00:00",
+        "last_utc": "2026-10-23T10:56:54.292560+00:00",
+        "endpoint_span_seconds": 0.0,
+        "identity_key": "96122321633a6e8c2517103f431ea12239fa58592eec39068f49fd0103ef23cc",
+        "rss": {
+          "n": 1,
+          "first_MiB": 9.765625,
+          "median_MiB": 9.765625,
+          "p95_MiB": 9.765625,
+          "peak_MiB": 9.765625,
+          "end_MiB": 9.765625,
+          "ols_MiB_per_hour": null
+        },
+        "footprint": {
+          "n": 1,
+          "first_MiB": 6.84429931640625,
+          "median_MiB": 6.84429931640625,
+          "p95_MiB": 6.84429931640625,
+          "peak_MiB": 6.84429931640625,
+          "end_MiB": 6.84429931640625,
+          "ols_MiB_per_hour": null
+        },
+        "hourly_memory": [
+          {
+            "elapsed_hour_slot": 3,
+            "rss": {
+              "n": 1,
+              "first_MiB": 9.765625,
+              "median_MiB": 9.765625,
+              "p95_MiB": 9.765625,
+              "peak_MiB": 9.765625,
+              "end_MiB": 9.765625,
+              "ols_MiB_per_hour": null
+            },
+            "footprint": {
+              "n": 1,
+              "first_MiB": 6.84429931640625,
+              "median_MiB": 6.84429931640625,
+              "p95_MiB": 6.84429931640625,
+              "peak_MiB": 6.84429931640625,
+              "end_MiB": 6.84429931640625,
+              "ols_MiB_per_hour": null
+            }
+          }
+        ]
+      },
+      {
+        "first_sequence": 214,
+        "last_sequence": 214,
+        "first_utc": "2026-10-23T11:16:46.494174+00:00",
+        "last_utc": "2026-10-23T11:16:46.494174+00:00",
+        "endpoint_span_seconds": 0.0,
+        "identity_key": "96122321633a6e8c2517103f431ea12239fa58592eec39068f49fd0103ef23cc",
+        "rss": {
+          "n": 1,
+          "first_MiB": 9.859375,
+          "median_MiB": 9.859375,
+          "p95_MiB": 9.859375,
+          "peak_MiB": 9.859375,
+          "end_MiB": 9.859375,
+          "ols_MiB_per_hour": null
+        },
+        "footprint": {
+          "n": 1,
+          "first_MiB": 6.81304931640625,
+          "median_MiB": 6.81304931640625,
+          "p95_MiB": 6.81304931640625,
+          "peak_MiB": 6.81304931640625,
+          "end_MiB": 6.81304931640625,
+          "ols_MiB_per_hour": null
+        },
+        "hourly_memory": [
+          {
+            "elapsed_hour_slot": 3,
+            "rss": {
+              "n": 1,
+              "first_MiB": 9.859375,
+              "median_MiB": 9.859375,
+              "p95_MiB": 9.859375,
+              "peak_MiB": 9.859375,
+              "end_MiB": 9.859375,
+              "ols_MiB_per_hour": null
+            },
+            "footprint": {
+              "n": 1,
+              "first_MiB": 6.81304931640625,
+              "median_MiB": 6.81304931640625,
+              "p95_MiB": 6.81304931640625,
+              "peak_MiB": 6.81304931640625,
+              "end_MiB": 6.81304931640625,
+              "ols_MiB_per_hour": null
+            }
+          }
+        ]
+      },
+      {
+        "first_sequence": 215,
+        "last_sequence": 215,
+        "first_utc": "2026-10-23T11:51:13.772337+00:00",
+        "last_utc": "2026-10-23T11:51:13.772337+00:00",
+        "endpoint_span_seconds": 0.0,
+        "identity_key": "96122321633a6e8c2517103f431ea12239fa58592eec39068f49fd0103ef23cc",
+        "rss": {
+          "n": 1,
+          "first_MiB": 9.875,
+          "median_MiB": 9.875,
+          "p95_MiB": 9.875,
+          "peak_MiB": 9.875,
+          "end_MiB": 9.875,
+          "ols_MiB_per_hour": null
+        },
+        "footprint": {
+          "n": 1,
+          "first_MiB": 6.82867431640625,
+          "median_MiB": 6.82867431640625,
+          "p95_MiB": 6.82867431640625,
+          "peak_MiB": 6.82867431640625,
+          "end_MiB": 6.82867431640625,
+          "ols_MiB_per_hour": null
+        },
+        "hourly_memory": [
+          {
+            "elapsed_hour_slot": 4,
+            "rss": {
+              "n": 1,
+              "first_MiB": 9.875,
+              "median_MiB": 9.875,
+              "p95_MiB": 9.875,
+              "peak_MiB": 9.875,
+              "end_MiB": 9.875,
+              "ols_MiB_per_hour": null
+            },
+            "footprint": {
+              "n": 1,
+              "first_MiB": 6.82867431640625,
+              "median_MiB": 6.82867431640625,
+              "p95_MiB": 6.82867431640625,
+              "peak_MiB": 6.82867431640625,
+              "end_MiB": 6.82867431640625,
+              "ols_MiB_per_hour": null
+            }
+          }
+        ]
+      },
+      {
+        "first_sequence": 216,
+        "last_sequence": 216,
+        "first_utc": "2026-10-23T12:02:17.385840+00:00",
+        "last_utc": "2026-10-23T12:02:17.385840+00:00",
+        "endpoint_span_seconds": 0.0,
+        "identity_key": "96122321633a6e8c2517103f431ea12239fa58592eec39068f49fd0103ef23cc",
+        "rss": {
+          "n": 1,
+          "first_MiB": 9.921875,
+          "median_MiB": 9.921875,
+          "p95_MiB": 9.921875,
+          "peak_MiB": 9.921875,
+          "end_MiB": 9.921875,
+          "ols_MiB_per_hour": null
+        },
+        "footprint": {
+          "n": 1,
+          "first_MiB": 6.82867431640625,
+          "median_MiB": 6.82867431640625,
+          "p95_MiB": 6.82867431640625,
+          "peak_MiB": 6.82867431640625,
+          "end_MiB": 6.82867431640625,
+          "ols_MiB_per_hour": null
+        },
+        "hourly_memory": [
+          {
+            "elapsed_hour_slot": 4,
+            "rss": {
+              "n": 1,
+              "first_MiB": 9.921875,
+              "median_MiB": 9.921875,
+              "p95_MiB": 9.921875,
+              "peak_MiB": 9.921875,
+              "end_MiB": 9.921875,
+              "ols_MiB_per_hour": null
+            },
+            "footprint": {
+              "n": 1,
+              "first_MiB": 6.82867431640625,
+              "median_MiB": 6.82867431640625,
+              "p95_MiB": 6.82867431640625,
+              "peak_MiB": 6.82867431640625,
+              "end_MiB": 6.82867431640625,
+              "ols_MiB_per_hour": null
+            }
+          }
+        ]
+      },
+      {
+        "first_sequence": 217,
+        "last_sequence": 222,
+        "first_utc": "2026-10-23T12:43:55.120190+00:00",
+        "last_utc": "2026-10-23T12:48:54.335548+00:00",
+        "endpoint_span_seconds": 299.2135152080009,
+        "identity_key": "96122321633a6e8c2517103f431ea12239fa58592eec39068f49fd0103ef23cc",
+        "rss": {
+          "n": 6,
+          "first_MiB": 9.953125,
+          "median_MiB": 9.96875,
+          "p95_MiB": 10.234375,
+          "peak_MiB": 10.234375,
+          "end_MiB": 10.234375,
+          "ols_MiB_per_hour": 3.8671621927663424
+        },
+        "footprint": {
+          "n": 6,
+          "first_MiB": 6.84429931640625,
+          "median_MiB": 6.82867431640625,
+          "p95_MiB": 6.84429931640625,
+          "peak_MiB": 6.84429931640625,
+          "end_MiB": 6.82867431640625,
+          "ols_MiB_per_hour": -0.053066165303270026
+        },
+        "hourly_memory": [
+          {
+            "elapsed_hour_slot": 5,
+            "rss": {
+              "n": 6,
+              "first_MiB": 9.953125,
+              "median_MiB": 9.96875,
+              "p95_MiB": 10.234375,
+              "peak_MiB": 10.234375,
+              "end_MiB": 10.234375,
+              "ols_MiB_per_hour": 3.8671621927663424
+            },
+            "footprint": {
+              "n": 6,
+              "first_MiB": 6.84429931640625,
+              "median_MiB": 6.82867431640625,
+              "p95_MiB": 6.84429931640625,
+              "peak_MiB": 6.84429931640625,
+              "end_MiB": 6.82867431640625,
+              "ols_MiB_per_hour": -0.053066165303270026
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "tail60_interpretation_caution": "Tail60 may span power/sleep/gap barriers; do not interpret its cross-barrier OLS/TheilSen as a continuous awake trend. Use segmented memory above; frozen helper unchanged.",
+  "high_cpu_count": 6,
+  "new_high_after179": 0,
+  "user_dropped_lifetime_max": 16,
+  "visible_in_window_event_limit_completions": 2,
+  "visible_history_gap_full_after": 0,
+  "missing_hourly_log_slots": [
+    3,
+    4
+  ],
+  "hourly_review_sha256": "16a97d061d7dfdccca0917b8a16706be0b5a3e9fb97216e4b3fe99feb9afcb16",
+  "limitations": [
+    "Power UUID changes are not independent sleep episode counts; sleep differences and individual gaps kept explicitly.",
+    "No CPU attribution across barriers; unknown intervals may contain short peaks.",
+    "GUI post-wake single step has about5min tail only; exact allocation owner and sleep/wake causality unknown.",
+    "Hourly log slots3/4 remain absent and are not backfilled; raw resource gaps are not filled or extended.",
+    "No App API request/DB/config/tool/process/window change or resource sample insertion."
+  ]
+}

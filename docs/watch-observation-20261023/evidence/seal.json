@@ -1,0 +1,69 @@
+{
+  "schema": 1,
+  "at_utc": "2026-10-24T07:39:20.637991+00:00",
+  "status": "SEALED_WITH_RECORDED_RECURRENCES_AND_ROLE_COVERAGE_LOSS_NOT_STABILITY_PASS",
+  "private_archive_name": "final-archive-20261024",
+  "private_manifest_sha256": "b215240f8c4b9287c4af3905acae5c17848a4621ba701edf9ced85030b9c7fa8",
+  "private_SHA256SUMS_sha256": "3b955ccd57c77e7d6791c642b2d6fd8c207f33dc033c104cf3596d79f2dd7691",
+  "private_raw_manifest_sha256": "19bf05cd2f30586bc05c862b400b270083a584d1c5a105c035becbb0fe9dc7f6",
+  "private_file_count": 270,
+  "private_file_bytes": 37494267,
+  "public_files_sha256": {
+    "REPORT.md": "e9e1c392e950ea84334115d51d2bf4d27cb509a404d2ccf3ef65767410642b81",
+    "STATUS.md": "9defb42664294b2f05a3459d25e5340b5f61fbe386876c986044a90d746c7a9d",
+    "evidence/all-high-cpu-candidates.json": "2f9f0f5b50a3838aca72c6d2db3c3ac2c9c4909954ba7ad54b12c0bfb5c3fde6",
+    "evidence/anomaly-timeline.json": "acee74fd43495f0d3476af273394b67bb05a4baf6da41e449db9e1bd5c0e5c07",
+    "evidence/coverage.json": "5fa296e38611630e20eaf5f4c8129e6c25c6deb2bf93bc42eaa38b68e63dc32d",
+    "evidence/cpu-intervals.json": "fecc15bbd73abe2268fadeae0b3d066d11900ffaca16f4868a7173fe16958f2f",
+    "evidence/event-limit-1734-followup.json": "411728fcf704193c88bc682e599f64dee8a35cdf8c0cebb722c585f371186656",
+    "evidence/event-limit-readonly.json": "5883a6ca506d6061dc32cd0c564161f1377b119800e2e03e7061d994c1afc3e4",
+    "evidence/final.json": "6a1a9802811ae4cfd2c72da51a30763b2c91ebc7eb3542e4990ce9762ab00263",
+    "evidence/hourly-memory.csv": "7b286b323f2fdfe3ffd3c1d19865dfb150052ae7085f4dc21e9799e66bed6db8",
+    "evidence/hourly.csv": "6a61cb50385ae712f3d5f1127c41ceb16793301cd28af96bf18ea512c270c011",
+    "evidence/hourly.json": "ebe1fcbf121cac8bb2a8b88266d23e56ad0effd7d2c39c5dc004ac25327c463a",
+    "evidence/initial-check.json": "9f26e8c364bc31754346257aa9e448ff073dc80a43a7bbfdf197d5545a809da3",
+    "evidence/memory-segments.json": "afcf380958d2ae129fd2af953c7628c3368d90527d37b62b116b5e358aad75c2",
+    "evidence/role-missing-0206-readonly.json": "05fcc3a5855e575388361f936f5ebed42c32a5de3bc482493a8ef1260ff9d2c3",
+    "evidence/sleep-gui-followup.json": "3dcd19307215907ac0abf24e073a722efc80f07c64150dfa9a8bbd9c4472f01c",
+    "evidence/start.json": "aacdcdddbb2d5e7c4be72762ba19ae42bb26d38ded3ac789eb8a10f1a5858877",
+    "evidence/userdropped-0102-readonly.json": "bdb2370500200a280d2e5dabf0748a064a071f7d7a8ceb48fbb91e3735bbbb4c",
+    "evidence/userdropped-1610-readonly.json": "ff23314aec9a9c12af1f2ffc53b981d5b8e7e81028e457f26ec207bee8e0ad4b"
+  },
+  "raw_journal": {
+    "rows": 1277,
+    "bytes": 2952152,
+    "sha256": "669f182a3770a26b3a9684a772e16220bd4ee41ea1cb26014435d4b624364fdf"
+  },
+  "extra_diagnostic_directories": [
+    "diagnostics-event-limit-20261023",
+    "diagnostics-highcpu-20261023-1623",
+    "diagnostics-userdropped-20261024-0121",
+    "diagnostics-role-missing-20261024-0827"
+  ],
+  "completion_verification_sha256": "9d208bad5a0b01fdb49546775063b0688bfe2cac6014d868356acfc4ed42ad6c",
+  "weekly_register_version": "v82",
+  "weekly_register_sha256": "6d954dda9ed02d1fce0fc5ae37e9a6faaef4f593bff28c9e0318aa192caff1c9",
+  "weekly_register_local_draft_not_inside_MacEvery_repo": true,
+  "scope": "All raw copies and per-file hashes retained locally; pushed summaries are sanitized. Current App/source, historical freezes and real rollback retained; no older data joined or new resource sample.",
+  "receipt_boundary": "Commit/remote-SHA and automation-stop receipts occur after sealing and are retained separately. seal.json itself is outside its own public hash set; it is protected by its Git blob and a separate private receipt. Public CSV LF formatting corrections preserve values and sealed originals; final public LF copies and correction hashes are in the separately referenced supplement.",
+  "public_formatting_supplement": {
+    "private_directory_name": "closeout-public-csv-lf",
+    "manifest_sha256": "fbb760162e3cf6805424887bd0937ee4e9754549f66d8cf926daf865b9853883",
+    "files": [
+      {
+        "name": "hourly.csv",
+        "sealed_original_CRLF_sha256": "2f2f6c528dca654fbe8f84d657ea5a97ddeb4c273c194082077120465b241779",
+        "final_public_LF_sha256": "6a61cb50385ae712f3d5f1127c41ceb16793301cd28af96bf18ea512c270c011",
+        "bytes": 9692,
+        "parsed_CSV_rows_unchanged": true
+      },
+      {
+        "name": "hourly-memory.csv",
+        "sealed_original_CRLF_sha256": "32b1c4717b34d2dcd67108c647e7c2917593f440c6913b49c7a368f282725177",
+        "final_public_LF_sha256": "7b286b323f2fdfe3ffd3c1d19865dfb150052ae7085f4dc21e9799e66bed6db8",
+        "bytes": 13766,
+        "parsed_CSV_rows_unchanged": true
+      }
+    ]
+  }
+}

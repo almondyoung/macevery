@@ -1,0 +1,611 @@
+{
+  "schema": 1,
+  "at_utc": "2026-10-24T07:37:14.438330+00:00",
+  "status": "SEALED_WITH_USERDROPPED_HIGH_CPU_AND_ROLE_COVERAGE_LOSS_NOT_STABILITY_PASS",
+  "source_commit": "b027a42c2cb859235b2a354c4c4bd8187a785a77",
+  "build_label": "0.1.3-gb027a42",
+  "app_fingerprint": "76f233510003c4c507e8eef3775a7165ddeb36e424bb626263aa0c374571de3b",
+  "app_payload_hashes": {
+    "plist": "82b1b39fc48b86ec6ec1c5f260dcf0975dbbac1aa119eddf4646617f5eee95cb",
+    "gui": "fd8742cf7a2753e2c09febbfc482bee31ea5403d96a23b93eee3bb52652e4c17",
+    "cli": "884ef51d10d4e41cf73f9c039771b070eac292b115ef657b9e8ff9c2da10fef9"
+  },
+  "private_helpers_sha256": {
+    "runtime_identity.py": "db3ab606398a9fe4d2da22dd70e275b8141769c68bdf95bc0eca2bb46205eb82",
+    "launch_observer.py": "415eef615c5e20e3df6895b66decb01f6db43caf8f521b43412a21f52090c039",
+    "health_check.py": "730146faf719d4a8be3861ea9b5ee46e7fb0aa66b5fb8f5c30c1947728c64366",
+    "analyze_committed.py": "cf7544b6fd52b930b22840ef61cde32b0f3aac60e2a11826ab70b664e9c5d474"
+  },
+  "public_tools_sha256": {
+    "tools/observe_app_resources.py": "781564a67a55defaa9778357e3f45b1adc5dd40a02f689922963ce01cb3caefe",
+    "tools/check_service_round2.py": "41e09df119b34b0a84832e759a1068c09eb88bb82f7cb21ec02ef0bb2cac2e59"
+  },
+  "source_archive_sha256": "d5dc94279680ef68620d7097f4b173240383bdebe3789337366353652937ef22",
+  "window_start_utc": "2026-10-23T07:24:53.957679+00:00",
+  "window_deadline_utc": "2026-10-24T07:24:53.957679+00:00",
+  "window_finished": true,
+  "last_exit": {
+    "at_utc": "2026-10-24T07:24:54.572606+00:00",
+    "reason": "window_elapsed",
+    "exit_code": 0,
+    "sequence": 1277
+  },
+  "actual_original_worker_absent": true,
+  "writer_lock_free": true,
+  "raw_files_stable": true,
+  "no_signal_stop_resume_second_collector_sample_insertion_or_window_extension": true,
+  "source_status_counts": {
+    "match": 1277
+  },
+  "database_pin_status_counts": {
+    "match": 1277
+  },
+  "journal": {
+    "rows": 1277,
+    "bytes": 2952152,
+    "sha256": "669f182a3770a26b3a9684a772e16220bd4ee41ea1cb26014435d4b624364fdf",
+    "full_contiguous_sequence_prefix_and_last_record_match_state": true
+  },
+  "coverage": {
+    "status": "WINDOW_ELAPSED_WITH_ROLE_COVERAGE_LOSS_NOT_STABILITY_PASS",
+    "nominal_window_seconds": 86400,
+    "window_start_utc": "2026-10-23T07:24:53.957679+00:00",
+    "deadline_utc": "2026-10-24T07:24:53.957679+00:00",
+    "first_endpoint_utc": "2026-10-23T07:24:54.015544+00:00",
+    "last_endpoint_utc": "2026-10-24T07:24:54.488569+00:00",
+    "first_endpoint_elapsed_seconds": 0.057852083,
+    "last_endpoint_elapsed_seconds": 86400.035020458,
+    "continuous_endpoint_span_seconds": 86399.977168375,
+    "wall_endpoint_span_seconds": 86400.473025,
+    "first_cpu_uncovered_seconds": 0.057852083,
+    "terminal_endpoint_tolerance_seconds": 0.03502045800269116,
+    "terminal_endpoint_not_25th_full_hour": true,
+    "endpoints": 1277,
+    "nominal_slots_including_terminal": 1441,
+    "captured_unique_slots": 1277,
+    "missing_nominal_slot_ranges": [
+      [
+        213,
+        230
+      ],
+      [
+        232,
+        265
+      ],
+      [
+        267,
+        276
+      ],
+      [
+        278,
+        318
+      ],
+      [
+        701,
+        705
+      ],
+      [
+        707,
+        722
+      ],
+      [
+        1069,
+        1069
+      ],
+      [
+        1071,
+        1086
+      ],
+      [
+        1105,
+        1108
+      ],
+      [
+        1111,
+        1129
+      ]
+    ],
+    "observed_barrier_counts": {
+      "initial_endpoint": 1,
+      "power_transition": 5,
+      "sleep_observed": 10,
+      "sampling_gap": 10
+    },
+    "sleep_seconds_in_sleep_barrier_intervals": 10071.467897458,
+    "excluded_awake_seconds_in_barrier_intervals": 685.079029957,
+    "excluded_awake_seconds_in_barriers_while_roles_known": 205.396494416,
+    "last_all_roles_known_sequence": 539,
+    "last_all_roles_known_utc": "2026-10-23T18:05:54.517253+00:00",
+    "first_all_roles_missing_sequence": 540,
+    "first_all_roles_missing_utc": "2026-10-23T18:06:54.522470+00:00",
+    "role_exit_bounded_between_last_known_and_first_missing": true,
+    "role_exit_cause": "UNKNOWN",
+    "missing_role_endpoint_count_each": 738,
+    "role_missing_span_first_missing_to_terminal_continuous_seconds": 47880.000722833,
+    "role_missing_through_nominal_deadline_seconds": 47879.965702375,
+    "per_role": {
+      "gui": {
+        "identity_count": 1,
+        "known_endpoints": 539,
+        "valid_cpu_intervals": 533,
+        "valid_cpu_awake_seconds": 31979.18890925102,
+        "cpu_seconds": 21.861294082999976,
+        "valid_cpu_fraction_of_nominal_window": 0.3701295012644794,
+        "strict_exclusion_reason_counts": {
+          "barrier": 13,
+          "not_measured": 743,
+          "invalid_metric": 743,
+          "identity_unknown_or_change": 738,
+          "cpu_counter_unknown": 738
+        }
+      },
+      "serve": {
+        "identity_count": 1,
+        "known_endpoints": 539,
+        "valid_cpu_intervals": 533,
+        "valid_cpu_awake_seconds": 31979.18890925102,
+        "cpu_seconds": 7.434545125000001,
+        "valid_cpu_fraction_of_nominal_window": 0.3701295012644794,
+        "strict_exclusion_reason_counts": {
+          "barrier": 13,
+          "not_measured": 743,
+          "invalid_metric": 743,
+          "identity_unknown_or_change": 738,
+          "cpu_counter_unknown": 738
+        }
+      },
+      "watch": {
+        "identity_count": 1,
+        "known_endpoints": 539,
+        "valid_cpu_intervals": 533,
+        "valid_cpu_awake_seconds": 31979.18890925102,
+        "cpu_seconds": 520.9740613749997,
+        "valid_cpu_fraction_of_nominal_window": 0.3701295012644794,
+        "strict_exclusion_reason_counts": {
+          "barrier": 13,
+          "not_measured": 743,
+          "invalid_metric": 743,
+          "identity_unknown_or_change": 738,
+          "cpu_counter_unknown": 738
+        }
+      }
+    },
+    "missing_hourly_log_slots": [
+      3,
+      4,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16
+    ],
+    "sleep_power_missing_are_distinct_not_independent_OS_sleep_counts": true,
+    "zero_cpu_or_memory_not_imputed_for_missing_roles": true
+  },
+  "watch_high_cpu": {
+    "all_process_measured_candidates": 11,
+    "strict_intervals": 11,
+    "excluded_high_candidates": 0,
+    "segments": 3,
+    "peak_percent_one_core": 72.20885896016303,
+    "cpu_seconds": 450.8962245,
+    "valid_awake_seconds": 660.016786832,
+    "minute_averages_do_not_exclude_shorter_peaks": true
+  },
+  "UserDropped": {
+    "completed_root_batches": [
+      {
+        "start_at_ms": 1792743056123,
+        "end_at_ms": 1792743264368,
+        "flags_or": 3,
+        "raw_recovery_flags": 3,
+        "admitted_raw_user_dropped": 10,
+        "indexed": 7397721,
+        "rows_written": 590,
+        "unchanged": 7397131,
+        "stale_removed": 0,
+        "elapsed_ms": 208244,
+        "warnings": 0,
+        "legacy_fallback": false,
+        "recovery_ID_distinct": true
+      },
+      {
+        "start_at_ms": 1792743264527,
+        "end_at_ms": 1792743469243,
+        "flags_or": 163843,
+        "raw_recovery_flags": 3,
+        "admitted_raw_user_dropped": 6,
+        "indexed": 7397721,
+        "rows_written": 0,
+        "unchanged": 7397721,
+        "stale_removed": 0,
+        "elapsed_ms": 204715,
+        "warnings": 0,
+        "legacy_fallback": false,
+        "recovery_ID_distinct": true
+      },
+      {
+        "start_at_ms": 1792774934382,
+        "end_at_ms": 1792775102789,
+        "flags_or": 3,
+        "raw_recovery_flags": 3,
+        "admitted_raw_user_dropped": 20,
+        "indexed": 7393204,
+        "rows_written": 87,
+        "unchanged": 7393117,
+        "stale_removed": 0,
+        "elapsed_ms": 168406,
+        "warnings": 0,
+        "legacy_fallback": false,
+        "recovery_ID_distinct": true
+      },
+      {
+        "start_at_ms": 1792775102955,
+        "end_at_ms": 1792775290767,
+        "flags_or": 3,
+        "raw_recovery_flags": 3,
+        "admitted_raw_user_dropped": 2,
+        "indexed": 7393204,
+        "rows_written": 0,
+        "unchanged": 7393204,
+        "stale_removed": 0,
+        "elapsed_ms": 187811,
+        "warnings": 0,
+        "legacy_fallback": false,
+        "recovery_ID_distinct": true
+      }
+    ],
+    "lifetime_callback_flagged_records_first": 0,
+    "lifetime_callback_flagged_records_last": 38,
+    "not_independent_OS_incident_or_lost_file_count": true,
+    "indexed_visits_sum": 29581850,
+    "rows_written_sum": 677,
+    "unchanged_rows_skipped_sum": 29581173,
+    "stale_removed_sum": 0,
+    "warnings": 0,
+    "legacy_fallbacks": 0,
+    "cause": "UNKNOWN",
+    "additional_signals_during_first_batch_preclude_calling_zero_write_second_batch_unnecessary": true,
+    "physical_WAL_write_amplification_not_measured": true
+  },
+  "serve_refresh": {
+    "completed_event_limit_full_operations": 2,
+    "completed_history_gap_full_operations_visible": 0,
+    "completed_snapshot_reconcile_operations_visible": 0,
+    "unclosed_load_counter_increase_candidates_visible": 0,
+    "last_visible_counters": {
+      "at_ms": 1792778772917,
+      "snapshot_at_ms": 1792749271190,
+      "load_attempts": 3,
+      "successful_loads": 3,
+      "incremental_attempts": 4,
+      "incremental_applies": 2,
+      "loaded_revision": 55665730,
+      "capacity_bytes": 1539457977,
+      "searches_started": 8,
+      "searches_completed": 8
+    },
+    "idle_cached_phase_not_new_operation": true,
+    "recorded_native_serve_identity_session_and_counter_continuity_verified": true,
+    "incomplete_rotated_logs_do_not_prove_zero_unobserved_operations": true
+  },
+  "memory_last_known": {
+    "gui": {
+      "last_known_fp_MiB": 59.2979736328125,
+      "last_known_rss_MiB": 120.90625,
+      "last_known_utc": "2026-10-23T18:05:54.517253+00:00",
+      "tail60_same_contiguous_segment": {
+        "endpoints": 60,
+        "first_sequence": 480,
+        "last_sequence": 539,
+        "first_utc": "2026-10-23T17:06:54.473953+00:00",
+        "last_utc": "2026-10-23T18:05:54.517253+00:00",
+        "observed_span_seconds": 3539.999875374997,
+        "rss_MiB": {
+          "n": 60,
+          "first": 126.203125,
+          "median": 125.0,
+          "p95": 126.203125,
+          "max": 126.21875,
+          "min": 120.90625,
+          "end": 120.90625,
+          "ols_MiB_per_hour": -7.6052628229630965,
+          "theil_sen_MiB_per_hour": -6.3187369413655015,
+          "pairs": 1770
+        },
+        "footprint_MiB": {
+          "n": 60,
+          "first": 59.3292236328125,
+          "median": 59.3057861328125,
+          "p95": 59.3292236328125,
+          "max": 59.3292236328125,
+          "min": 59.2823486328125,
+          "end": 59.2979736328125,
+          "ols_MiB_per_hour": -0.040089245819650156,
+          "theil_sen_MiB_per_hour": -0.03676469716650649,
+          "pairs": 1770
+        }
+      },
+      "last_80_minutes_known_segment": {
+        "endpoints": 81,
+        "first_sequence": 459,
+        "last_sequence": 539,
+        "first_utc": "2026-10-23T16:45:54.549939+00:00",
+        "last_utc": "2026-10-23T18:05:54.517253+00:00",
+        "observed_span_seconds": 4799.998601749998,
+        "rss_MiB": {
+          "n": 81,
+          "first": 126.375,
+          "median": 126.1875,
+          "p95": 126.390625,
+          "max": 126.390625,
+          "min": 120.90625,
+          "end": 120.90625,
+          "ols_MiB_per_hour": -5.133552755959337,
+          "theil_sen_MiB_per_hour": -2.5781216830340563,
+          "pairs": 3240
+        },
+        "footprint_MiB": {
+          "n": 81,
+          "first": 59.3292236328125,
+          "median": 59.3135986328125,
+          "p95": 59.3448486328125,
+          "max": 59.3448486328125,
+          "min": 59.2823486328125,
+          "end": 59.2979736328125,
+          "ols_MiB_per_hour": -0.04503301746931257,
+          "theil_sen_MiB_per_hour": -0.04360465040752723,
+          "pairs": 3240
+        }
+      },
+      "current_footprint": null,
+      "current_status": "missing"
+    },
+    "serve": {
+      "last_known_fp_MiB": 1578.2205123901367,
+      "last_known_rss_MiB": 7.0625,
+      "last_known_utc": "2026-10-23T18:05:54.517253+00:00",
+      "tail60_same_contiguous_segment": {
+        "endpoints": 60,
+        "first_sequence": 480,
+        "last_sequence": 539,
+        "first_utc": "2026-10-23T17:06:54.473953+00:00",
+        "last_utc": "2026-10-23T18:05:54.517253+00:00",
+        "observed_span_seconds": 3539.999875374997,
+        "rss_MiB": {
+          "n": 60,
+          "first": 7.609375,
+          "median": 7.546875,
+          "p95": 7.625,
+          "max": 7.625,
+          "min": 7.0625,
+          "end": 7.0625,
+          "ols_MiB_per_hour": -0.7480723755615816,
+          "theil_sen_MiB_per_hour": -0.5282735492826391,
+          "pairs": 1770
+        },
+        "footprint_MiB": {
+          "n": 60,
+          "first": 1578.2205123901367,
+          "median": 1578.2205123901367,
+          "p95": 1578.2205123901367,
+          "max": 1578.2205123901367,
+          "min": 1578.2205123901367,
+          "end": 1578.2205123901367,
+          "ols_MiB_per_hour": 0.0,
+          "theil_sen_MiB_per_hour": 0.0,
+          "pairs": 1770
+        }
+      },
+      "last_80_minutes_known_segment": {
+        "endpoints": 81,
+        "first_sequence": 459,
+        "last_sequence": 539,
+        "first_utc": "2026-10-23T16:45:54.549939+00:00",
+        "last_utc": "2026-10-23T18:05:54.517253+00:00",
+        "observed_span_seconds": 4799.998601749998,
+        "rss_MiB": {
+          "n": 81,
+          "first": 7.578125,
+          "median": 7.578125,
+          "p95": 7.625,
+          "max": 7.625,
+          "min": 7.0625,
+          "end": 7.0625,
+          "ols_MiB_per_hour": -0.45428943054649307,
+          "theil_sen_MiB_per_hour": -0.1293106795273285,
+          "pairs": 3240
+        },
+        "footprint_MiB": {
+          "n": 81,
+          "first": 1578.2205123901367,
+          "median": 1578.2205123901367,
+          "p95": 1578.2205123901367,
+          "max": 1578.2205123901367,
+          "min": 1578.2205123901367,
+          "end": 1578.2205123901367,
+          "ols_MiB_per_hour": 0.0,
+          "theil_sen_MiB_per_hour": 0.0,
+          "pairs": 3240
+        }
+      },
+      "current_footprint": null,
+      "current_status": "missing"
+    },
+    "watch": {
+      "last_known_fp_MiB": 7.81304931640625,
+      "last_known_rss_MiB": 17.609375,
+      "last_known_utc": "2026-10-23T18:05:54.517253+00:00",
+      "tail60_same_contiguous_segment": {
+        "endpoints": 60,
+        "first_sequence": 480,
+        "last_sequence": 539,
+        "first_utc": "2026-10-23T17:06:54.473953+00:00",
+        "last_utc": "2026-10-23T18:05:54.517253+00:00",
+        "observed_span_seconds": 3539.999875374997,
+        "rss_MiB": {
+          "n": 60,
+          "first": 17.71875,
+          "median": 17.640625,
+          "p95": 17.734375,
+          "max": 17.734375,
+          "min": 17.609375,
+          "end": 17.609375,
+          "ols_MiB_per_hour": -0.1197467693207517,
+          "theil_sen_MiB_per_hour": -0.09665963995857826,
+          "pairs": 1770
+        },
+        "footprint_MiB": {
+          "n": 60,
+          "first": 7.93804931640625,
+          "median": 7.81304931640625,
+          "p95": 7.81304931640625,
+          "max": 7.93804931640625,
+          "min": 7.81304931640625,
+          "end": 7.81304931640625,
+          "ols_MiB_per_hour": -0.024173420732706733,
+          "theil_sen_MiB_per_hour": 0.0,
+          "pairs": 1770
+        }
+      },
+      "last_80_minutes_known_segment": {
+        "endpoints": 81,
+        "first_sequence": 459,
+        "last_sequence": 539,
+        "first_utc": "2026-10-23T16:45:54.549939+00:00",
+        "last_utc": "2026-10-23T18:05:54.517253+00:00",
+        "observed_span_seconds": 4799.998601749998,
+        "rss_MiB": {
+          "n": 81,
+          "first": 9.625,
+          "median": 17.640625,
+          "p95": 17.734375,
+          "max": 17.734375,
+          "min": 9.625,
+          "end": 17.609375,
+          "ols_MiB_per_hour": 5.923671169328404,
+          "theil_sen_MiB_per_hour": 0.0,
+          "pairs": 3240
+        },
+        "footprint_MiB": {
+          "n": 81,
+          "first": 6.87554931640625,
+          "median": 7.81304931640625,
+          "p95": 7.93804931640625,
+          "max": 14.15679931640625,
+          "min": 6.87554931640625,
+          "end": 7.81304931640625,
+          "ols_MiB_per_hour": 0.3337764460069282,
+          "theil_sen_MiB_per_hour": 0.0,
+          "pairs": 3240
+        }
+      },
+      "current_footprint": null,
+      "current_status": "missing",
+      "post_second_root_recovery": {
+        "endpoints": 57,
+        "first_sequence": 483,
+        "last_sequence": 539,
+        "first_utc": "2026-10-23T17:09:54.480288+00:00",
+        "last_utc": "2026-10-23T18:05:54.517253+00:00",
+        "observed_span_seconds": 3359.994081249999,
+        "rss_MiB": {
+          "n": 57,
+          "first": 17.71875,
+          "median": 17.640625,
+          "p95": 17.734375,
+          "max": 17.734375,
+          "min": 17.609375,
+          "end": 17.609375,
+          "ols_MiB_per_hour": -0.12426672837945972,
+          "theil_sen_MiB_per_hour": -0.09868437243627767,
+          "pairs": 1596
+        },
+        "footprint_MiB": {
+          "n": 57,
+          "first": 7.81304931640625,
+          "median": 7.81304931640625,
+          "p95": 7.81304931640625,
+          "max": 7.81304931640625,
+          "min": 7.81304931640625,
+          "end": 7.81304931640625,
+          "ols_MiB_per_hour": 0.0,
+          "theil_sen_MiB_per_hour": 0.0,
+          "pairs": 1596
+        }
+      },
+      "before_second_recovery_same_segment": {
+        "endpoints": 259,
+        "first_sequence": 217,
+        "last_sequence": 475,
+        "first_utc": "2026-10-23T12:43:55.120190+00:00",
+        "last_utc": "2026-10-23T17:01:54.475501+00:00",
+        "observed_span_seconds": 15479.220112791998,
+        "rss_MiB": {
+          "n": 259,
+          "first": 9.953125,
+          "median": 9.296875,
+          "p95": 11.015625,
+          "max": 11.359375,
+          "min": 8.0,
+          "end": 9.625,
+          "ols_MiB_per_hour": -0.3214205372651299,
+          "theil_sen_MiB_per_hour": -0.23076945269003607,
+          "pairs": 33411
+        },
+        "footprint_MiB": {
+          "n": 259,
+          "first": 6.84429931640625,
+          "median": 6.85992431640625,
+          "p95": 6.87554931640625,
+          "max": 6.87554931640625,
+          "min": 6.81304931640625,
+          "end": 6.87554931640625,
+          "ols_MiB_per_hour": 0.007499049785392258,
+          "theil_sen_MiB_per_hour": 0.005237429623718495,
+          "pairs": 33411
+        }
+      }
+    }
+  },
+  "raw_archive": {
+    "name": "final-archive-20261024",
+    "raw_file_count": 230,
+    "raw_bytes": 34875751,
+    "raw_manifest_sha256": "19bf05cd2f30586bc05c862b400b270083a584d1c5a105c035becbb0fe9dc7f6",
+    "completion_verification_sha256": "9d208bad5a0b01fdb49546775063b0688bfe2cac6014d868356acfc4ed42ad6c"
+  },
+  "hourly_diagnostic_snapshot_slots_captured": 16,
+  "hourly_diagnostic_snapshot_slots_missing": [
+    3,
+    4,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16
+  ],
+  "hourly_raw_snapshot_bytes": 16310042,
+  "hourly_maximum_raw_snapshot_bytes": 39321600,
+  "startup_configured_only_baseline_bytes": 163,
+  "extra_diagnostics_retained": [
+    "diagnostics-event-limit-20261023",
+    "diagnostics-highcpu-20261023-1623",
+    "diagnostics-userdropped-20261024-0121",
+    "diagnostics-role-missing-20261024-0827"
+  ],
+  "boundaries": [
+    "No App requests/search, database queries/writes, restart, build, config/permission/tool change, extra resource endpoint or old-window join at closeout.",
+    "CPU strict valid time is per role, not continuous 24-hour app coverage; missing is unknown, never zero.",
+    "Memory hour slopes and tail60 are split by actual identity/mode and capture/interval barriers; the last-known tail is historical after role loss.",
+    "Nearest-rank p95 and endpoint OLS/TheilSen are descriptive; flat tails and isolated steps do not prove or exclude a leak.",
+    "CPU hour allocation assumes a minute is uniform across an hour boundary; original CPU minute totals remain in cpu-intervals.json.",
+    "Watch logs lack native cookie/UUID per row. PID/session and adjacent committed identities support attribution but do not establish exhaustive OS-event or allocation causality.",
+    "Mode=run is collector mode. Serve memory backend was verified through exact argv; unobserved between-endpoint mode/identity changes remain outside the discrete coverage.",
+    "Historical anomalous/negative installation results and all frozen sources/Apps/rollback databases remain retained without new hashing/querying of large historical databases."
+  ]
+}

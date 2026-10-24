@@ -1,0 +1,116 @@
+{
+  "status": "RECURRENCE_CONFIRMED_OBSERVATION_CONTINUES",
+  "source_commit": "b027a42c2cb859235b2a354c4c4bd8187a785a77",
+  "prefix": {
+    "sequence": 58,
+    "journal_bytes": 187897,
+    "prefix_sha256": "a321b4094f56b4b44d484020ae2b685b5b039e8b685589ce4c90db799d3d4d5a",
+    "actual_jsonl_bytes_before": 187897,
+    "actual_jsonl_bytes_after": 187897,
+    "bytes_after_committed_prefix_at_open": 0,
+    "state_advanced_during_read": false,
+    "later_state_sequence": 58,
+    "committed_prefix_verified": true
+  },
+  "cutoff_utc": "2026-10-23T08:21:54.267813+00:00",
+  "watch_high_cpu": {
+    "candidate_count": 6,
+    "strict_count": 6,
+    "excluded_count": 0,
+    "segments": 2,
+    "high_cpu_seconds": 241.804970958,
+    "valid_awake_seconds": 360.01137020699997,
+    "peak_minute_percent_one_core": 72.20885896016303,
+    "segment_bounds": [
+      {
+        "start_utc": "2026-10-23T08:10:54.162725+00:00",
+        "end_utc": "2026-10-23T08:12:54.164013+00:00",
+        "interval_count": 2
+      },
+      {
+        "start_utc": "2026-10-23T08:13:54.166431+00:00",
+        "end_utc": "2026-10-23T08:17:54.176590+00:00",
+        "interval_count": 4
+      }
+    ]
+  },
+  "root_recovery_batches": [
+    {
+      "started_at_ms": 1792743056123,
+      "completed_at_ms": 1792743264368,
+      "flags_or": 3,
+      "sampled_recovery_event_flags": 3,
+      "admitted_raw_user_dropped_flagged_records": 10,
+      "indexed": 7397721,
+      "rows_written": 590,
+      "unchanged": 7397131,
+      "stale_removed": 0,
+      "elapsed_ms": 208244,
+      "legacy_fallback": false,
+      "warnings": 0
+    },
+    {
+      "started_at_ms": 1792743264527,
+      "completed_at_ms": 1792743469243,
+      "flags_or": 163843,
+      "sampled_recovery_event_flags": 3,
+      "admitted_raw_user_dropped_flagged_records": 6,
+      "indexed": 7397721,
+      "rows_written": 0,
+      "unchanged": 7397721,
+      "stale_removed": 0,
+      "elapsed_ms": 204715,
+      "legacy_fallback": false,
+      "warnings": 0
+    }
+  ],
+  "watch_user_dropped_lifetime_counter": [
+    0,
+    16
+  ],
+  "watch_memory_MiB": {
+    "pre_first_root_at_161054": 5.39117431640625,
+    "peak_sampled": 15.00054931640625,
+    "last": 6.78179931640625,
+    "post_recovery_minutes": 4
+  },
+  "role_latest": {
+    "gui": {
+      "identity_count": 1,
+      "last_fp_MiB": 55.36040496826172,
+      "last_rss_MiB": 133.921875
+    },
+    "serve": {
+      "identity_count": 1,
+      "last_fp_MiB": 1575.9236145019531,
+      "last_rss_MiB": 1083.53125
+    },
+    "watch": {
+      "identity_count": 1,
+      "last_fp_MiB": 6.78179931640625,
+      "last_rss_MiB": 18.859375
+    }
+  },
+  "serve_counters": {
+    "load_attempts": 2,
+    "successful_loads": 2,
+    "incremental_attempts": 2,
+    "incremental_applies": 1,
+    "loaded_revision": 55650204,
+    "capacity_bytes": 1538891078,
+    "searches_started": 4,
+    "searches_completed": 4
+  },
+  "limitations": [
+    "Raw flagged-record counts and lifetime counters are not independent OS drop episodes or lost-file counts.",
+    "Two recovery batches have different recovery IDs; additional dropped records accumulated during the first scan. Zero writes in the second scan does not prove its recovery obligation redundant.",
+    "Bounded rotated/sampled/rate-limited logs may miss details; rows after committed prefix cutoff excluded.",
+    "Minute CPU can miss shorter peaks; about four post-recovery minutes do not establish a platform or no-leak result.",
+    "No App search/status/control requests, live files scan/count, new resource samples or process/window modifications."
+  ],
+  "actual_worker_and_role_identities_verified": true,
+  "observation_app_and_window_unchanged": true,
+  "private_incident_sha256": "c8a2f7e153a13edfe92747568f124f2b8e263202ce0b47d148218fd3ba4bc52e",
+  "private_manifest_sha256": "f70776ccc35478667691d64ca73bcea9e6536d9da15250b9969f1990b0b1186c",
+  "final_archiving": "DEFERRED_TO_ORIGINAL_DEADLINE"
+}

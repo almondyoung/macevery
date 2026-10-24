@@ -1,0 +1,131 @@
+{
+  "status": "READ_ONLY_PROVISIONAL_NOT_24H_CONCLUSION",
+  "source_commit": "b027a42c2cb859235b2a354c4c4bd8187a785a77",
+  "phase_local": "2026-10-23 15:25:39.600 to 15:25:42.341 Asia/Shanghai",
+  "reason": "event_limit",
+  "method": "fallback_full",
+  "full_load_wall_seconds": 2.741,
+  "full_load_cpu_seconds": 2.719536791,
+  "new_successful_full_loads_visible": 1,
+  "last_saved_log_local": "2026-10-23 15:45:33.735 Asia/Shanghai",
+  "limits": {
+    "events": 4096,
+    "distinct_ids": 4096
+  },
+  "full_after_journal_range": {
+    "base_revision": 55645429,
+    "full_after_target_revision": 55650204,
+    "row_count": 4775,
+    "complete_contiguous_range": true,
+    "event_types": {
+      "update": 4578,
+      "insert": 197
+    },
+    "distinct_referenced_ids": 4751,
+    "reference_frequency_histogram": {
+      "2": 15,
+      "1": 4732,
+      "3": 3,
+      "4": 1
+    }
+  },
+  "pre_decision_context": {
+    "sample_sequence": 1,
+    "at_utc": "2026-10-23T07:24:54.015544+00:00",
+    "base_revision": 55645429,
+    "sample_revision": 55650200,
+    "events": 4771,
+    "distinct_journal_ids": 4749,
+    "note": "Already committed before full_before. Exact delta-decision target was not logged; full_after target belongs to a separate read snapshot."
+  },
+  "time_boundary": "Delta decision target was not logged. Full load uses another read snapshot. Neither 4775 nor 4751 is claimed as the exact delta-decision quantity.",
+  "capacity_growth_bytes": 1107,
+  "vm_rebound": {
+    "minute_endpoint_change_MiB": 225.015625,
+    "reusable_from_MiB": 238.078125,
+    "reusable_to_MiB": 0,
+    "internal_delta_MiB": 224.25,
+    "resident_delta_MiB": -13.828125,
+    "loaded_revision_load_counts_capacity_search_counts_unchanged_in_saved_logs": true,
+    "page_ownership": "UNKNOWN"
+  },
+  "prefix": {
+    "sequence": 27,
+    "journal_bytes": 87318,
+    "actual_journal_bytes": 87318,
+    "sha256": "c6bc38ca8398fb6fe8147ddc297e8338d0f671a35a00ee7cff92315cf20c2897",
+    "last_utc": "2026-10-23T07:50:54.159329+00:00",
+    "last_elapsed_seconds": 1560.020914083,
+    "all_same_source_db_identity": true
+  },
+  "roles": {
+    "gui": {
+      "identity_count": 1,
+      "fp_first_last_min_max_MiB": [
+        65.7823257446289,
+        55.21980285644531,
+        54.95417785644531,
+        69.2667007446289
+      ],
+      "rss_first_last_MiB": [
+        149.3125,
+        140.5
+      ],
+      "samples": 27,
+      "valid_cpu_intervals": 26,
+      "valid_cpu_awake_seconds": 1559.963061459,
+      "cpu_seconds": 4.411439250000001,
+      "peak_minute_cpu_percent": 1.4041093715901327,
+      "high50_count": 0
+    },
+    "serve": {
+      "identity_count": 1,
+      "fp_first_last_min_max_MiB": [
+        1567.3766708374023,
+        1575.8923416137695,
+        1350.8610916137695,
+        1575.8923416137695
+      ],
+      "rss_first_last_MiB": [
+        1571.171875,
+        1578.84375
+      ],
+      "samples": 27,
+      "valid_cpu_intervals": 26,
+      "valid_cpu_awake_seconds": 1559.963061459,
+      "cpu_seconds": 3.2061667919999994,
+      "peak_minute_cpu_percent": 5.312673052609959,
+      "high50_count": 0
+    },
+    "watch": {
+      "identity_count": 1,
+      "fp_first_last_min_max_MiB": [
+        5.2192535400390625,
+        5.203651428222656,
+        4.8442535400390625,
+        5.2192535400390625
+      ],
+      "rss_first_last_MiB": [
+        17.703125,
+        17.125
+      ],
+      "samples": 27,
+      "valid_cpu_intervals": 26,
+      "valid_cpu_awake_seconds": 1559.963061459,
+      "cpu_seconds": 1.4997810829999998,
+      "peak_minute_cpu_percent": 1.1875999134421278,
+      "high50_count": 0
+    }
+  },
+  "limits_of_inference": [
+    "Journal IDs lack old values or changed-field attribution; redundant writes and physical/WAL amplification not established.",
+    "Bounded sampled rotated watch logs do not explain the entire revision range or prove no UserDropped.",
+    "Short tail about 16 minutes is not an hourly platform or no-leak result."
+  ],
+  "private_diagnostic_sha256": {
+    "ANALYSIS.md": "87ddfe8fee19e6b553094c2654bb30ad12702a70fc7a83abb45de8dc5cf9fb1c",
+    "SHA256.local.json": "cd9719b26a99cb6b62c566b782ebd1ce9fdc29282abbc149b92a1abd1052a01a"
+  },
+  "observation_unchanged": true,
+  "raw_sealing": "DEFERRED_TO_ORIGINAL_WINDOW_END"
+}

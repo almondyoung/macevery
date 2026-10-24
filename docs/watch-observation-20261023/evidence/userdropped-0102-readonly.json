@@ -1,0 +1,119 @@
+{
+  "status": "RECURRENCE_CONFIRMED_OBSERVATION_CONTINUES",
+  "source_commit": "b027a42c2cb859235b2a354c4c4bd8187a785a77",
+  "prefix": {
+    "sequence": 494,
+    "journal_bytes": 1601644,
+    "prefix_sha256": "19fe3f0b1f81372547cc0b9f9885514a4bb73197689c2c327f9ff944f394b58c",
+    "actual_jsonl_bytes_before": 1601644,
+    "actual_jsonl_bytes_after": 1601644,
+    "bytes_after_committed_prefix_at_open": 0,
+    "state_advanced_during_read": false,
+    "later_state_sequence": 494,
+    "committed_prefix_verified": true
+  },
+  "cutoff_utc": "2026-10-23T17:20:54.477410+00:00",
+  "watch_high_cpu": {
+    "candidate_count": 5,
+    "strict_count": 5,
+    "excluded_count": 0,
+    "segments": 1,
+    "high_cpu_seconds": 209.091253542,
+    "valid_awake_seconds": 300.005416625,
+    "peak_minute_percent_one_core": 71.0538029296117,
+    "start_utc": "2026-10-23T17:02:54.465768+00:00",
+    "end_utc": "2026-10-23T17:07:54.472123+00:00",
+    "window_candidate_total": 11,
+    "window_strict_total": 11,
+    "window_segments_total": 3
+  },
+  "root_recovery_batches": [
+    {
+      "started_at_ms": 1792774934382,
+      "completed_at_ms": 1792775102789,
+      "flags_or": 3,
+      "sampled_recovery_event_flags": 3,
+      "admitted_raw_user_dropped_flagged_records": 20,
+      "indexed": 7393204,
+      "rows_written": 87,
+      "unchanged": 7393117,
+      "stale_removed": 0,
+      "elapsed_ms": 168406,
+      "legacy_fallback": false,
+      "warnings": 0
+    },
+    {
+      "started_at_ms": 1792775102955,
+      "completed_at_ms": 1792775290767,
+      "flags_or": 3,
+      "sampled_recovery_event_flags": 3,
+      "admitted_raw_user_dropped_flagged_records": 2,
+      "indexed": 7393204,
+      "rows_written": 0,
+      "unchanged": 7393204,
+      "stale_removed": 0,
+      "elapsed_ms": 187811,
+      "legacy_fallback": false,
+      "warnings": 0
+    }
+  ],
+  "watch_user_dropped_lifetime_counter": [
+    16,
+    38
+  ],
+  "watch_memory_MiB": {
+    "pre_first_root_at_010154": 6.87554931640625,
+    "peak_sampled": 14.15679931640625,
+    "last": 7.81304931640625,
+    "delta_from_pre": 0.9375,
+    "post_recovery_endpoint_span_seconds": 719.9995285830009,
+    "seconds_since_recovery_complete_at_cutoff": 763.71
+  },
+  "role_latest": {
+    "gui": {
+      "identity_count": 1,
+      "last_fp_MiB": 59.3292236328125,
+      "last_rss_MiB": 126.203125
+    },
+    "serve": {
+      "identity_count": 1,
+      "last_fp_MiB": 1578.2205123901367,
+      "last_rss_MiB": 7.609375
+    },
+    "watch": {
+      "identity_count": 1,
+      "last_fp_MiB": 7.81304931640625,
+      "last_rss_MiB": 17.71875
+    }
+  },
+  "serve_counters": {
+    "at_ms": 1792776012429,
+    "snapshot_at_ms": 1792749271190,
+    "load_attempts": 3,
+    "successful_loads": 3,
+    "incremental_attempts": 4,
+    "incremental_applies": 2,
+    "loaded_revision": 55665730,
+    "capacity_bytes": 1539457977,
+    "searches_started": 8,
+    "searches_completed": 8
+  },
+  "visible_serve_full_after_by_reason": {
+    "event_limit": 2
+  },
+  "visible_history_gap_full_after": 0,
+  "limitations": [
+    "Flagged-record counts and callback lifetime counters are not independent OS drop episodes or lost-file counts.",
+    "Two batches use different recovery IDs. Two additional flagged records arrived during the first scan; zero writes do not establish that the second recovery obligation was redundant.",
+    "New root completions show 87 and zero writes with unchanged rows skipped; physical/WAL write bytes and OS UserDropped cause remain unmeasured/unknown.",
+    "Minute CPU averages can miss shorter peaks. About 13 minutes after recovery do not establish a multi-hour platform or leak result.",
+    "Hourly bounded/rate-limited/rotated logs are incomplete. Extra prior diagnostics-highcpu-20261023-1623 must also remain in final timeline.",
+    "No App requests/search, DB read queries/writes, new resource sampling, restart, tool/config/window change or old data join."
+  ],
+  "actual_worker_and_role_identities_verified": true,
+  "observation_app_and_window_unchanged": true,
+  "final_archiving": "DEFERRED_TO_ORIGINAL_DEADLINE",
+  "private_incident_sha256": "980cc6cfb2c8a73ebc847a4e7570ad56f8b06def9deb6ecff28fe872beebe776",
+  "private_manifest_sha256": "121aade8a66c18654086f41fa88ebc31eb81d0c88b40c10355a5a64c607c07ef",
+  "private_diagnostic_directory": "diagnostics-userdropped-20261024-0121"
+}

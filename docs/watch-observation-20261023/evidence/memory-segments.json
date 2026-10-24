@@ -1,0 +1,1601 @@
+{
+  "roles": {
+    "gui": [
+      {
+        "segment": 1,
+        "identity_segment": "gui-1",
+        "start_reasons": [
+          "initial_endpoint"
+        ],
+        "memory": {
+          "endpoints": 212,
+          "first_sequence": 1,
+          "last_sequence": 212,
+          "first_utc": "2026-10-23T07:24:54.015544+00:00",
+          "last_utc": "2026-10-23T10:55:54.291645+00:00",
+          "observed_span_seconds": 12659.971492625,
+          "rss_MiB": {
+            "n": 212,
+            "first": 149.3125,
+            "median": 135.828125,
+            "p95": 142.203125,
+            "max": 163.28125,
+            "min": 118.546875,
+            "end": 135.875,
+            "ols_MiB_per_hour": -0.9581635440575893,
+            "theil_sen_MiB_per_hour": -0.2960520937762008,
+            "pairs": 22366
+          },
+          "footprint_MiB": {
+            "n": 212,
+            "first": 65.7823257446289,
+            "median": 55.524513244628906,
+            "p95": 58.001075744628906,
+            "max": 73.4854736328125,
+            "min": 51.876075744628906,
+            "end": 57.938575744628906,
+            "ols_MiB_per_hour": 0.7407533503923959,
+            "theil_sen_MiB_per_hour": 0.4374999445887595,
+            "pairs": 22366
+          }
+        },
+        "tail60": {
+          "endpoints": 60,
+          "first_sequence": 153,
+          "last_sequence": 212,
+          "first_utc": "2026-10-23T09:56:54.205754+00:00",
+          "last_utc": "2026-10-23T10:55:54.291645+00:00",
+          "observed_span_seconds": 3540.004416666001,
+          "rss_MiB": {
+            "n": 60,
+            "first": 140.765625,
+            "median": 140.375,
+            "p95": 140.8125,
+            "max": 140.859375,
+            "min": 135.8125,
+            "end": 135.875,
+            "ols_MiB_per_hour": -6.90920394295245,
+            "theil_sen_MiB_per_hour": -5.290173791241345,
+            "pairs": 1770
+          },
+          "footprint_MiB": {
+            "n": 60,
+            "first": 57.954200744628906,
+            "median": 57.938575744628906,
+            "p95": 58.001075744628906,
+            "max": 58.032325744628906,
+            "min": 57.907325744628906,
+            "end": 57.938575744628906,
+            "ols_MiB_per_hour": -0.021646595130494686,
+            "theil_sen_MiB_per_hour": -0.0173611257822259,
+            "pairs": 1770
+          }
+        },
+        "tail_memory_is_current_endpoint": false
+      },
+      {
+        "segment": 2,
+        "identity_segment": "gui-1",
+        "start_reasons": [
+          "power_transition"
+        ],
+        "memory": {
+          "endpoints": 1,
+          "first_sequence": 213,
+          "last_sequence": 213,
+          "first_utc": "2026-10-23T10:56:54.292560+00:00",
+          "last_utc": "2026-10-23T10:56:54.292560+00:00",
+          "observed_span_seconds": 0.0,
+          "rss_MiB": {
+            "n": 1,
+            "first": 145.015625,
+            "median": 145.015625,
+            "p95": 145.015625,
+            "max": 145.015625,
+            "min": 145.015625,
+            "end": 145.015625,
+            "ols_MiB_per_hour": null,
+            "theil_sen_MiB_per_hour": null,
+            "pairs": 0
+          },
+          "footprint_MiB": {
+            "n": 1,
+            "first": 60.0323486328125,
+            "median": 60.0323486328125,
+            "p95": 60.0323486328125,
+            "max": 60.0323486328125,
+            "min": 60.0323486328125,
+            "end": 60.0323486328125,
+            "ols_MiB_per_hour": null,
+            "theil_sen_MiB_per_hour": null,
+            "pairs": 0
+          }
+        },
+        "tail60": {
+          "endpoints": 1,
+          "first_sequence": 213,
+          "last_sequence": 213,
+          "first_utc": "2026-10-23T10:56:54.292560+00:00",
+          "last_utc": "2026-10-23T10:56:54.292560+00:00",
+          "observed_span_seconds": 0.0,
+          "rss_MiB": {
+            "n": 1,
+            "first": 145.015625,
+            "median": 145.015625,
+            "p95": 145.015625,
+            "max": 145.015625,
+            "min": 145.015625,
+            "end": 145.015625,
+            "ols_MiB_per_hour": null,
+            "theil_sen_MiB_per_hour": null,
+            "pairs": 0
+          },
+          "footprint_MiB": {
+            "n": 1,
+            "first": 60.0323486328125,
+            "median": 60.0323486328125,
+            "p95": 60.0323486328125,
+            "max": 60.0323486328125,
+            "min": 60.0323486328125,
+            "end": 60.0323486328125,
+            "ols_MiB_per_hour": null,
+            "theil_sen_MiB_per_hour": null,
+            "pairs": 0
+          }
+        },
+        "tail_memory_is_current_endpoint": false
+      },
+      {
+        "segment": 3,
+        "identity_segment": "gui-1",
+        "start_reasons": [
+          "power_transition",
+          "sleep_observed",
+          "sampling_gap"
+        ],
+        "memory": {
+          "endpoints": 1,
+          "first_sequence": 214,
+          "last_sequence": 214,
+          "first_utc": "2026-10-23T11:16:46.494174+00:00",
+          "last_utc": "2026-10-23T11:16:46.494174+00:00",
+          "observed_span_seconds": 0.0,
+          "rss_MiB": {
+            "n": 1,
+            "first": 147.421875,
+            "median": 147.421875,
+            "p95": 147.421875,
+            "max": 147.421875,
+            "min": 147.421875,
+            "end": 147.421875,
+            "ols_MiB_per_hour": null,
+            "theil_sen_MiB_per_hour": null,
+            "pairs": 0
+          },
+          "footprint_MiB": {
+            "n": 1,
+            "first": 64.8448486328125,
+            "median": 64.8448486328125,
+            "p95": 64.8448486328125,
+            "max": 64.8448486328125,
+            "min": 64.8448486328125,
+            "end": 64.8448486328125,
+            "ols_MiB_per_hour": null,
+            "theil_sen_MiB_per_hour": null,
+            "pairs": 0
+          }
+        },
+        "tail60": {
+          "endpoints": 1,
+          "first_sequence": 214,
+          "last_sequence": 214,
+          "first_utc": "2026-10-23T11:16:46.494174+00:00",
+          "last_utc": "2026-10-23T11:16:46.494174+00:00",
+          "observed_span_seconds": 0.0,
+          "rss_MiB": {
+            "n": 1,
+            "first": 147.421875,
+            "median": 147.421875,
+            "p95": 147.421875,
+            "max": 147.421875,
+            "min": 147.421875,
+            "end": 147.421875,
+            "ols_MiB_per_hour": null,
+            "theil_sen_MiB_per_hour": null,
+            "pairs": 0
+          },
+          "footprint_MiB": {
+            "n": 1,
+            "first": 64.8448486328125,
+            "median": 64.8448486328125,
+            "p95": 64.8448486328125,
+            "max": 64.8448486328125,
+            "min": 64.8448486328125,
+            "end": 64.8448486328125,
+            "ols_MiB_per_hour": null,
+            "theil_sen_MiB_per_hour": null,
+            "pairs": 0
+          }
+        },
+        "tail_memory_is_current_endpoint": false
+      },
+      {
+        "segment": 4,
+        "identity_segment": "gui-1",
+        "start_reasons": [
+          "sleep_observed",
+          "sampling_gap"
+        ],
+        "memory": {
+          "endpoints": 1,
+          "first_sequence": 215,
+          "last_sequence": 215,
+          "first_utc": "2026-10-23T11:51:13.772337+00:00",
+          "last_utc": "2026-10-23T11:51:13.772337+00:00",
+          "observed_span_seconds": 0.0,
+          "rss_MiB": {
+            "n": 1,
+            "first": 147.421875,
+            "median": 147.421875,
+            "p95": 147.421875,
+            "max": 147.421875,
+            "min": 147.421875,
+            "end": 147.421875,
+            "ols_MiB_per_hour": null,
+            "theil_sen_MiB_per_hour": null,
+            "pairs": 0
+          },
+          "footprint_MiB": {
+            "n": 1,
+            "first": 64.8448486328125,
+            "median": 64.8448486328125,
+            "p95": 64.8448486328125,
+            "max": 64.8448486328125,
+            "min": 64.8448486328125,
+            "end": 64.8448486328125,
+            "ols_MiB_per_hour": null,
+            "theil_sen_MiB_per_hour": null,
+            "pairs": 0
+          }
+        },
+        "tail60": {
+          "endpoints": 1,
+          "first_sequence": 215,
+          "last_sequence": 215,
+          "first_utc": "2026-10-23T11:51:13.772337+00:00",
+          "last_utc": "2026-10-23T11:51:13.772337+00:00",
+          "observed_span_seconds": 0.0,
+          "rss_MiB": {
+            "n": 1,
+            "first": 147.421875,
+            "median": 147.421875,
+            "p95": 147.421875,
+            "max": 147.421875,
+            "min": 147.421875,
+            "end": 147.421875,
+            "ols_MiB_per_hour": null,
+            "theil_sen_MiB_per_hour": null,
+            "pairs": 0
+          },
+          "footprint_MiB": {
+            "n": 1,
+            "first": 64.8448486328125,
+            "median": 64.8448486328125,
+            "p95": 64.8448486328125,
+            "max": 64.8448486328125,
+            "min": 64.8448486328125,
+            "end": 64.8448486328125,
+            "ols_MiB_per_hour": null,
+            "theil_sen_MiB_per_hour": null,
+            "pairs": 0
+          }
+        },
+        "tail_memory_is_current_endpoint": false
+      },
+      {
+        "segment": 5,
+        "identity_segment": "gui-1",
+        "start_reasons": [
+          "sleep_observed",
+          "sampling_gap"
+        ],
+        "memory": {
+          "endpoints": 1,
+          "first_sequence": 216,
+          "last_sequence": 216,
+          "first_utc": "2026-10-23T12:02:17.385840+00:00",
+          "last_utc": "2026-10-23T12:02:17.385840+00:00",
+          "observed_span_seconds": 0.0,
+          "rss_MiB": {
+            "n": 1,
+            "first": 147.390625,
+            "median": 147.390625,
+            "p95": 147.390625,
+            "max": 147.390625,
+            "min": 147.390625,
+            "end": 147.390625,
+            "ols_MiB_per_hour": null,
+            "theil_sen_MiB_per_hour": null,
+            "pairs": 0
+          },
+          "footprint_MiB": {
+            "n": 1,
+            "first": 64.8135986328125,
+            "median": 64.8135986328125,
+            "p95": 64.8135986328125,
+            "max": 64.8135986328125,
+            "min": 64.8135986328125,
+            "end": 64.8135986328125,
+            "ols_MiB_per_hour": null,
+            "theil_sen_MiB_per_hour": null,
+            "pairs": 0
+          }
+        },
+        "tail60": {
+          "endpoints": 1,
+          "first_sequence": 216,
+          "last_sequence": 216,
+          "first_utc": "2026-10-23T12:02:17.385840+00:00",
+          "last_utc": "2026-10-23T12:02:17.385840+00:00",
+          "observed_span_seconds": 0.0,
+          "rss_MiB": {
+            "n": 1,
+            "first": 147.390625,
+            "median": 147.390625,
+            "p95": 147.390625,
+            "max": 147.390625,
+            "min": 147.390625,
+            "end": 147.390625,
+            "ols_MiB_per_hour": null,
+            "theil_sen_MiB_per_hour": null,
+            "pairs": 0
+          },
+          "footprint_MiB": {
+            "n": 1,
+            "first": 64.8135986328125,
+            "median": 64.8135986328125,
+            "p95": 64.8135986328125,
+            "max": 64.8135986328125,
+            "min": 64.8135986328125,
+            "end": 64.8135986328125,
+            "ols_MiB_per_hour": null,
+            "theil_sen_MiB_per_hour": null,
+            "pairs": 0
+          }
+        },
+        "tail_memory_is_current_endpoint": false
+      },
+      {
+        "segment": 6,
+        "identity_segment": "gui-1",
+        "start_reasons": [
+          "sleep_observed",
+          "sampling_gap"
+        ],
+        "memory": {
+          "endpoints": 323,
+          "first_sequence": 217,
+          "last_sequence": 539,
+          "first_utc": "2026-10-23T12:43:55.120190+00:00",
+          "last_utc": "2026-10-23T18:05:54.517253+00:00",
+          "observed_span_seconds": 19319.217420499997,
+          "rss_MiB": {
+            "n": 323,
+            "first": 147.4375,
+            "median": 130.0625,
+            "p95": 158.125,
+            "max": 161.71875,
+            "min": 120.90625,
+            "end": 120.90625,
+            "ols_MiB_per_hour": -5.774350752479963,
+            "theil_sen_MiB_per_hour": -2.887501357204564,
+            "pairs": 52003
+          },
+          "footprint_MiB": {
+            "n": 323,
+            "first": 64.4385986328125,
+            "median": 59.2979736328125,
+            "p95": 73.9698715209961,
+            "max": 78.7979965209961,
+            "min": 59.2042236328125,
+            "end": 59.2979736328125,
+            "ols_MiB_per_hour": -2.093456181383166,
+            "theil_sen_MiB_per_hour": 0.0,
+            "pairs": 52003
+          }
+        },
+        "tail60": {
+          "endpoints": 60,
+          "first_sequence": 480,
+          "last_sequence": 539,
+          "first_utc": "2026-10-23T17:06:54.473953+00:00",
+          "last_utc": "2026-10-23T18:05:54.517253+00:00",
+          "observed_span_seconds": 3539.999875374997,
+          "rss_MiB": {
+            "n": 60,
+            "first": 126.203125,
+            "median": 125.0,
+            "p95": 126.203125,
+            "max": 126.21875,
+            "min": 120.90625,
+            "end": 120.90625,
+            "ols_MiB_per_hour": -7.6052628229630965,
+            "theil_sen_MiB_per_hour": -6.3187369413655015,
+            "pairs": 1770
+          },
+          "footprint_MiB": {
+            "n": 60,
+            "first": 59.3292236328125,
+            "median": 59.3057861328125,
+            "p95": 59.3292236328125,
+            "max": 59.3292236328125,
+            "min": 59.2823486328125,
+            "end": 59.2979736328125,
+            "ols_MiB_per_hour": -0.040089245819650156,
+            "theil_sen_MiB_per_hour": -0.03676469716650649,
+            "pairs": 1770
+          }
+        },
+        "tail_memory_is_current_endpoint": false
+      }
+    ],
+    "serve": [
+      {
+        "segment": 1,
+        "identity_segment": "serve-1",
+        "start_reasons": [
+          "initial_endpoint"
+        ],
+        "memory": {
+          "endpoints": 212,
+          "first_sequence": 1,
+          "last_sequence": 212,
+          "first_utc": "2026-10-23T07:24:54.015544+00:00",
+          "last_utc": "2026-10-23T10:55:54.291645+00:00",
+          "observed_span_seconds": 12659.971492625,
+          "rss_MiB": {
+            "n": 212,
+            "first": 1571.171875,
+            "median": 1526.71875,
+            "p95": 1578.84375,
+            "max": 1592.6875,
+            "min": 1083.203125,
+            "end": 1526.71875,
+            "ols_MiB_per_hour": 26.95840019027082,
+            "theil_sen_MiB_per_hour": -0.10227280758982735,
+            "pairs": 22366
+          },
+          "footprint_MiB": {
+            "n": 212,
+            "first": 1567.3766708374023,
+            "median": 1575.8923645019531,
+            "p95": 1578.1892623901367,
+            "max": 1578.1892623901367,
+            "min": 1350.8610916137695,
+            "end": 1578.1423873901367,
+            "ols_MiB_per_hour": 16.354400334153688,
+            "theil_sen_MiB_per_hour": 0.8385264340991853,
+            "pairs": 22366
+          }
+        },
+        "tail60": {
+          "endpoints": 60,
+          "first_sequence": 153,
+          "last_sequence": 212,
+          "first_utc": "2026-10-23T09:56:54.205754+00:00",
+          "last_utc": "2026-10-23T10:55:54.291645+00:00",
+          "observed_span_seconds": 3540.004416666001,
+          "rss_MiB": {
+            "n": 60,
+            "first": 1527.046875,
+            "median": 1526.921875,
+            "p95": 1527.046875,
+            "max": 1527.046875,
+            "min": 1526.71875,
+            "end": 1526.71875,
+            "ols_MiB_per_hour": -0.3834655470642687,
+            "theil_sen_MiB_per_hour": -0.34090959366480694,
+            "pairs": 1770
+          },
+          "footprint_MiB": {
+            "n": 60,
+            "first": 1578.1892623901367,
+            "median": 1578.1892623901367,
+            "p95": 1578.1892623901367,
+            "max": 1578.1892623901367,
+            "min": 1578.1423873901367,
+            "end": 1578.1423873901367,
+            "ols_MiB_per_hour": -0.06837829692702332,
+            "theil_sen_MiB_per_hour": 0.0,
+            "pairs": 1770
+          }
+        },
+        "tail_memory_is_current_endpoint": false
+      },
+      {
+        "segment": 2,
+        "identity_segment": "serve-1",
+        "start_reasons": [
+          "power_transition"
+        ],
+        "memory": {
+          "endpoints": 1,
+          "first_sequence": 213,
+          "last_sequence": 213,
+          "first_utc": "2026-10-23T10:56:54.292560+00:00",
+          "last_utc": "2026-10-23T10:56:54.292560+00:00",
+          "observed_span_seconds": 0.0,
+          "rss_MiB": {
+            "n": 1,
+            "first": 1526.75,
+            "median": 1526.75,
+            "p95": 1526.75,
+            "max": 1526.75,
+            "min": 1526.75,
+            "end": 1526.75,
+            "ols_MiB_per_hour": null,
+            "theil_sen_MiB_per_hour": null,
+            "pairs": 0
+          },
+          "footprint_MiB": {
+            "n": 1,
+            "first": 1578.1736373901367,
+            "median": 1578.1736373901367,
+            "p95": 1578.1736373901367,
+            "max": 1578.1736373901367,
+            "min": 1578.1736373901367,
+            "end": 1578.1736373901367,
+            "ols_MiB_per_hour": null,
+            "theil_sen_MiB_per_hour": null,
+            "pairs": 0
+          }
+        },
+        "tail60": {
+          "endpoints": 1,
+          "first_sequence": 213,
+          "last_sequence": 213,
+          "first_utc": "2026-10-23T10:56:54.292560+00:00",
+          "last_utc": "2026-10-23T10:56:54.292560+00:00",
+          "observed_span_seconds": 0.0,
+          "rss_MiB": {
+            "n": 1,
+            "first": 1526.75,
+            "median": 1526.75,
+            "p95": 1526.75,
+            "max": 1526.75,
+            "min": 1526.75,
+            "end": 1526.75,
+            "ols_MiB_per_hour": null,
+            "theil_sen_MiB_per_hour": null,
+            "pairs": 0
+          },
+          "footprint_MiB": {
+            "n": 1,
+            "first": 1578.1736373901367,
+            "median": 1578.1736373901367,
+            "p95": 1578.1736373901367,
+            "max": 1578.1736373901367,
+            "min": 1578.1736373901367,
+            "end": 1578.1736373901367,
+            "ols_MiB_per_hour": null,
+            "theil_sen_MiB_per_hour": null,
+            "pairs": 0
+          }
+        },
+        "tail_memory_is_current_endpoint": false
+      },
+      {
+        "segment": 3,
+        "identity_segment": "serve-1",
+        "start_reasons": [
+          "power_transition",
+          "sleep_observed",
+          "sampling_gap"
+        ],
+        "memory": {
+          "endpoints": 1,
+          "first_sequence": 214,
+          "last_sequence": 214,
+          "first_utc": "2026-10-23T11:16:46.494174+00:00",
+          "last_utc": "2026-10-23T11:16:46.494174+00:00",
+          "observed_span_seconds": 0.0,
+          "rss_MiB": {
+            "n": 1,
+            "first": 1526.734375,
+            "median": 1526.734375,
+            "p95": 1526.734375,
+            "max": 1526.734375,
+            "min": 1526.734375,
+            "end": 1526.734375,
+            "ols_MiB_per_hour": null,
+            "theil_sen_MiB_per_hour": null,
+            "pairs": 0
+          },
+          "footprint_MiB": {
+            "n": 1,
+            "first": 1578.1423873901367,
+            "median": 1578.1423873901367,
+            "p95": 1578.1423873901367,
+            "max": 1578.1423873901367,
+            "min": 1578.1423873901367,
+            "end": 1578.1423873901367,
+            "ols_MiB_per_hour": null,
+            "theil_sen_MiB_per_hour": null,
+            "pairs": 0
+          }
+        },
+        "tail60": {
+          "endpoints": 1,
+          "first_sequence": 214,
+          "last_sequence": 214,
+          "first_utc": "2026-10-23T11:16:46.494174+00:00",
+          "last_utc": "2026-10-23T11:16:46.494174+00:00",
+          "observed_span_seconds": 0.0,
+          "rss_MiB": {
+            "n": 1,
+            "first": 1526.734375,
+            "median": 1526.734375,
+            "p95": 1526.734375,
+            "max": 1526.734375,
+            "min": 1526.734375,
+            "end": 1526.734375,
+            "ols_MiB_per_hour": null,
+            "theil_sen_MiB_per_hour": null,
+            "pairs": 0
+          },
+          "footprint_MiB": {
+            "n": 1,
+            "first": 1578.1423873901367,
+            "median": 1578.1423873901367,
+            "p95": 1578.1423873901367,
+            "max": 1578.1423873901367,
+            "min": 1578.1423873901367,
+            "end": 1578.1423873901367,
+            "ols_MiB_per_hour": null,
+            "theil_sen_MiB_per_hour": null,
+            "pairs": 0
+          }
+        },
+        "tail_memory_is_current_endpoint": false
+      },
+      {
+        "segment": 4,
+        "identity_segment": "serve-1",
+        "start_reasons": [
+          "sleep_observed",
+          "sampling_gap"
+        ],
+        "memory": {
+          "endpoints": 1,
+          "first_sequence": 215,
+          "last_sequence": 215,
+          "first_utc": "2026-10-23T11:51:13.772337+00:00",
+          "last_utc": "2026-10-23T11:51:13.772337+00:00",
+          "observed_span_seconds": 0.0,
+          "rss_MiB": {
+            "n": 1,
+            "first": 1526.734375,
+            "median": 1526.734375,
+            "p95": 1526.734375,
+            "max": 1526.734375,
+            "min": 1526.734375,
+            "end": 1526.734375,
+            "ols_MiB_per_hour": null,
+            "theil_sen_MiB_per_hour": null,
+            "pairs": 0
+          },
+          "footprint_MiB": {
+            "n": 1,
+            "first": 1578.1423873901367,
+            "median": 1578.1423873901367,
+            "p95": 1578.1423873901367,
+            "max": 1578.1423873901367,
+            "min": 1578.1423873901367,
+            "end": 1578.1423873901367,
+            "ols_MiB_per_hour": null,
+            "theil_sen_MiB_per_hour": null,
+            "pairs": 0
+          }
+        },
+        "tail60": {
+          "endpoints": 1,
+          "first_sequence": 215,
+          "last_sequence": 215,
+          "first_utc": "2026-10-23T11:51:13.772337+00:00",
+          "last_utc": "2026-10-23T11:51:13.772337+00:00",
+          "observed_span_seconds": 0.0,
+          "rss_MiB": {
+            "n": 1,
+            "first": 1526.734375,
+            "median": 1526.734375,
+            "p95": 1526.734375,
+            "max": 1526.734375,
+            "min": 1526.734375,
+            "end": 1526.734375,
+            "ols_MiB_per_hour": null,
+            "theil_sen_MiB_per_hour": null,
+            "pairs": 0
+          },
+          "footprint_MiB": {
+            "n": 1,
+            "first": 1578.1423873901367,
+            "median": 1578.1423873901367,
+            "p95": 1578.1423873901367,
+            "max": 1578.1423873901367,
+            "min": 1578.1423873901367,
+            "end": 1578.1423873901367,
+            "ols_MiB_per_hour": null,
+            "theil_sen_MiB_per_hour": null,
+            "pairs": 0
+          }
+        },
+        "tail_memory_is_current_endpoint": false
+      },
+      {
+        "segment": 5,
+        "identity_segment": "serve-1",
+        "start_reasons": [
+          "sleep_observed",
+          "sampling_gap"
+        ],
+        "memory": {
+          "endpoints": 1,
+          "first_sequence": 216,
+          "last_sequence": 216,
+          "first_utc": "2026-10-23T12:02:17.385840+00:00",
+          "last_utc": "2026-10-23T12:02:17.385840+00:00",
+          "observed_span_seconds": 0.0,
+          "rss_MiB": {
+            "n": 1,
+            "first": 1526.734375,
+            "median": 1526.734375,
+            "p95": 1526.734375,
+            "max": 1526.734375,
+            "min": 1526.734375,
+            "end": 1526.734375,
+            "ols_MiB_per_hour": null,
+            "theil_sen_MiB_per_hour": null,
+            "pairs": 0
+          },
+          "footprint_MiB": {
+            "n": 1,
+            "first": 1578.1423873901367,
+            "median": 1578.1423873901367,
+            "p95": 1578.1423873901367,
+            "max": 1578.1423873901367,
+            "min": 1578.1423873901367,
+            "end": 1578.1423873901367,
+            "ols_MiB_per_hour": null,
+            "theil_sen_MiB_per_hour": null,
+            "pairs": 0
+          }
+        },
+        "tail60": {
+          "endpoints": 1,
+          "first_sequence": 216,
+          "last_sequence": 216,
+          "first_utc": "2026-10-23T12:02:17.385840+00:00",
+          "last_utc": "2026-10-23T12:02:17.385840+00:00",
+          "observed_span_seconds": 0.0,
+          "rss_MiB": {
+            "n": 1,
+            "first": 1526.734375,
+            "median": 1526.734375,
+            "p95": 1526.734375,
+            "max": 1526.734375,
+            "min": 1526.734375,
+            "end": 1526.734375,
+            "ols_MiB_per_hour": null,
+            "theil_sen_MiB_per_hour": null,
+            "pairs": 0
+          },
+          "footprint_MiB": {
+            "n": 1,
+            "first": 1578.1423873901367,
+            "median": 1578.1423873901367,
+            "p95": 1578.1423873901367,
+            "max": 1578.1423873901367,
+            "min": 1578.1423873901367,
+            "end": 1578.1423873901367,
+            "ols_MiB_per_hour": null,
+            "theil_sen_MiB_per_hour": null,
+            "pairs": 0
+          }
+        },
+        "tail_memory_is_current_endpoint": false
+      },
+      {
+        "segment": 6,
+        "identity_segment": "serve-1",
+        "start_reasons": [
+          "sleep_observed",
+          "sampling_gap"
+        ],
+        "memory": {
+          "endpoints": 323,
+          "first_sequence": 217,
+          "last_sequence": 539,
+          "first_utc": "2026-10-23T12:43:55.120190+00:00",
+          "last_utc": "2026-10-23T18:05:54.517253+00:00",
+          "observed_span_seconds": 19319.217420499997,
+          "rss_MiB": {
+            "n": 323,
+            "first": 1526.765625,
+            "median": 7.578125,
+            "p95": 1526.78125,
+            "max": 1526.78125,
+            "min": 7.0625,
+            "end": 7.0625,
+            "ols_MiB_per_hour": -242.70565135209287,
+            "theil_sen_MiB_per_hour": -0.12842465617368803,
+            "pairs": 52003
+          },
+          "footprint_MiB": {
+            "n": 323,
+            "first": 1578.1736373901367,
+            "median": 1578.1892623901367,
+            "p95": 1578.2205123901367,
+            "max": 1578.2205123901367,
+            "min": 1578.1423873901367,
+            "end": 1578.2205123901367,
+            "ols_MiB_per_hour": 0.015369386979647735,
+            "theil_sen_MiB_per_hour": 0.01442307684844428,
+            "pairs": 52003
+          }
+        },
+        "tail60": {
+          "endpoints": 60,
+          "first_sequence": 480,
+          "last_sequence": 539,
+          "first_utc": "2026-10-23T17:06:54.473953+00:00",
+          "last_utc": "2026-10-23T18:05:54.517253+00:00",
+          "observed_span_seconds": 3539.999875374997,
+          "rss_MiB": {
+            "n": 60,
+            "first": 7.609375,
+            "median": 7.546875,
+            "p95": 7.625,
+            "max": 7.625,
+            "min": 7.0625,
+            "end": 7.0625,
+            "ols_MiB_per_hour": -0.7480723755615816,
+            "theil_sen_MiB_per_hour": -0.5282735492826391,
+            "pairs": 1770
+          },
+          "footprint_MiB": {
+            "n": 60,
+            "first": 1578.2205123901367,
+            "median": 1578.2205123901367,
+            "p95": 1578.2205123901367,
+            "max": 1578.2205123901367,
+            "min": 1578.2205123901367,
+            "end": 1578.2205123901367,
+            "ols_MiB_per_hour": 0.0,
+            "theil_sen_MiB_per_hour": 0.0,
+            "pairs": 1770
+          }
+        },
+        "tail_memory_is_current_endpoint": false
+      }
+    ],
+    "watch": [
+      {
+        "segment": 1,
+        "identity_segment": "watch-1",
+        "start_reasons": [
+          "initial_endpoint"
+        ],
+        "memory": {
+          "endpoints": 212,
+          "first_sequence": 1,
+          "last_sequence": 212,
+          "first_utc": "2026-10-23T07:24:54.015544+00:00",
+          "last_utc": "2026-10-23T10:55:54.291645+00:00",
+          "observed_span_seconds": 12659.971492625,
+          "rss_MiB": {
+            "n": 212,
+            "first": 17.703125,
+            "median": 14.21875,
+            "p95": 20.65625,
+            "max": 20.671875,
+            "min": 11.828125,
+            "end": 12.875,
+            "ols_MiB_per_hour": -1.562272090789747,
+            "theil_sen_MiB_per_hour": -1.4004648618456188,
+            "pairs": 22366
+          },
+          "footprint_MiB": {
+            "n": 212,
+            "first": 5.2192535400390625,
+            "median": 6.78179931640625,
+            "p95": 6.79742431640625,
+            "max": 15.00054931640625,
+            "min": 4.8442535400390625,
+            "end": 6.79742431640625,
+            "ols_MiB_per_hour": 0.4153487850876249,
+            "theil_sen_MiB_per_hour": 0.0642123280093742,
+            "pairs": 22366
+          }
+        },
+        "tail60": {
+          "endpoints": 60,
+          "first_sequence": 153,
+          "last_sequence": 212,
+          "first_utc": "2026-10-23T09:56:54.205754+00:00",
+          "last_utc": "2026-10-23T10:55:54.291645+00:00",
+          "observed_span_seconds": 3540.004416666001,
+          "rss_MiB": {
+            "n": 60,
+            "first": 12.921875,
+            "median": 12.265625,
+            "p95": 12.90625,
+            "max": 12.921875,
+            "min": 11.828125,
+            "end": 12.875,
+            "ols_MiB_per_hour": 0.7406475536285599,
+            "theil_sen_MiB_per_hour": 0.7874982345164703,
+            "pairs": 1770
+          },
+          "footprint_MiB": {
+            "n": 60,
+            "first": 6.79742431640625,
+            "median": 6.79742431640625,
+            "p95": 6.79742431640625,
+            "max": 6.79742431640625,
+            "min": 6.78179931640625,
+            "end": 6.79742431640625,
+            "ols_MiB_per_hour": 0.0005470214562126143,
+            "theil_sen_MiB_per_hour": 0.0,
+            "pairs": 1770
+          }
+        },
+        "tail_memory_is_current_endpoint": false
+      },
+      {
+        "segment": 2,
+        "identity_segment": "watch-1",
+        "start_reasons": [
+          "power_transition"
+        ],
+        "memory": {
+          "endpoints": 1,
+          "first_sequence": 213,
+          "last_sequence": 213,
+          "first_utc": "2026-10-23T10:56:54.292560+00:00",
+          "last_utc": "2026-10-23T10:56:54.292560+00:00",
+          "observed_span_seconds": 0.0,
+          "rss_MiB": {
+            "n": 1,
+            "first": 9.765625,
+            "median": 9.765625,
+            "p95": 9.765625,
+            "max": 9.765625,
+            "min": 9.765625,
+            "end": 9.765625,
+            "ols_MiB_per_hour": null,
+            "theil_sen_MiB_per_hour": null,
+            "pairs": 0
+          },
+          "footprint_MiB": {
+            "n": 1,
+            "first": 6.84429931640625,
+            "median": 6.84429931640625,
+            "p95": 6.84429931640625,
+            "max": 6.84429931640625,
+            "min": 6.84429931640625,
+            "end": 6.84429931640625,
+            "ols_MiB_per_hour": null,
+            "theil_sen_MiB_per_hour": null,
+            "pairs": 0
+          }
+        },
+        "tail60": {
+          "endpoints": 1,
+          "first_sequence": 213,
+          "last_sequence": 213,
+          "first_utc": "2026-10-23T10:56:54.292560+00:00",
+          "last_utc": "2026-10-23T10:56:54.292560+00:00",
+          "observed_span_seconds": 0.0,
+          "rss_MiB": {
+            "n": 1,
+            "first": 9.765625,
+            "median": 9.765625,
+            "p95": 9.765625,
+            "max": 9.765625,
+            "min": 9.765625,
+            "end": 9.765625,
+            "ols_MiB_per_hour": null,
+            "theil_sen_MiB_per_hour": null,
+            "pairs": 0
+          },
+          "footprint_MiB": {
+            "n": 1,
+            "first": 6.84429931640625,
+            "median": 6.84429931640625,
+            "p95": 6.84429931640625,
+            "max": 6.84429931640625,
+            "min": 6.84429931640625,
+            "end": 6.84429931640625,
+            "ols_MiB_per_hour": null,
+            "theil_sen_MiB_per_hour": null,
+            "pairs": 0
+          }
+        },
+        "tail_memory_is_current_endpoint": false
+      },
+      {
+        "segment": 3,
+        "identity_segment": "watch-1",
+        "start_reasons": [
+          "power_transition",
+          "sleep_observed",
+          "sampling_gap"
+        ],
+        "memory": {
+          "endpoints": 1,
+          "first_sequence": 214,
+          "last_sequence": 214,
+          "first_utc": "2026-10-23T11:16:46.494174+00:00",
+          "last_utc": "2026-10-23T11:16:46.494174+00:00",
+          "observed_span_seconds": 0.0,
+          "rss_MiB": {
+            "n": 1,
+            "first": 9.859375,
+            "median": 9.859375,
+            "p95": 9.859375,
+            "max": 9.859375,
+            "min": 9.859375,
+            "end": 9.859375,
+            "ols_MiB_per_hour": null,
+            "theil_sen_MiB_per_hour": null,
+            "pairs": 0
+          },
+          "footprint_MiB": {
+            "n": 1,
+            "first": 6.81304931640625,
+            "median": 6.81304931640625,
+            "p95": 6.81304931640625,
+            "max": 6.81304931640625,
+            "min": 6.81304931640625,
+            "end": 6.81304931640625,
+            "ols_MiB_per_hour": null,
+            "theil_sen_MiB_per_hour": null,
+            "pairs": 0
+          }
+        },
+        "tail60": {
+          "endpoints": 1,
+          "first_sequence": 214,
+          "last_sequence": 214,
+          "first_utc": "2026-10-23T11:16:46.494174+00:00",
+          "last_utc": "2026-10-23T11:16:46.494174+00:00",
+          "observed_span_seconds": 0.0,
+          "rss_MiB": {
+            "n": 1,
+            "first": 9.859375,
+            "median": 9.859375,
+            "p95": 9.859375,
+            "max": 9.859375,
+            "min": 9.859375,
+            "end": 9.859375,
+            "ols_MiB_per_hour": null,
+            "theil_sen_MiB_per_hour": null,
+            "pairs": 0
+          },
+          "footprint_MiB": {
+            "n": 1,
+            "first": 6.81304931640625,
+            "median": 6.81304931640625,
+            "p95": 6.81304931640625,
+            "max": 6.81304931640625,
+            "min": 6.81304931640625,
+            "end": 6.81304931640625,
+            "ols_MiB_per_hour": null,
+            "theil_sen_MiB_per_hour": null,
+            "pairs": 0
+          }
+        },
+        "tail_memory_is_current_endpoint": false
+      },
+      {
+        "segment": 4,
+        "identity_segment": "watch-1",
+        "start_reasons": [
+          "sleep_observed",
+          "sampling_gap"
+        ],
+        "memory": {
+          "endpoints": 1,
+          "first_sequence": 215,
+          "last_sequence": 215,
+          "first_utc": "2026-10-23T11:51:13.772337+00:00",
+          "last_utc": "2026-10-23T11:51:13.772337+00:00",
+          "observed_span_seconds": 0.0,
+          "rss_MiB": {
+            "n": 1,
+            "first": 9.875,
+            "median": 9.875,
+            "p95": 9.875,
+            "max": 9.875,
+            "min": 9.875,
+            "end": 9.875,
+            "ols_MiB_per_hour": null,
+            "theil_sen_MiB_per_hour": null,
+            "pairs": 0
+          },
+          "footprint_MiB": {
+            "n": 1,
+            "first": 6.82867431640625,
+            "median": 6.82867431640625,
+            "p95": 6.82867431640625,
+            "max": 6.82867431640625,
+            "min": 6.82867431640625,
+            "end": 6.82867431640625,
+            "ols_MiB_per_hour": null,
+            "theil_sen_MiB_per_hour": null,
+            "pairs": 0
+          }
+        },
+        "tail60": {
+          "endpoints": 1,
+          "first_sequence": 215,
+          "last_sequence": 215,
+          "first_utc": "2026-10-23T11:51:13.772337+00:00",
+          "last_utc": "2026-10-23T11:51:13.772337+00:00",
+          "observed_span_seconds": 0.0,
+          "rss_MiB": {
+            "n": 1,
+            "first": 9.875,
+            "median": 9.875,
+            "p95": 9.875,
+            "max": 9.875,
+            "min": 9.875,
+            "end": 9.875,
+            "ols_MiB_per_hour": null,
+            "theil_sen_MiB_per_hour": null,
+            "pairs": 0
+          },
+          "footprint_MiB": {
+            "n": 1,
+            "first": 6.82867431640625,
+            "median": 6.82867431640625,
+            "p95": 6.82867431640625,
+            "max": 6.82867431640625,
+            "min": 6.82867431640625,
+            "end": 6.82867431640625,
+            "ols_MiB_per_hour": null,
+            "theil_sen_MiB_per_hour": null,
+            "pairs": 0
+          }
+        },
+        "tail_memory_is_current_endpoint": false
+      },
+      {
+        "segment": 5,
+        "identity_segment": "watch-1",
+        "start_reasons": [
+          "sleep_observed",
+          "sampling_gap"
+        ],
+        "memory": {
+          "endpoints": 1,
+          "first_sequence": 216,
+          "last_sequence": 216,
+          "first_utc": "2026-10-23T12:02:17.385840+00:00",
+          "last_utc": "2026-10-23T12:02:17.385840+00:00",
+          "observed_span_seconds": 0.0,
+          "rss_MiB": {
+            "n": 1,
+            "first": 9.921875,
+            "median": 9.921875,
+            "p95": 9.921875,
+            "max": 9.921875,
+            "min": 9.921875,
+            "end": 9.921875,
+            "ols_MiB_per_hour": null,
+            "theil_sen_MiB_per_hour": null,
+            "pairs": 0
+          },
+          "footprint_MiB": {
+            "n": 1,
+            "first": 6.82867431640625,
+            "median": 6.82867431640625,
+            "p95": 6.82867431640625,
+            "max": 6.82867431640625,
+            "min": 6.82867431640625,
+            "end": 6.82867431640625,
+            "ols_MiB_per_hour": null,
+            "theil_sen_MiB_per_hour": null,
+            "pairs": 0
+          }
+        },
+        "tail60": {
+          "endpoints": 1,
+          "first_sequence": 216,
+          "last_sequence": 216,
+          "first_utc": "2026-10-23T12:02:17.385840+00:00",
+          "last_utc": "2026-10-23T12:02:17.385840+00:00",
+          "observed_span_seconds": 0.0,
+          "rss_MiB": {
+            "n": 1,
+            "first": 9.921875,
+            "median": 9.921875,
+            "p95": 9.921875,
+            "max": 9.921875,
+            "min": 9.921875,
+            "end": 9.921875,
+            "ols_MiB_per_hour": null,
+            "theil_sen_MiB_per_hour": null,
+            "pairs": 0
+          },
+          "footprint_MiB": {
+            "n": 1,
+            "first": 6.82867431640625,
+            "median": 6.82867431640625,
+            "p95": 6.82867431640625,
+            "max": 6.82867431640625,
+            "min": 6.82867431640625,
+            "end": 6.82867431640625,
+            "ols_MiB_per_hour": null,
+            "theil_sen_MiB_per_hour": null,
+            "pairs": 0
+          }
+        },
+        "tail_memory_is_current_endpoint": false
+      },
+      {
+        "segment": 6,
+        "identity_segment": "watch-1",
+        "start_reasons": [
+          "sleep_observed",
+          "sampling_gap"
+        ],
+        "memory": {
+          "endpoints": 323,
+          "first_sequence": 217,
+          "last_sequence": 539,
+          "first_utc": "2026-10-23T12:43:55.120190+00:00",
+          "last_utc": "2026-10-23T18:05:54.517253+00:00",
+          "observed_span_seconds": 19319.217420499997,
+          "rss_MiB": {
+            "n": 323,
+            "first": 9.953125,
+            "median": 9.625,
+            "p95": 17.71875,
+            "max": 17.734375,
+            "min": 8.0,
+            "end": 17.609375,
+            "ols_MiB_per_hour": 1.2682892253848097,
+            "theil_sen_MiB_per_hour": 0.10416628678128534,
+            "pairs": 52003
+          },
+          "footprint_MiB": {
+            "n": 323,
+            "first": 6.84429931640625,
+            "median": 6.85992431640625,
+            "p95": 7.81304931640625,
+            "max": 14.15679931640625,
+            "min": 6.81304931640625,
+            "end": 7.81304931640625,
+            "ols_MiB_per_hour": 0.19875473026791807,
+            "theil_sen_MiB_per_hour": 0.010190216688573523,
+            "pairs": 52003
+          }
+        },
+        "tail60": {
+          "endpoints": 60,
+          "first_sequence": 480,
+          "last_sequence": 539,
+          "first_utc": "2026-10-23T17:06:54.473953+00:00",
+          "last_utc": "2026-10-23T18:05:54.517253+00:00",
+          "observed_span_seconds": 3539.999875374997,
+          "rss_MiB": {
+            "n": 60,
+            "first": 17.71875,
+            "median": 17.640625,
+            "p95": 17.734375,
+            "max": 17.734375,
+            "min": 17.609375,
+            "end": 17.609375,
+            "ols_MiB_per_hour": -0.1197467693207517,
+            "theil_sen_MiB_per_hour": -0.09665963995857826,
+            "pairs": 1770
+          },
+          "footprint_MiB": {
+            "n": 60,
+            "first": 7.93804931640625,
+            "median": 7.81304931640625,
+            "p95": 7.81304931640625,
+            "max": 7.93804931640625,
+            "min": 7.81304931640625,
+            "end": 7.81304931640625,
+            "ols_MiB_per_hour": -0.024173420732706733,
+            "theil_sen_MiB_per_hour": 0.0,
+            "pairs": 1770
+          }
+        },
+        "tail_memory_is_current_endpoint": false
+      }
+    ]
+  },
+  "invalid_memory": [],
+  "latest_known": {
+    "gui": {
+      "last_known_fp_MiB": 59.2979736328125,
+      "last_known_rss_MiB": 120.90625,
+      "last_known_utc": "2026-10-23T18:05:54.517253+00:00",
+      "tail60_same_contiguous_segment": {
+        "endpoints": 60,
+        "first_sequence": 480,
+        "last_sequence": 539,
+        "first_utc": "2026-10-23T17:06:54.473953+00:00",
+        "last_utc": "2026-10-23T18:05:54.517253+00:00",
+        "observed_span_seconds": 3539.999875374997,
+        "rss_MiB": {
+          "n": 60,
+          "first": 126.203125,
+          "median": 125.0,
+          "p95": 126.203125,
+          "max": 126.21875,
+          "min": 120.90625,
+          "end": 120.90625,
+          "ols_MiB_per_hour": -7.6052628229630965,
+          "theil_sen_MiB_per_hour": -6.3187369413655015,
+          "pairs": 1770
+        },
+        "footprint_MiB": {
+          "n": 60,
+          "first": 59.3292236328125,
+          "median": 59.3057861328125,
+          "p95": 59.3292236328125,
+          "max": 59.3292236328125,
+          "min": 59.2823486328125,
+          "end": 59.2979736328125,
+          "ols_MiB_per_hour": -0.040089245819650156,
+          "theil_sen_MiB_per_hour": -0.03676469716650649,
+          "pairs": 1770
+        }
+      },
+      "last_80_minutes_known_segment": {
+        "endpoints": 81,
+        "first_sequence": 459,
+        "last_sequence": 539,
+        "first_utc": "2026-10-23T16:45:54.549939+00:00",
+        "last_utc": "2026-10-23T18:05:54.517253+00:00",
+        "observed_span_seconds": 4799.998601749998,
+        "rss_MiB": {
+          "n": 81,
+          "first": 126.375,
+          "median": 126.1875,
+          "p95": 126.390625,
+          "max": 126.390625,
+          "min": 120.90625,
+          "end": 120.90625,
+          "ols_MiB_per_hour": -5.133552755959337,
+          "theil_sen_MiB_per_hour": -2.5781216830340563,
+          "pairs": 3240
+        },
+        "footprint_MiB": {
+          "n": 81,
+          "first": 59.3292236328125,
+          "median": 59.3135986328125,
+          "p95": 59.3448486328125,
+          "max": 59.3448486328125,
+          "min": 59.2823486328125,
+          "end": 59.2979736328125,
+          "ols_MiB_per_hour": -0.04503301746931257,
+          "theil_sen_MiB_per_hour": -0.04360465040752723,
+          "pairs": 3240
+        }
+      },
+      "current_footprint": null,
+      "current_status": "missing"
+    },
+    "serve": {
+      "last_known_fp_MiB": 1578.2205123901367,
+      "last_known_rss_MiB": 7.0625,
+      "last_known_utc": "2026-10-23T18:05:54.517253+00:00",
+      "tail60_same_contiguous_segment": {
+        "endpoints": 60,
+        "first_sequence": 480,
+        "last_sequence": 539,
+        "first_utc": "2026-10-23T17:06:54.473953+00:00",
+        "last_utc": "2026-10-23T18:05:54.517253+00:00",
+        "observed_span_seconds": 3539.999875374997,
+        "rss_MiB": {
+          "n": 60,
+          "first": 7.609375,
+          "median": 7.546875,
+          "p95": 7.625,
+          "max": 7.625,
+          "min": 7.0625,
+          "end": 7.0625,
+          "ols_MiB_per_hour": -0.7480723755615816,
+          "theil_sen_MiB_per_hour": -0.5282735492826391,
+          "pairs": 1770
+        },
+        "footprint_MiB": {
+          "n": 60,
+          "first": 1578.2205123901367,
+          "median": 1578.2205123901367,
+          "p95": 1578.2205123901367,
+          "max": 1578.2205123901367,
+          "min": 1578.2205123901367,
+          "end": 1578.2205123901367,
+          "ols_MiB_per_hour": 0.0,
+          "theil_sen_MiB_per_hour": 0.0,
+          "pairs": 1770
+        }
+      },
+      "last_80_minutes_known_segment": {
+        "endpoints": 81,
+        "first_sequence": 459,
+        "last_sequence": 539,
+        "first_utc": "2026-10-23T16:45:54.549939+00:00",
+        "last_utc": "2026-10-23T18:05:54.517253+00:00",
+        "observed_span_seconds": 4799.998601749998,
+        "rss_MiB": {
+          "n": 81,
+          "first": 7.578125,
+          "median": 7.578125,
+          "p95": 7.625,
+          "max": 7.625,
+          "min": 7.0625,
+          "end": 7.0625,
+          "ols_MiB_per_hour": -0.45428943054649307,
+          "theil_sen_MiB_per_hour": -0.1293106795273285,
+          "pairs": 3240
+        },
+        "footprint_MiB": {
+          "n": 81,
+          "first": 1578.2205123901367,
+          "median": 1578.2205123901367,
+          "p95": 1578.2205123901367,
+          "max": 1578.2205123901367,
+          "min": 1578.2205123901367,
+          "end": 1578.2205123901367,
+          "ols_MiB_per_hour": 0.0,
+          "theil_sen_MiB_per_hour": 0.0,
+          "pairs": 3240
+        }
+      },
+      "current_footprint": null,
+      "current_status": "missing"
+    },
+    "watch": {
+      "last_known_fp_MiB": 7.81304931640625,
+      "last_known_rss_MiB": 17.609375,
+      "last_known_utc": "2026-10-23T18:05:54.517253+00:00",
+      "tail60_same_contiguous_segment": {
+        "endpoints": 60,
+        "first_sequence": 480,
+        "last_sequence": 539,
+        "first_utc": "2026-10-23T17:06:54.473953+00:00",
+        "last_utc": "2026-10-23T18:05:54.517253+00:00",
+        "observed_span_seconds": 3539.999875374997,
+        "rss_MiB": {
+          "n": 60,
+          "first": 17.71875,
+          "median": 17.640625,
+          "p95": 17.734375,
+          "max": 17.734375,
+          "min": 17.609375,
+          "end": 17.609375,
+          "ols_MiB_per_hour": -0.1197467693207517,
+          "theil_sen_MiB_per_hour": -0.09665963995857826,
+          "pairs": 1770
+        },
+        "footprint_MiB": {
+          "n": 60,
+          "first": 7.93804931640625,
+          "median": 7.81304931640625,
+          "p95": 7.81304931640625,
+          "max": 7.93804931640625,
+          "min": 7.81304931640625,
+          "end": 7.81304931640625,
+          "ols_MiB_per_hour": -0.024173420732706733,
+          "theil_sen_MiB_per_hour": 0.0,
+          "pairs": 1770
+        }
+      },
+      "last_80_minutes_known_segment": {
+        "endpoints": 81,
+        "first_sequence": 459,
+        "last_sequence": 539,
+        "first_utc": "2026-10-23T16:45:54.549939+00:00",
+        "last_utc": "2026-10-23T18:05:54.517253+00:00",
+        "observed_span_seconds": 4799.998601749998,
+        "rss_MiB": {
+          "n": 81,
+          "first": 9.625,
+          "median": 17.640625,
+          "p95": 17.734375,
+          "max": 17.734375,
+          "min": 9.625,
+          "end": 17.609375,
+          "ols_MiB_per_hour": 5.923671169328404,
+          "theil_sen_MiB_per_hour": 0.0,
+          "pairs": 3240
+        },
+        "footprint_MiB": {
+          "n": 81,
+          "first": 6.87554931640625,
+          "median": 7.81304931640625,
+          "p95": 7.93804931640625,
+          "max": 14.15679931640625,
+          "min": 6.87554931640625,
+          "end": 7.81304931640625,
+          "ols_MiB_per_hour": 0.3337764460069282,
+          "theil_sen_MiB_per_hour": 0.0,
+          "pairs": 3240
+        }
+      },
+      "current_footprint": null,
+      "current_status": "missing",
+      "post_second_root_recovery": {
+        "endpoints": 57,
+        "first_sequence": 483,
+        "last_sequence": 539,
+        "first_utc": "2026-10-23T17:09:54.480288+00:00",
+        "last_utc": "2026-10-23T18:05:54.517253+00:00",
+        "observed_span_seconds": 3359.994081249999,
+        "rss_MiB": {
+          "n": 57,
+          "first": 17.71875,
+          "median": 17.640625,
+          "p95": 17.734375,
+          "max": 17.734375,
+          "min": 17.609375,
+          "end": 17.609375,
+          "ols_MiB_per_hour": -0.12426672837945972,
+          "theil_sen_MiB_per_hour": -0.09868437243627767,
+          "pairs": 1596
+        },
+        "footprint_MiB": {
+          "n": 57,
+          "first": 7.81304931640625,
+          "median": 7.81304931640625,
+          "p95": 7.81304931640625,
+          "max": 7.81304931640625,
+          "min": 7.81304931640625,
+          "end": 7.81304931640625,
+          "ols_MiB_per_hour": 0.0,
+          "theil_sen_MiB_per_hour": 0.0,
+          "pairs": 1596
+        }
+      },
+      "before_second_recovery_same_segment": {
+        "endpoints": 259,
+        "first_sequence": 217,
+        "last_sequence": 475,
+        "first_utc": "2026-10-23T12:43:55.120190+00:00",
+        "last_utc": "2026-10-23T17:01:54.475501+00:00",
+        "observed_span_seconds": 15479.220112791998,
+        "rss_MiB": {
+          "n": 259,
+          "first": 9.953125,
+          "median": 9.296875,
+          "p95": 11.015625,
+          "max": 11.359375,
+          "min": 8.0,
+          "end": 9.625,
+          "ols_MiB_per_hour": -0.3214205372651299,
+          "theil_sen_MiB_per_hour": -0.23076945269003607,
+          "pairs": 33411
+        },
+        "footprint_MiB": {
+          "n": 259,
+          "first": 6.84429931640625,
+          "median": 6.85992431640625,
+          "p95": 6.87554931640625,
+          "max": 6.87554931640625,
+          "min": 6.81304931640625,
+          "end": 6.87554931640625,
+          "ols_MiB_per_hour": 0.007499049785392258,
+          "theil_sen_MiB_per_hour": 0.005237429623718495,
+          "pairs": 33411
+        }
+      }
+    }
+  }
+}
