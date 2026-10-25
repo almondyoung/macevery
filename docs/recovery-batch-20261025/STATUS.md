@@ -19,3 +19,5 @@
 下一步：让用户选择先采用scanner/恢复优化，或接受catch-up内存取舍后一起原生验收；当前App不换，不自动新观察。报告r2、evidence/isolated.json与私有完整原始/ownership/SHA为依据。OS UserDropped上游、App三角色退出原因和页面分配仍UNKNOWN；不因callback子集低耗时、位图已drop或FP平台判定根因/无泄漏。
 
 用户2026-10-25回忆：凌晨退出“应该是系统升级/重启自动退出的”。作为用户提供的原因候选，非已验证重启；封存中collector同boot/同PID连续，不能据此确认整机重启。原UNKNOWN证据不回写，本轮不新增崩溃修复范围。
+
+2026-10-25后续选择：用户明确只采用扫描/根批次优化，catch-up暂不进入App。完整本阶段候选1b21ef4及原始资源取舍保持；交付已由[scanner-only-20261025](../scanner-only-20261025/STATUS.md)接续。当前运行App以新任务状态为准，不再停留于本文件历史待选择状态。

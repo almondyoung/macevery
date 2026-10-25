@@ -1,0 +1,154 @@
+{
+  "schema": 1,
+  "status": "VM_ACCOUNTING_DIFFERENCE_REPRODUCED_CAUSAL_ALLOCATOR_UNCLOSED",
+  "at_utc": "2026-10-25T06:48:53.815163+00:00",
+  "source": "withheld 1b21ef4 candidate and exact b027 baseline artifacts; not installed scanner App",
+  "run_order": "A/B/A one block;4775 revisions4751 IDs;same code300/probe oracle",
+  "runs": [
+    {
+      "variant": "baseline",
+      "position": 0,
+      "status": "PASS",
+      "VM_idle_MiB": {
+        "resident_bytes": 1590.125,
+        "internal_bytes": 1347.5,
+        "reusable_bytes": 237.703125,
+        "compressed_bytes": 0.0,
+        "footprint_bytes": 1348.6266708374023
+      },
+      "idle_actual_at_ms": 1792909618066,
+      "cached_snapshot_at_ms": 1792909562106,
+      "cached_method": "fallback_full",
+      "capacity_bytes": 1538889152,
+      "capacity_components": {
+        "record_capacity_bytes": 355467264,
+        "metadata_capacity_bytes": 177917568,
+        "string_capacity_bytes": 939524096,
+        "string_used_bytes": 908556688,
+        "prefix_string_bytes": 53208780,
+        "prefix_entry_capacity_bytes": 8388608,
+        "prefix_lookup_capacity_bytes": 4194304,
+        "dead_records": 0,
+        "dead_string_bytes": 0,
+        "live_metadata_escapes": 18310
+      },
+      "identity_and_log_sequence_consistent": true,
+      "tail_FP_MiB_by_seconds": {
+        "0": 1348.6266708374023,
+        "1": 1348.6266708374023,
+        "5": 1348.6266708374023,
+        "15": 1348.6266708374023,
+        "30": 1348.6266708374023,
+        "65": 1348.6266708374023
+      },
+      "actual_tail_seconds": [
+        7.000000000090267e-06,
+        1.005015125,
+        5.001047540999998,
+        15.001935708000001,
+        30.002407916000003,
+        65.001229083
+      ],
+      "all_owned_reaped_and_port_closed": true
+    },
+    {
+      "variant": "candidate",
+      "position": 1,
+      "status": "PASS",
+      "VM_idle_MiB": {
+        "resident_bytes": 1573.46875,
+        "internal_bytes": 1568.5625,
+        "reusable_bytes": 0.0,
+        "compressed_bytes": 0.0,
+        "footprint_bytes": 1569.6735229492188
+      },
+      "idle_actual_at_ms": 1792909692939,
+      "cached_snapshot_at_ms": 1792909634303,
+      "cached_method": "journal_catchup",
+      "capacity_bytes": 1538889152,
+      "capacity_components": {
+        "record_capacity_bytes": 355467264,
+        "metadata_capacity_bytes": 177917568,
+        "string_capacity_bytes": 939524096,
+        "string_used_bytes": 908556742,
+        "prefix_string_bytes": 53208780,
+        "prefix_entry_capacity_bytes": 8388608,
+        "prefix_lookup_capacity_bytes": 4194304,
+        "dead_records": 0,
+        "dead_string_bytes": 54,
+        "live_metadata_escapes": 18310
+      },
+      "identity_and_log_sequence_consistent": true,
+      "tail_FP_MiB_by_seconds": {
+        "0": 1569.6735229492188,
+        "1": 1569.6735229492188,
+        "5": 1569.6735229492188,
+        "15": 1569.6735229492188,
+        "30": 1569.6735229492188,
+        "65": 1569.6735229492188
+      },
+      "actual_tail_seconds": [
+        8.332999996696344e-06,
+        1.005024375000005,
+        5.004739624999999,
+        15.001856083000007,
+        30.005045750000008,
+        65.00014541600001
+      ],
+      "all_owned_reaped_and_port_closed": true
+    },
+    {
+      "variant": "baseline",
+      "position": 2,
+      "status": "PASS",
+      "VM_idle_MiB": {
+        "resident_bytes": 1590.171875,
+        "internal_bytes": 1347.546875,
+        "reusable_bytes": 237.703125,
+        "compressed_bytes": 0.0,
+        "footprint_bytes": 1348.6735458374023
+      },
+      "idle_actual_at_ms": 1792909764977,
+      "cached_snapshot_at_ms": 1792909709034,
+      "cached_method": "fallback_full",
+      "capacity_bytes": 1538889152,
+      "capacity_components": {
+        "record_capacity_bytes": 355467264,
+        "metadata_capacity_bytes": 177917568,
+        "string_capacity_bytes": 939524096,
+        "string_used_bytes": 908556688,
+        "prefix_string_bytes": 53208780,
+        "prefix_entry_capacity_bytes": 8388608,
+        "prefix_lookup_capacity_bytes": 4194304,
+        "dead_records": 0,
+        "dead_string_bytes": 0,
+        "live_metadata_escapes": 18310
+      },
+      "identity_and_log_sequence_consistent": true,
+      "tail_FP_MiB_by_seconds": {
+        "0": 1348.6735458374023,
+        "1": 1348.6735458374023,
+        "5": 1348.6735458374023,
+        "15": 1348.6735458374023,
+        "30": 1348.6735458374023,
+        "65": 1348.6735458374023
+      },
+      "actual_tail_seconds": [
+        9.000000005698894e-06,
+        1.0042997919999834,
+        5.0030542079999805,
+        15.005037999999985,
+        30.005082166999983,
+        65.00150299999999
+      ],
+      "all_owned_reaped_and_port_closed": true
+    }
+  ],
+  "tail65_FP_candidate_minus_baseline_MiB": 221.0234146118164,
+  "compressed_pages_all_zero": true,
+  "same_logical_index_capacity_bytes": 1538889152,
+  "interpretation": "Full reload retains about237.7MiB reusable resident pages while catch-up has0. Both have the same logical index capacity. The ~221MiB FP tail difference persists65s and accompanies different VM page accounting. It is not218MiB new catch-up allocation; exact allocator/SQLite page ownership and long-term behavior remain unclosed.",
+  "time_boundary": "idle VM at_ms is its real capture time near the natural60second flush; snapshot_at_ms is earlier cached index metadata. idle cached phase/method is not a new reload.",
+  "no_purge_pressure_or_production_App_requests": true,
+  "catchup_withheld_from_App": true
+}

@@ -1,0 +1,74 @@
+{
+  "schema": 1,
+  "status": "NATIVE_AND_APP_ONLY_INSTALLATION_PASS_WITH_RETAINED_SETUP_INCIDENTS",
+  "at_utc": "2026-10-25T06:48:53.817172+00:00",
+  "source_commit": "e6878efa2515e00ff35192eb29f4c6eb73a37b4b",
+  "build_label": "0.1.3-ge6878ef",
+  "source_exact_remote_verified": true,
+  "signature_deep_strict": true,
+  "tested_cli_exact_payload_normalization_proof_retained": true,
+  "native_before_install": {
+    "Fastest_code300": true,
+    "LowMemory_code300": true,
+    "LowMemory_actual_backend": "sqlite",
+    "update_AX_counts": [
+      1,
+      1,
+      1,
+      0
+    ],
+    "modified_exact_size_bytes": 1234,
+    "permissions": "Limited;unchanged",
+    "old_path_removed": true,
+    "fixture_cleaned": true
+  },
+  "native_after_install": {
+    "Fastest_code300": true,
+    "update_AX_counts": [
+      1,
+      1,
+      1,
+      0
+    ],
+    "modified_exact_size_bytes": 1234,
+    "old_path_removed": true,
+    "fixture_cleaned": true,
+    "restored_query": "empty(initial candidate state)",
+    "mode": "memory",
+    "effective_shortcut": "command_shift_space",
+    "first_installed_start_query_busy_seen_then_completed": "Actual initial request wall not measured; do not call it a <=15s native latency result."
+  },
+  "backup": {
+    "bytes": 5118906368,
+    "sha256": "971e88895e300539072977743a8ee53f49b7561bdc2c016fad5a6717821e0ea9",
+    "closed_quick_check": "ok",
+    "verification_method": "immutable_only_closed_private_no_sidecar_backup_after_retained_ro_failure",
+    "initial_RO_failure_preserved": true,
+    "no_immutable_on_live": true
+  },
+  "replacement": {
+    "database_inode_unchanged": true,
+    "database_identity_roots_excludes_preserved": true,
+    "old_original_App_inode_retained": true,
+    "App_only_no_DB_adoption": true,
+    "critical_preferences_preserved": true
+  },
+  "retained_incidents": [
+    {
+      "kind": "temporary_directory_native_fixture_did_not_converge",
+      "bound_seconds": 20,
+      "status": "FAIL retained; subsequent fresh user-directory fixture passed",
+      "cause": "Unknown; no callback evidence in failed isolated root; not silently classified as product fix"
+    },
+    {
+      "kind": "UI_getAX_after_Quit_reopened_candidate_without_isolation_environment",
+      "candidate_connected_live_DB": true,
+      "automatic_watch_DML_visible": true,
+      "net_change_extent": "Unknown; no fresh pre-incident live revision was captured",
+      "resolution": "Normal Quit, exact roles and DB descriptors disappeared; bounded original logs retained; subsequent Quit verification uses process/FD inspection without UI reopen",
+      "old_installed_b027_bundle_untouched_during_incident": true,
+      "no_direct_SQL_rollback_or_old_window_rewrite": true
+    }
+  ],
+  "scope": "AX rows/footer are virtualized; full six-field Top300/update equivalence is isolated CLI/memory/sqlite evidence. All installation and acceptance are before the new observation, never joined with old windows."
+}

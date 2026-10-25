@@ -1,0 +1,14 @@
+{
+  "schema": 1,
+  "status": "SCANNER_DELIVERED_EVIDENCE_SAVED",
+  "at_utc": "2026-10-25T06:50:14.417574+00:00",
+  "private_root_name": "scanner-only-20261025",
+  "private_per_file_manifest_sha256": "e39d553813bc3f7999f781d7316d05f7146f4f8debca61c189b49c044ba1436d",
+  "private_files": 6737,
+  "raw_files_preserved": 6632,
+  "raw_apparent_bytes": 30935519255,
+  "large_copies": "APFS clonefile; apparent bytes not physical disk usage",
+  "old_b027_raw_journal_sha256": "669f182a3770a26b3a9684a772e16220bd4ee41ea1cb26014435d4b624364fdf",
+  "no_rebuild_cleanup_or_join_of_old_windows": true,
+  "future_window_separate_root": "watch-observation-20261025"
+}
