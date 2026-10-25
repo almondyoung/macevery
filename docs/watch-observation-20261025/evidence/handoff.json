@@ -1,0 +1,33 @@
+{
+  "schema": 1,
+  "at_utc": "2026-10-25T07:00:37.517823+00:00",
+  "status": "RUNNING_NOT_STABILITY_PASS",
+  "as_of_sequence": 5,
+  "committed_bytes": 15815,
+  "committed_prefix_sha256": "7e660d801fc47e6061fc6b52dc0862bbae752866fac0b4f89e2f35787003cfdb",
+  "actual_journal_bytes": 15815,
+  "prefix_continuous_and_last_equals_state": true,
+  "last_endpoint_utc": "2026-10-25T07:00:01.056777+00:00",
+  "last_elapsed_seconds": 240.016141334,
+  "same_worker_actual_verified": true,
+  "single_collector_inventory_verified": true,
+  "writer_lock_held": true,
+  "source_status_all_match": true,
+  "DB_pin_all_match": true,
+  "roles_known_each_endpoint": {
+    "gui": 5,
+    "serve": 5,
+    "watch": 5
+  },
+  "CPU_effective_seconds_as_of_prior_summary": {
+    "gui": 179.957236416,
+    "serve": 179.957236416,
+    "watch": 179.957236416
+  },
+  "all_process_measured_high_CPU_candidate_count_as_of_health": 0,
+  "no_Platform_or_recurrence_whole_window_claim": true,
+  "automation_same_id": "macevery-48",
+  "automation_status": "ACTIVE",
+  "App_source_fixed": "e6878efa2515e00ff35192eb29f4c6eb73a37b4b",
+  "no_new_App_request_or_extra_sampler_after_start": true
+}
