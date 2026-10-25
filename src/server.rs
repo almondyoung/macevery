@@ -1,6 +1,8 @@
 use crate::compact_index::{ApplyOutcome, CompactIndex, SnapshotDiff, SnapshotDiffLimits};
 use crate::config::default_db_path;
-use crate::db::{ContentObserver, ContentStamp, Database, FileChange, FileChangeRead};
+use crate::db::{
+    ContentObserver, ContentStamp, Database, FileChange, FileChangeRead, JournalCatchupLimits,
+};
 use crate::error::{MacEveryError, Result};
 use crate::model::{FileKind, SearchOptions, SearchResult};
 use crate::process_lifetime;
@@ -25,6 +27,12 @@ const DEFAULT_MAX_ACTIVE_REQUESTS: usize = 64;
 const DEFAULT_MAX_ACTIVE_SEARCHES: usize = 2;
 const MAX_INCREMENTAL_EVENTS: usize = 4096;
 const MAX_INCREMENTAL_IDS: usize = 4096;
+const JOURNAL_CATCHUP_LIMITS: JournalCatchupLimits = JournalCatchupLimits {
+    max_events: crate::db::FILE_CHANGE_RETENTION as usize,
+    max_ids: crate::db::JOURNAL_CATCHUP_MAX_IDS,
+    max_payload_bytes: crate::db::FILE_CHANGE_MAX_PAYLOAD_BYTES,
+    max_duration: Duration::from_secs(1),
+};
 const SNAPSHOT_DIFF_LIMITS: SnapshotDiffLimits = SnapshotDiffLimits {
     max_changes: MAX_INCREMENTAL_IDS,
     max_payload_bytes: crate::db::FILE_CHANGE_MAX_PAYLOAD_BYTES,
@@ -508,6 +516,14 @@ impl ServiceState {
     }
 
     fn reload_if_changed_with_limits(&mut self, limits: SnapshotDiffLimits) -> Result<()> {
+        self.reload_if_changed_with_budgets(limits, JOURNAL_CATCHUP_LIMITS)
+    }
+
+    fn reload_if_changed_with_budgets(
+        &mut self,
+        limits: SnapshotDiffLimits,
+        catchup_limits: JournalCatchupLimits,
+    ) -> Result<()> {
         // Recheck after taking the write lock: competing requests apply one batch.
         if !self.needs_reload()? {
             return Ok(());
@@ -534,8 +550,21 @@ impl ServiceState {
         let delta: Result<FileChangeRead> = (|| {
             let db = Database::open_read_only(self.db_path.clone())?;
             let (_, delta) = with_read_snapshot(&db, |target| {
-                let delta =
+                let mut delta =
                     db.file_changes_since(&base, MAX_INCREMENTAL_EVENTS, MAX_INCREMENTAL_IDS)?;
+                if matches!(
+                    delta,
+                    FileChangeRead::Fallback {
+                        reason: "event_limit"
+                    }
+                ) {
+                    // The ordinary 4096 fast path remains unchanged. Catch up
+                    // only inside this pinned read, then apply/publish ONCE.
+                    delta = db.catch_up_file_changes(&base, catchup_limits)?;
+                    if matches!(delta, FileChangeRead::Available { .. }) {
+                        refresh_method = "journal_catchup";
+                    }
+                }
                 if matches!(
                     delta,
                     FileChangeRead::Fallback {
@@ -1467,55 +1496,98 @@ mod tests {
     }
 
     #[test]
-    fn missing_journal_and_event_overflow_fall_back_to_full_and_recover() {
-        for (label, mutation, reason) in [
-            (
-                "missing",
-                "UPDATE files SET size=99 WHERE id=1; DROP TABLE macevery_file_changes;"
-                    .to_string(),
-                "journal_unavailable",
-            ),
-            (
-                "overflow",
-                format!(
-                    "BEGIN IMMEDIATE;{}COMMIT;",
-                    "UPDATE files SET size=COALESCE(size,0)+1 WHERE id=1;"
-                        .repeat(MAX_INCREMENTAL_EVENTS + 1)
-                ),
-                "event_limit",
-            ),
+    fn missing_journal_falls_back_to_full_and_recovers() {
+        let (directory, path) = test_database("missing");
+        let mut state = ServiceState::load(path.clone(), BackendPreference::Memory).unwrap();
+        let writer = crate::sqlite::Connection::open(&path).unwrap();
+        writer
+            .execute_batch("UPDATE files SET size=99 WHERE id=1; DROP TABLE macevery_file_changes;")
+            .unwrap();
+        state.reload_if_changed().unwrap();
+        assert_eq!(state.successful_loads, 2);
+        assert_eq!(state.incremental_applies, 0);
+        assert_eq!(state.last_fallback_reason, Some("journal_unavailable"));
+        assert_matches_full_snapshot(&state, &path);
+        assert!(Database::open_read_only(path.clone())
+            .unwrap()
+            .has_change_journal()
+            .unwrap());
+        // Manual schema corruption can leave the DDL writer's parsed
+        // trigger schema stale. A fresh external writer also verifies the
+        // repaired on-disk journal, rather than that connection's cache.
+        drop(writer);
+        let writer = crate::sqlite::Connection::open(&path).unwrap();
+        writer
+            .execute_batch("UPDATE files SET size=100001 WHERE id=1;")
+            .unwrap();
+        state.reload_if_changed().unwrap();
+        assert_eq!(
+            state.incremental_applies, 1,
+            "did not recover incrementally"
+        );
+        assert_eq!(state.successful_loads, 2);
+        assert_matches_full_snapshot(&state, &path);
+        drop(writer);
+        drop(state);
+        std::fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn event_limit_catchup_matches_full_results_and_keeps_one_atomic_publication() {
+        let (directory, path) = test_database("journal-catchup");
+        seed_records(&path, 5000);
+        let mut state = ServiceState::load(path.clone(), BackendPreference::Memory).unwrap();
+        let writer = crate::sqlite::Connection::open(&path).unwrap();
+        writer
+            .execute_batch(
+                "BEGIN IMMEDIATE; UPDATE files SET size=10,indexed_at=2;
+            DELETE FROM files WHERE id=3;
+            INSERT INTO files(id,path,path_lower,basename,basename_lower,kind,size,indexed_at)
+                VALUES(3,'/fixture/复用-code.txt','','复用-code.txt','复用-code.txt','file',99,3);
+            INSERT OR REPLACE INTO files(id,path,path_lower,basename,basename_lower,kind,indexed_at)
+                SELECT 100000,path,path_lower,basename,basename_lower,kind,3 FROM files WHERE id=4;
+            COMMIT;",
+            )
+            .unwrap();
+        state.reload_if_changed().unwrap();
+        assert_eq!(state.successful_loads, 1);
+        assert_eq!(state.incremental_applies, 1);
+        assert_eq!(state.last_refresh_method, "journal_catchup");
+        assert_eq!(state.last_fallback_reason, None);
+        assert_matches_full_snapshot(&state, &path);
+        assert!(!state.needs_reload().unwrap());
+        writer.execute_batch("UPDATE files SET size=11;").unwrap();
+        state
+            .reload_if_changed_with_budgets(
+                SNAPSHOT_DIFF_LIMITS,
+                JournalCatchupLimits {
+                    max_duration: Duration::ZERO,
+                    ..JOURNAL_CATCHUP_LIMITS
+                },
+            )
+            .unwrap();
+        assert_eq!(state.successful_loads, 2);
+        assert_eq!(state.incremental_applies, 1);
+        assert_eq!(state.last_fallback_reason, Some("catchup_time_limit"));
+        assert_matches_full_snapshot(&state, &path);
+        drop(writer);
+        drop(state);
+        std::fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn event_limit_catchup_id_budget_and_nonmonotonic_ids_keep_full_fallback() {
+        for (label,mutation,reason) in [
+            ("catchup-ids","UPDATE files SET id=id+100000;","catchup_id_limit"),
+            ("catchup-nonmonotonic","BEGIN; UPDATE files SET size=9; INSERT INTO files(id,path,path_lower,basename,basename_lower,kind,indexed_at) VALUES(-50,'/fixture/new','/fixture/new','new','new','file',2); COMMIT;","new non-monotonic record ID"),
         ] {
-            let (directory, path) = test_database(label);
-            let mut state = ServiceState::load(path.clone(), BackendPreference::Memory).unwrap();
-            let writer = crate::sqlite::Connection::open(&path).unwrap();
-            writer.execute_batch(&mutation).unwrap();
-            state.reload_if_changed().unwrap();
-            assert_eq!(state.successful_loads, 2, "{label}");
-            assert_eq!(state.incremental_applies, 0, "{label}");
-            assert_eq!(state.last_fallback_reason, Some(reason), "{label}");
-            assert_matches_full_snapshot(&state, &path);
-            assert!(Database::open_read_only(path.clone())
-                .unwrap()
-                .has_change_journal()
-                .unwrap());
-            // Manual schema corruption can leave the DDL writer's parsed
-            // trigger schema stale. A fresh external writer also verifies the
-            // repaired on-disk journal, rather than that connection's cache.
-            drop(writer);
-            let writer = crate::sqlite::Connection::open(&path).unwrap();
-            writer
-                .execute_batch("UPDATE files SET size=100001 WHERE id=1;")
-                .unwrap();
-            state.reload_if_changed().unwrap();
-            assert_eq!(
-                state.incremental_applies, 1,
-                "{label} did not recover incrementally"
-            );
-            assert_eq!(state.successful_loads, 2, "{label}");
-            assert_matches_full_snapshot(&state, &path);
-            drop(writer);
-            drop(state);
-            std::fs::remove_dir_all(directory).unwrap();
+            let (directory,path)=test_database(label);seed_records(&path,5000);
+            let mut state=ServiceState::load(path.clone(),BackendPreference::Memory).unwrap();
+            let writer=crate::sqlite::Connection::open(&path).unwrap();writer.execute_batch(mutation).unwrap();
+            state.reload_if_changed().unwrap();assert_eq!(state.successful_loads,2);
+            assert_eq!(state.incremental_applies,0);assert_eq!(state.last_fallback_reason,Some(reason));
+            assert_matches_full_snapshot(&state,&path);
+            drop(writer);drop(state);std::fs::remove_dir_all(directory).unwrap();
         }
     }
 
@@ -1586,36 +1658,56 @@ mod tests {
 
     #[test]
     fn delta_read_error_keeps_old_stamp_stale_and_can_retry_without_poisoning() {
-        let (directory, path) = test_database("delta-read-error");
-        let state =
-            RwLock::new(ServiceState::load(path.clone(), BackendPreference::Memory).unwrap());
-        let base = state.read().unwrap().loaded_stamp.clone();
-        let writer = crate::sqlite::Connection::open(&path).unwrap();
-        writer.execute_batch("UPDATE files SET size=77 WHERE id=1; ALTER TABLE files RENAME TO temporarily_unavailable;").unwrap();
-        assert!(ensure_fresh(&state).is_err());
-        {
+        for updates in [1, MAX_INCREMENTAL_EVENTS + 1] {
+            let (directory, path) = test_database("delta-read-error");
+            let state =
+                RwLock::new(ServiceState::load(path.clone(), BackendPreference::Memory).unwrap());
+            let base = state.read().unwrap().loaded_stamp.clone();
+            let initial_size = state.read().unwrap().search(&query("alpha")).unwrap()[0]
+                .record
+                .size
+                .unwrap_or(0);
+            let writer = crate::sqlite::Connection::open(&path).unwrap();
+            writer
+                .execute_batch(&format!(
+                    "BEGIN;{}ALTER TABLE files RENAME TO temporarily_unavailable;COMMIT;",
+                    "UPDATE files SET size=COALESCE(size,0)+1 WHERE id=1;".repeat(updates)
+                ))
+                .unwrap();
+            assert!(ensure_fresh(&state).is_err());
+            {
+                let loaded = state.read().unwrap();
+                assert_eq!(loaded.loaded_stamp, base);
+                assert_eq!(loaded.incremental_applies, 0);
+                assert!(loaded.needs_reload().unwrap());
+                assert!(loaded.last_refresh_error.is_some());
+                assert!(loaded.status_json().contains("\"stale\":true"));
+            }
+            writer
+                .execute_batch("ALTER TABLE temporarily_unavailable RENAME TO files;")
+                .unwrap();
+            ensure_fresh(&state).unwrap();
             let loaded = state.read().unwrap();
-            assert_eq!(loaded.loaded_stamp, base);
-            assert_eq!(loaded.incremental_applies, 0);
-            assert!(loaded.needs_reload().unwrap());
-            assert!(loaded.last_refresh_error.is_some());
-            assert!(loaded.status_json().contains("\"stale\":true"));
+            assert_eq!(
+                loaded.search(&query("alpha")).unwrap()[0].record.size,
+                Some(initial_size + updates as i64)
+            );
+            assert_eq!(loaded.successful_loads, 1);
+            assert_eq!(loaded.incremental_applies, 1);
+            assert_eq!(
+                loaded.last_refresh_method,
+                if updates > MAX_INCREMENTAL_EVENTS {
+                    "journal_catchup"
+                } else {
+                    "incremental"
+                }
+            );
+            assert_matches_full_snapshot(&loaded, &path);
+            drop(loaded);
+            drop(writer);
+            drop(state);
+            std::fs::remove_dir_all(directory).unwrap();
         }
-        writer
-            .execute_batch("ALTER TABLE temporarily_unavailable RENAME TO files;")
-            .unwrap();
-        ensure_fresh(&state).unwrap();
-        let loaded = state.read().unwrap();
-        assert_eq!(
-            loaded.search(&query("alpha")).unwrap()[0].record.size,
-            Some(77)
-        );
-        assert_eq!(loaded.successful_loads, 1);
-        assert_eq!(loaded.incremental_applies, 1);
-        drop(loaded);
-        drop(writer);
-        drop(state);
-        std::fs::remove_dir_all(directory).unwrap();
     }
 
     #[test]

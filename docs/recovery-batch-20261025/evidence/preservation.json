@@ -1,0 +1,16 @@
+{
+  "schema": 1,
+  "at_utc": "2026-10-25T05:53:42.130604+00:00",
+  "status": "ISOLATED_VALIDATION_SAVED_APP_UNCHANGED_PENDING_MEMORY_TRADEOFF_CHOICE",
+  "private_root_name": "recovery-batch-20261025",
+  "private_per_file_manifest_sha256": "a2dc32422aec4faa0cf6ee436b2b000c6fee8c30d5d142e08c75404c8bbf5af6",
+  "private_file_count": 7044,
+  "raw_preserved_file_count": 6686,
+  "raw_preserved_apparent_bytes": 41177765994,
+  "copied_large_DBs_use_APFS_clonefile": true,
+  "public_isolated_summary_sha256": "13ebaeaa45a00f5e76203761549d4a04c9b1847f833c08a416d3c0b31810f17d",
+  "App_and_history_pin_checks": "MATCH",
+  "automation_status": "PAUSED",
+  "scope": "Private raw contents and DB snapshots are not pushed. Result summaries and source changes are reviewable; no native App replacement or new window occurred.",
+  "later_receipts": "User choice and source commit/push/install are later independent receipts, never retroactively overwrite these measurements."
+}

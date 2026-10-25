@@ -578,6 +578,33 @@ mod macos_impl {
         closed: bool,
     }
 
+    /// Fixed from the first coalescing wait; new arrivals never move it.
+    struct BatchWindow {
+        deadline: Instant,
+    }
+
+    impl BatchWindow {
+        fn new(started: Instant) -> Self {
+            Self {
+                deadline: started + MAX_BATCH_WAIT,
+            }
+        }
+
+        fn next_wait(
+            &self,
+            now: Instant,
+            recovery: bool,
+            idle: bool,
+            closed: bool,
+        ) -> Option<Duration> {
+            if closed || (idle && !recovery) {
+                return None;
+            }
+            let remaining = self.deadline.saturating_duration_since(now);
+            (!remaining.is_zero()).then_some(BATCH_IDLE.min(remaining))
+        }
+    }
+
     impl EventInbox {
         fn new(roots: Vec<PathBuf>, hash_state: RandomState) -> Self {
             Self {
@@ -656,21 +683,23 @@ mod macos_impl {
                 state = next;
             }
             if state.pending.event_count > 0 && !state.closed {
-                let deadline = Instant::now() + MAX_BATCH_WAIT;
-                loop {
-                    let remaining = deadline.saturating_duration_since(Instant::now());
-                    if remaining.is_zero() {
-                        break;
-                    }
+                // Root recovery uses the existing complete one-second window;
+                // ordinary updates still flush on the first idle wait.
+                let window = BatchWindow::new(Instant::now());
+                let mut idle = false;
+                while let Some(wait) = window.next_wait(
+                    Instant::now(),
+                    state.pending.rescan_roots,
+                    idle,
+                    state.closed,
+                ) {
                     let before = state.stats.admitted;
                     let (next, _) = self
                         .ready
-                        .wait_timeout(state, BATCH_IDLE.min(remaining))
+                        .wait_timeout(state, wait)
                         .unwrap_or_else(|err| err.into_inner());
                     state = next;
-                    if state.closed || state.stats.admitted == before {
-                        break;
-                    }
+                    idle = state.stats.admitted == before;
                 }
             }
             Self::take_locked(&mut state)
@@ -2126,6 +2155,44 @@ mod macos_impl {
 
         fn take_now(inbox: &EventInbox) -> InboxBatch {
             EventInbox::take_locked(&mut inbox.state.lock().unwrap())
+        }
+
+        #[test]
+        fn batch_window_keeps_local_idle_flush_and_a_fixed_recovery_deadline() {
+            let start = Instant::now();
+            let window = BatchWindow::new(start);
+            assert_eq!(
+                window.next_wait(start, false, false, false),
+                Some(BATCH_IDLE)
+            );
+            // Ordinary local work ends at its idle wait, rather than one second.
+            assert_eq!(
+                window.next_wait(start + BATCH_IDLE, false, true, false),
+                None
+            );
+            // Recovery crosses the same idle boundary, with no sleeping thread
+            // or scheduler-dependent claim that a producer ran before deadline.
+            assert_eq!(
+                window.next_wait(start + BATCH_IDLE, true, true, false),
+                Some(BATCH_IDLE)
+            );
+            for ms in [300, 450, 600, 750, 900, 999] {
+                let now = start + Duration::from_millis(ms);
+                let wait = window.next_wait(now, true, false, false).unwrap();
+                assert!(now + wait <= start + MAX_BATCH_WAIT);
+            }
+            // Even a last-instant/continuous arrival never starts a new window.
+            assert_eq!(
+                window.next_wait(start + MAX_BATCH_WAIT, true, false, false),
+                None
+            );
+            assert_eq!(
+                window.next_wait(start + MAX_BATCH_WAIT + BATCH_IDLE, true, false, false),
+                None
+            );
+            assert_eq!(window.next_wait(start, true, false, true), None);
+            // Existing inbox/scan/checkpoint tests separately prove that an
+            // admitted event after take_locked remains a new recovery obligation.
         }
 
         #[test]
