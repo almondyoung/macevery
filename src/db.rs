@@ -7,7 +7,6 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::os::unix::fs::{DirBuilderExt, MetadataExt, PermissionsExt};
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
-use std::time::{Duration, Instant};
 
 const DELETE_PATH_PREFIX_SQL: &str = "DELETE FROM files
     WHERE path = ?1 COLLATE BINARY
@@ -154,18 +153,6 @@ pub const FILE_CHANGE_RETENTION: i64 = 16_384;
 pub const FILE_CHANGE_PRUNE_INTERVAL: i64 = 1_024;
 const MAX_FILE_CHANGE_BATCH: usize = 4_096;
 pub const FILE_CHANGE_MAX_PAYLOAD_BYTES: usize = 32 * 1024 * 1024;
-
-/// An independent catch-up budget; ordinary callers keep the 4096 fast path.
-/// The time limit is cooperative, not an end-to-end request deadline.
-#[derive(Clone, Copy, Debug)]
-pub(crate) struct JournalCatchupLimits {
-    pub max_events: usize,
-    pub max_ids: usize,
-    pub max_payload_bytes: usize,
-    pub max_duration: Duration,
-}
-
-pub(crate) const JOURNAL_CATCHUP_MAX_IDS: usize = 8192;
 
 #[derive(Clone, Debug)]
 pub struct FileChange {
@@ -1002,53 +989,13 @@ impl Database {
         max_ids: usize,
         max_payload_bytes: usize,
     ) -> Result<FileChangeRead> {
-        self.file_changes_since_with_budget(
-            base,
-            max_events.min(MAX_FILE_CHANGE_BATCH),
-            max_ids.min(MAX_FILE_CHANGE_BATCH),
-            max_payload_bytes,
-            None,
-            false,
-        )
-    }
-
-    /// Read every retained event and final changed row from this SAME snapshot.
-    /// Nothing is applied/published here, including when a bound is exhausted.
-    pub(crate) fn catch_up_file_changes(
-        &self,
-        base: &ContentStamp,
-        limits: JournalCatchupLimits,
-    ) -> Result<FileChangeRead> {
-        self.file_changes_since_with_budget(
-            base,
-            limits.max_events.min(FILE_CHANGE_RETENTION as usize),
-            limits.max_ids.min(JOURNAL_CATCHUP_MAX_IDS),
-            limits.max_payload_bytes.min(FILE_CHANGE_MAX_PAYLOAD_BYTES),
-            Some(Instant::now() + limits.max_duration.min(Duration::from_secs(1))),
-            true,
-        )
-    }
-
-    fn file_changes_since_with_budget(
-        &self,
-        base: &ContentStamp,
-        max_events: usize,
-        max_ids: usize,
-        max_payload_bytes: usize,
-        deadline: Option<Instant>,
-        catchup: bool,
-    ) -> Result<FileChangeRead> {
         if self.conn.is_autocommit() {
             return Err(MacEveryError::Sqlite(
                 "file_changes_since requires an active read transaction".into(),
             ));
         }
-        let fallback = |reason| Ok(FileChangeRead::Fallback { reason });
-        let expired = || deadline.is_some_and(|end| Instant::now() >= end);
-        if expired() {
-            return fallback("catchup_time_limit");
-        }
         let target = self.content_stamp()?;
+        let fallback = |reason| Ok(FileChangeRead::Fallback { reason });
         if base.database_id != target.database_id || base.file_identity != target.file_identity {
             return fallback("database_replaced");
         }
@@ -1079,12 +1026,8 @@ impl Database {
             .revision
             .checked_sub(base.revision)
             .ok_or_else(|| MacEveryError::Sqlite("invalid revision span".into()))?;
-        if span as u64 > max_events as u64 {
-            return fallback(if catchup {
-                "catchup_event_limit"
-            } else {
-                "event_limit"
-            });
+        if span as u64 > max_events.min(MAX_FILE_CHANGE_BATCH) as u64 {
+            return fallback("event_limit");
         }
         let mut events = self.conn.prepare("SELECT revision,old_id,new_id,conflict_id FROM macevery_file_changes WHERE revision > ?1 AND revision <= ?2 ORDER BY revision;")?;
         events.bind_i64(1, Some(base.revision))?;
@@ -1092,9 +1035,6 @@ impl Database {
         let mut previous = base.revision;
         let mut ids = BTreeSet::new();
         while let Step::Row = events.step()? {
-            if expired() {
-                return fallback("catchup_time_limit");
-            }
             let Some(revision) = events.column_i64(0) else {
                 return fallback("history_gap");
             };
@@ -1107,12 +1047,8 @@ impl Database {
                 if let Some(id) = events.column_i64(column) {
                     has_id = true;
                     ids.insert(id);
-                    if ids.len() > max_ids {
-                        return fallback(if catchup {
-                            "catchup_id_limit"
-                        } else {
-                            "id_limit"
-                        });
+                    if ids.len() > max_ids.min(MAX_FILE_CHANGE_BATCH) {
+                        return fallback("id_limit");
                     }
                 }
             }
@@ -1130,9 +1066,6 @@ impl Database {
         let mut changes = Vec::with_capacity(ids.len());
         let mut payload_bytes = 0usize;
         for id in ids {
-            if expired() {
-                return fallback("catchup_time_limit");
-            }
             rows.reset()?;
             rows.bind_i64(1, Some(id))?;
             let record = match rows.step()? {
@@ -1144,26 +1077,14 @@ impl Database {
                         sum.saturating_add(rows.column_byte_len(column))
                     });
                     if payload_bytes.saturating_add(raw_bytes) > max_payload_bytes {
-                        return fallback(if catchup {
-                            "catchup_byte_limit"
-                        } else {
-                            "byte_limit"
-                        });
+                        return fallback("byte_limit");
                     }
                     let bytes = row_text_payload_bytes(&rows);
                     let Some(total) = payload_bytes.checked_add(bytes) else {
-                        return fallback(if catchup {
-                            "catchup_byte_limit"
-                        } else {
-                            "byte_limit"
-                        });
+                        return fallback("byte_limit");
                     };
                     if total > max_payload_bytes {
-                        return fallback(if catchup {
-                            "catchup_byte_limit"
-                        } else {
-                            "byte_limit"
-                        });
+                        return fallback("byte_limit");
                     }
                     payload_bytes = total;
                     Some(row_to_record(&rows)?)
@@ -1171,9 +1092,6 @@ impl Database {
                 Step::Done => None,
             };
             changes.push(FileChange { id, record });
-        }
-        if expired() {
-            return fallback("catchup_time_limit");
         }
         Ok(FileChangeRead::Available { target, changes })
     }
@@ -4358,217 +4276,6 @@ mod file_change_tests {
         drop(repaired);
         let reopened = Database::open_existing(fixture.path()).unwrap();
         assert_eq!(scalar(&reopened, "PRAGMA schema_version"), schema);
-    }
-
-    fn catchup_limits() -> JournalCatchupLimits {
-        JournalCatchupLimits {
-            max_events: FILE_CHANGE_RETENTION as usize,
-            max_ids: JOURNAL_CATCHUP_MAX_IDS,
-            max_payload_bytes: FILE_CHANGE_MAX_PAYLOAD_BYTES,
-            max_duration: Duration::from_secs(1),
-        }
-    }
-
-    #[test]
-    fn catchup_final_rows_and_hidden_victims_share_the_pinned_snapshot() {
-        let fixture = Fixture::new();
-        let db = Database::open(fixture.path()).unwrap();
-        db.conn
-            .execute_batch(
-                "WITH RECURSIVE seq(x) AS (VALUES(1) UNION ALL SELECT x+1 FROM seq WHERE x<4751)
-            INSERT INTO files(id,path,path_lower,basename,basename_lower,kind,size,indexed_at)
-            SELECT x,'/root/'||x,'/root/'||x,'code-'||x,'code-'||x,'file',1,10 FROM seq;",
-            )
-            .unwrap();
-        let base = db.content_stamp().unwrap();
-        db.conn
-            .execute_batch(
-                "BEGIN IMMEDIATE;
-            UPDATE files SET size=2,indexed_at=11;
-            INSERT OR REPLACE INTO files(id,path,basename,basename_lower,kind,size,indexed_at)
-                VALUES(9000,'/root/5','新Σ','新σ','file',3,12);
-            DELETE FROM files WHERE id=6;
-            INSERT INTO files(id,path,path_lower,basename,basename_lower,kind,size,indexed_at)
-                VALUES(6,'/root/reused','', 'İ/ΟΣ','i/ος','file',4,12);
-            UPDATE files SET id=9001 WHERE id=7;
-            COMMIT;",
-            )
-            .unwrap();
-        let reader = Database::open_read_only(fixture.path()).unwrap();
-        assert!(reader
-            .catch_up_file_changes(&base, catchup_limits())
-            .is_err());
-        reader.begin_read().unwrap();
-        let pinned = reader.content_stamp().unwrap();
-        let expected = reader.all_records().unwrap();
-        db.conn
-            .execute_batch("UPDATE files SET size=999 WHERE id=1;")
-            .unwrap();
-        fallback(
-            reader.file_changes_since(&base, 4096, 4096).unwrap(),
-            "event_limit",
-        );
-        let (target, changes) = available(
-            reader
-                .catch_up_file_changes(&base, catchup_limits())
-                .unwrap(),
-        );
-        assert_eq!(target, pinned);
-        assert_eq!(
-            changes
-                .iter()
-                .filter_map(|c| c.record.clone())
-                .collect::<Vec<_>>(),
-            expected
-        );
-        assert!(changes.iter().any(|c| c.id == 5 && c.record.is_none()));
-        assert!(changes.iter().any(|c| c.id == 7 && c.record.is_none()));
-        assert!(changes.iter().any(|c| c.id == 9000 && c.record.is_some()));
-        assert!(changes.iter().any(|c| c.id == 9001 && c.record.is_some()));
-        assert_eq!(
-            changes
-                .iter()
-                .find(|c| c.id == 1)
-                .unwrap()
-                .record
-                .as_ref()
-                .unwrap()
-                .size,
-            Some(2)
-        );
-        reader.commit().unwrap();
-        let (_, next) = available(read(&reader, &target, 4096, 4096));
-        assert_eq!(next.len(), 1);
-        assert_eq!(next[0].record.as_ref().unwrap().size, Some(999));
-    }
-
-    #[test]
-    fn catchup_budgets_and_missing_journal_never_return_a_partial_delta() {
-        let fixture = Fixture::new();
-        let db = Database::open(fixture.path()).unwrap();
-        let base = db.content_stamp().unwrap();
-        insert(&db, 1, "/İ/ΟΣ");
-        insert(&db, 2, "/root/second");
-        let before = db.content_stamp().unwrap();
-        db.begin_read().unwrap();
-        for (limits, reason) in [
-            (
-                JournalCatchupLimits {
-                    max_events: 1,
-                    ..catchup_limits()
-                },
-                "catchup_event_limit",
-            ),
-            (
-                JournalCatchupLimits {
-                    max_ids: 1,
-                    ..catchup_limits()
-                },
-                "catchup_id_limit",
-            ),
-            (
-                JournalCatchupLimits {
-                    max_payload_bytes: 1,
-                    ..catchup_limits()
-                },
-                "catchup_byte_limit",
-            ),
-            (
-                JournalCatchupLimits {
-                    max_duration: Duration::ZERO,
-                    ..catchup_limits()
-                },
-                "catchup_time_limit",
-            ),
-        ] {
-            fallback(db.catch_up_file_changes(&base, limits).unwrap(), reason);
-        }
-        let (_, complete) = available(db.catch_up_file_changes(&base, catchup_limits()).unwrap());
-        assert_eq!(complete.len(), 2);
-        db.commit().unwrap();
-        assert_eq!(db.content_stamp().unwrap(), before);
-        db.conn
-            .execute_batch(&format!(
-                "DELETE FROM macevery_file_changes WHERE revision={};",
-                base.revision + 1
-            ))
-            .unwrap();
-        db.begin_read().unwrap();
-        fallback(
-            db.catch_up_file_changes(&base, catchup_limits()).unwrap(),
-            "history_gap",
-        );
-        db.commit().unwrap();
-    }
-
-    #[test]
-    fn catchup_hard_event_cap_holds_even_with_a_longer_complete_fixture_journal() {
-        let fixture = Fixture::new();
-        let db = Database::open(fixture.path()).unwrap();
-        insert(&db, 1, "/root/one");
-        let base = db.content_stamp().unwrap();
-        // Fixture-only longer retention: preserve the recognized trigger name
-        // while retaining a complete journal beyond the production hard bound.
-        db.conn.execute_batch("DROP TRIGGER macevery_file_changes_prune_v1;
-            CREATE TRIGGER macevery_file_changes_prune_v1 AFTER INSERT ON macevery_file_changes WHEN 0 BEGIN SELECT 1; END;").unwrap();
-        db.begin().unwrap();
-        for _ in 0..FILE_CHANGE_RETENTION {
-            db.conn
-                .execute_batch("UPDATE files SET size=size+1 WHERE id=1;")
-                .unwrap();
-        }
-        db.commit().unwrap();
-        let unbounded = JournalCatchupLimits {
-            max_events: usize::MAX,
-            max_ids: usize::MAX,
-            max_payload_bytes: usize::MAX,
-            max_duration: Duration::MAX,
-        };
-        db.begin_read().unwrap();
-        let (_, at_limit) = available(db.catch_up_file_changes(&base, unbounded).unwrap());
-        assert_eq!(at_limit.len(), 1);
-        db.commit().unwrap();
-        db.conn
-            .execute_batch("UPDATE files SET size=size+1 WHERE id=1;")
-            .unwrap();
-        db.begin_read().unwrap();
-        fallback(
-            db.catch_up_file_changes(&base, unbounded).unwrap(),
-            "catchup_event_limit",
-        );
-        db.commit().unwrap();
-    }
-
-    #[test]
-    fn catchup_caps_unique_ids_even_when_callers_request_unbounded_limits() {
-        let fixture = Fixture::new();
-        let db = Database::open(fixture.path()).unwrap();
-        db.conn
-            .execute_batch(
-                "WITH RECURSIVE seq(x) AS (VALUES(1) UNION ALL SELECT x+1 FROM seq WHERE x<4097)
-            INSERT INTO files(id,path,path_lower,basename,basename_lower,kind,indexed_at)
-            SELECT x,'/root/'||x,'/root/'||x,'x','x','file',10 FROM seq;",
-            )
-            .unwrap();
-        let base = db.content_stamp().unwrap();
-        db.conn
-            .execute_batch("UPDATE files SET id=id+100000;")
-            .unwrap();
-        db.begin_read().unwrap();
-        fallback(
-            db.catch_up_file_changes(
-                &base,
-                JournalCatchupLimits {
-                    max_events: usize::MAX,
-                    max_ids: usize::MAX,
-                    max_payload_bytes: usize::MAX,
-                    max_duration: Duration::MAX,
-                },
-            )
-            .unwrap(),
-            "catchup_id_limit",
-        );
-        db.commit().unwrap();
     }
 
     #[test]

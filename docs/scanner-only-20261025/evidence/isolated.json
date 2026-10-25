@@ -1,0 +1,1345 @@
+{
+  "schema": 1,
+  "at_utc": "2026-10-25T06:28:17.856918+00:00",
+  "status": "SCANNER_ONLY_ISOLATED_GATES_PASS",
+  "baseline_parent": "6d9873cc52691afb990ebe304a48b3235b245135",
+  "withheld_complete_candidate": "1b21ef4618ec8d981a2df30f38b1b7bccfefabc9",
+  "catchup_not_in_delivery": true,
+  "server_exact_b027": true,
+  "source_files": {
+    "src/bench.rs": "da942d038737d49c890fe01db972d53d9a99fd4bdbb7b936020628670c19331d",
+    "src/cli.rs": "26fdca581a815af5fc325244db60a12937163b1e9c2e5cf861290bb7fb69accb",
+    "src/compact_index.rs": "b0107b88eb728dc5a680f4dddd7be0d4a5134e6c340ab2f91f83df7bd7a5cd99",
+    "src/config.rs": "683701a84abc5617f6e3c80853e6f06ab8005a1bc861950f59f3f4de549ad4ff",
+    "src/db.rs": "2981dbf533f38200ea27aa483aba1d27d7104302b2d70da365e3b8b7e93300f8",
+    "src/error.rs": "f625ef016471ec59f6d6d014fe78495867c7a65bca13d46879070012fde59d48",
+    "src/lib.rs": "e71eb56499af6ccdf9d5808f4ee570bc6f6bd1a31629382146968ace268f1032",
+    "src/macos.rs": "c9ac332b1140e4cb7b5db76bff34387717b149b4cd7bc311824a4ff3e6c72ace",
+    "src/main.rs": "9841539de18a7cb5d38c5c117b53b0f5aff0c8d9874769e80efa7b12219c722d",
+    "src/model.rs": "0724a27c391d3bfa232c24575115da403ed9561154489fc167a363ed53a72053",
+    "src/process_lifetime.rs": "fe4ded2a9adacdefb13926974b7c551f860f819a3f7188a2d8c476daf9698600",
+    "src/scanner.rs": "a64745f55f9bb443349f21a134faf86db52eb93b8e884bee0c1540ecc42191c0",
+    "src/search.rs": "101ee1589e2ecf03681c5b1afe01b670017febc4b9b8939ea5ff95b1bbfc82bb",
+    "src/serve_memory.rs": "bcd0f40bd62cc35b4d10530429c8d9bde805abe335a032d0c38ea9970da6e96d",
+    "src/server.rs": "7a42e90a14ef4f2084cfd4862397608a12b1b3a006a2e8bd2440badc4d175642",
+    "src/sqlite.rs": "be2a5bc8f687de47560b908657152c005b81eb172d0f7244d51c09d5d0a9b825",
+    "src/watch.rs": "4cc21057edcff4ef371bdb80058d47591ccf0000542982e05e4120dd86c96fc6",
+    "Cargo.toml": "c3bda648bcd3be055a6f9c6961f6ce990d760c999fc640f207b2b3daf80bc9cf",
+    "Cargo.lock": "6330566cb39068b5ad8f8d070a716c7ca86d434c4973339d32aaa587b90207b0",
+    "macos/MacEveryApp.swift": "38e25c93c74af9a75473c0f065eb5f61c789572f3039f3cb04d0839b33e093a3",
+    "macos/Info.plist": "e352097cec49290538e07ffda3c50b5a796547fccd75fee1ad76b44847215139",
+    "macos/build-app.sh": "2c338890fb8921c8548291cd853f1db4472b88e561d2421a0d18140c3fad1745"
+  },
+  "artifacts": {
+    "macevery": {
+      "bytes": 839200,
+      "sha256": "50bfb67d5db5180f008e878f28de02e1b042d6ba192c65ce9022881dd039da8b"
+    },
+    "libmacevery.rlib": {
+      "bytes": 2526920,
+      "sha256": "49643e939b8f9eb1f1f0d286725fa66f2da629ca8ee29e69d3c1f3808b793643"
+    }
+  },
+  "checks": [
+    {
+      "name": "fmt",
+      "command": [
+        "cargo",
+        "fmt",
+        "--check"
+      ],
+      "exit_code": 0,
+      "at_utc": "2026-10-25T06:20:36.744408+00:00"
+    },
+    {
+      "name": "debug",
+      "command": [
+        "cargo",
+        "test",
+        "--all-targets"
+      ],
+      "exit_code": 0,
+      "at_utc": "2026-10-25T06:20:46.506504+00:00"
+    },
+    {
+      "name": "clippy",
+      "command": [
+        "cargo",
+        "clippy",
+        "--all-targets",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit_code": 0,
+      "at_utc": "2026-10-25T06:20:47.715843+00:00"
+    },
+    {
+      "name": "release",
+      "command": [
+        "cargo",
+        "test",
+        "--release",
+        "--all-targets"
+      ],
+      "exit_code": 0,
+      "at_utc": "2026-10-25T06:21:12.820184+00:00"
+    },
+    {
+      "name": "build",
+      "command": [
+        "cargo",
+        "build",
+        "--release",
+        "--lib",
+        "--bin",
+        "macevery"
+      ],
+      "exit_code": 0,
+      "at_utc": "2026-10-25T06:21:12.840719+00:00"
+    },
+    {
+      "name": "swift-build",
+      "command": [
+        "swiftc",
+        "-O",
+        "-parse-as-library",
+        "-D",
+        "MACEVERY_TESTING",
+        "-module-cache-path",
+        "/private/tmp/macevery-scanner-swift-cache",
+        "-o",
+        "/private/tmp/macevery-scanner-gui-checks",
+        "macos/MacEveryApp.swift",
+        "tests/macos/GUIRegressionChecks.swift"
+      ],
+      "exit_code": 0,
+      "at_utc": "2026-10-25T06:21:42.657025+00:00"
+    },
+    {
+      "name": "swift",
+      "command": [
+        "/private/tmp/macevery-scanner-gui-checks"
+      ],
+      "exit_code": 0,
+      "at_utc": "2026-10-25T06:22:03.422335+00:00"
+    }
+  ],
+  "Rust_unit_tests_each_profile": 212,
+  "integration_tests_each_profile": 8,
+  "recovery": {
+    "preexisting": {
+      "baseline": {
+        "scan_cpu_us": 66143.0,
+        "scan_wall_us": 71245.0,
+        "processing_cpu_us": 66264.0,
+        "processing_wall_us": 224999.0,
+        "root_scans": 1.0,
+        "visited": 6003.0,
+        "tail_FP_MiB": 5.594104766845703
+      },
+      "candidate": {
+        "scan_cpu_us": 43279.5,
+        "scan_wall_us": 46811.5,
+        "processing_cpu_us": 43504.0,
+        "processing_wall_us": 1051501.5,
+        "root_scans": 1.0,
+        "visited": 6003.0,
+        "tail_FP_MiB": 5.570667266845703
+      },
+      "scan_CPU_delta_percent": -34.56677199401297,
+      "processing_added_seconds": 0.8265025
+    },
+    "postboundary": {
+      "baseline": {
+        "scan_cpu_us": 138459.0,
+        "scan_wall_us": 144158.0,
+        "processing_cpu_us": 138674.5,
+        "processing_wall_us": 452423.0,
+        "root_scans": 2.0,
+        "visited": 12006.0,
+        "tail_FP_MiB": 5.586280822753906
+      },
+      "candidate": {
+        "scan_cpu_us": 93376.5,
+        "scan_wall_us": 96874.0,
+        "processing_cpu_us": 93803.5,
+        "processing_wall_us": 2104836.5,
+        "root_scans": 2.0,
+        "visited": 12006.0,
+        "tail_FP_MiB": 5.539405822753906
+      },
+      "scan_CPU_delta_percent": -32.56018026997162,
+      "processing_added_seconds": 1.6524135
+    },
+    "retry": {
+      "baseline": {
+        "scan_cpu_us": 71153.5,
+        "scan_wall_us": 76448.5,
+        "processing_cpu_us": 71495.5,
+        "processing_wall_us": 229705.5,
+        "root_scans": 1.0,
+        "visited": 6003.0,
+        "tail_FP_MiB": 5.5706787109375
+      },
+      "candidate": {
+        "scan_cpu_us": 45214.0,
+        "scan_wall_us": 49514.0,
+        "processing_cpu_us": 45726.0,
+        "processing_wall_us": 1052879.0,
+        "root_scans": 1.0,
+        "visited": 6003.0,
+        "tail_FP_MiB": 5.5472412109375
+      },
+      "scan_CPU_delta_percent": -36.455690865523124,
+      "processing_added_seconds": 0.8231735
+    }
+  },
+  "short_query": {
+    "all_digests_equal": true,
+    "per_query_CPU_limit_percent": 5,
+    "all_queries_within_CPU_limit": true,
+    "query_count": 29,
+    "code_CPU_delta_percent": 0.1645457466384892,
+    "max_CPU_delta_percent": 3.1051575961008826,
+    "aggregate_medians_CPU_delta_percent": 0.18730726249098772,
+    "query_metrics": {
+      "common_1_a": {
+        "baseline": {
+          "n": 8,
+          "median": 196.12,
+          "min": 188.431,
+          "max": 211.427,
+          "p95": 211.427,
+          "values": [
+            188.431,
+            189.889,
+            191.65,
+            194.187,
+            198.053,
+            201.041,
+            208.583,
+            211.427
+          ]
+        },
+        "candidate": {
+          "n": 4,
+          "median": 196.296,
+          "min": 185.794,
+          "max": 210.17,
+          "p95": 210.17,
+          "values": [
+            185.794,
+            192.13,
+            200.462,
+            210.17
+          ]
+        },
+        "candidate_change_pct": 0.08974097491332156,
+        "reduction_pct": -0.08974097491332156
+      },
+      "common_1_e": {
+        "baseline": {
+          "n": 8,
+          "median": 174.757,
+          "min": 167.4,
+          "max": 177.158,
+          "p95": 177.158,
+          "values": [
+            167.4,
+            174.238,
+            174.281,
+            174.558,
+            174.956,
+            174.977,
+            175.889,
+            177.158
+          ]
+        },
+        "candidate": {
+          "n": 4,
+          "median": 176.187,
+          "min": 168.266,
+          "max": 186.465,
+          "p95": 186.465,
+          "values": [
+            168.266,
+            175.062,
+            177.312,
+            186.465
+          ]
+        },
+        "candidate_change_pct": 0.8182790961163144,
+        "reduction_pct": -0.8182790961163144
+      },
+      "rare_1_z": {
+        "baseline": {
+          "n": 8,
+          "median": 258.4115,
+          "min": 249.62,
+          "max": 268.255,
+          "p95": 268.255,
+          "values": [
+            249.62,
+            250.72,
+            252.237,
+            257.032,
+            259.791,
+            260.223,
+            261.571,
+            268.255
+          ]
+        },
+        "candidate": {
+          "n": 4,
+          "median": 256.686,
+          "min": 251.796,
+          "max": 263.842,
+          "p95": 263.842,
+          "values": [
+            251.796,
+            253.571,
+            259.801,
+            263.842
+          ]
+        },
+        "candidate_change_pct": -0.6677334406557045,
+        "reduction_pct": 0.6677334406557045
+      },
+      "common_2_in": {
+        "baseline": {
+          "n": 8,
+          "median": 161.615,
+          "min": 155.505,
+          "max": 165.402,
+          "p95": 165.402,
+          "values": [
+            155.505,
+            158.093,
+            159.803,
+            161.505,
+            161.725,
+            163.39,
+            164.777,
+            165.402
+          ]
+        },
+        "candidate": {
+          "n": 4,
+          "median": 161.6225,
+          "min": 158.752,
+          "max": 165.834,
+          "p95": 165.834,
+          "values": [
+            158.752,
+            158.908,
+            164.337,
+            165.834
+          ]
+        },
+        "candidate_change_pct": 0.00464065835472649,
+        "reduction_pct": -0.00464065835472649
+      },
+      "common_2_rs": {
+        "baseline": {
+          "n": 8,
+          "median": 140.485,
+          "min": 133.695,
+          "max": 144.377,
+          "p95": 144.377,
+          "values": [
+            133.695,
+            134.593,
+            137.379,
+            139.65,
+            141.32,
+            142.157,
+            144.357,
+            144.377
+          ]
+        },
+        "candidate": {
+          "n": 4,
+          "median": 140.615,
+          "min": 138.995,
+          "max": 144.493,
+          "p95": 144.493,
+          "values": [
+            138.995,
+            139.255,
+            141.975,
+            144.493
+          ]
+        },
+        "candidate_change_pct": 0.09253656974053115,
+        "reduction_pct": -0.09253656974053115
+      },
+      "rare_2_qz": {
+        "baseline": {
+          "n": 8,
+          "median": 227.008,
+          "min": 218.114,
+          "max": 231.363,
+          "p95": 231.363,
+          "values": [
+            218.114,
+            222.661,
+            222.868,
+            226.144,
+            227.872,
+            229.135,
+            230.454,
+            231.363
+          ]
+        },
+        "candidate": {
+          "n": 4,
+          "median": 225.5125,
+          "min": 221.23,
+          "max": 232.535,
+          "p95": 232.535,
+          "values": [
+            221.23,
+            222.809,
+            228.216,
+            232.535
+          ]
+        },
+        "candidate_change_pct": -0.6587873555117141,
+        "reduction_pct": 0.6587873555117141
+      },
+      "common_3_src": {
+        "baseline": {
+          "n": 8,
+          "median": 215.39,
+          "min": 206.085,
+          "max": 217.539,
+          "p95": 217.539,
+          "values": [
+            206.085,
+            206.183,
+            210.219,
+            214.293,
+            216.487,
+            216.572,
+            217.054,
+            217.539
+          ]
+        },
+        "candidate": {
+          "n": 4,
+          "median": 213.80399999999997,
+          "min": 210.738,
+          "max": 217.56,
+          "p95": 217.56,
+          "values": [
+            210.738,
+            210.938,
+            216.67,
+            217.56
+          ]
+        },
+        "candidate_change_pct": -0.7363387343887862,
+        "reduction_pct": 0.7363387343887862
+      },
+      "common_3_app": {
+        "baseline": {
+          "n": 8,
+          "median": 225.8105,
+          "min": 218.697,
+          "max": 232.559,
+          "p95": 232.559,
+          "values": [
+            218.697,
+            219.472,
+            223.492,
+            224.099,
+            227.522,
+            230.088,
+            231.488,
+            232.559
+          ]
+        },
+        "candidate": {
+          "n": 4,
+          "median": 226.973,
+          "min": 222.191,
+          "max": 231.866,
+          "p95": 231.866,
+          "values": [
+            222.191,
+            222.634,
+            231.312,
+            231.866
+          ]
+        },
+        "candidate_change_pct": 0.5148121987241572,
+        "reduction_pct": -0.5148121987241572
+      },
+      "rare_3_qzv": {
+        "baseline": {
+          "n": 8,
+          "median": 227.798,
+          "min": 218.61,
+          "max": 233.388,
+          "p95": 233.388,
+          "values": [
+            218.61,
+            220.076,
+            224.513,
+            227.055,
+            228.541,
+            230.678,
+            231.617,
+            233.388
+          ]
+        },
+        "candidate": {
+          "n": 4,
+          "median": 226.73950000000002,
+          "min": 223.077,
+          "max": 233.009,
+          "p95": 233.009,
+          "values": [
+            223.077,
+            224.841,
+            228.638,
+            233.009
+          ]
+        },
+        "candidate_change_pct": -0.46466606379335085,
+        "reduction_pct": 0.46466606379335085
+      },
+      "common_4_code": {
+        "baseline": {
+          "n": 8,
+          "median": 154.0605,
+          "min": 146.715,
+          "max": 157.428,
+          "p95": 157.428,
+          "values": [
+            146.715,
+            148.665,
+            151.755,
+            154.012,
+            154.109,
+            154.159,
+            156.901,
+            157.428
+          ]
+        },
+        "candidate": {
+          "n": 4,
+          "median": 154.314,
+          "min": 150.599,
+          "max": 158.786,
+          "p95": 158.786,
+          "values": [
+            150.599,
+            152.433,
+            156.195,
+            158.786
+          ]
+        },
+        "candidate_change_pct": 0.1645457466384892,
+        "reduction_pct": -0.1645457466384892
+      },
+      "common_4_json": {
+        "baseline": {
+          "n": 8,
+          "median": 218.57,
+          "min": 212.905,
+          "max": 226.394,
+          "p95": 226.394,
+          "values": [
+            212.905,
+            213.701,
+            217.059,
+            217.517,
+            219.623,
+            222.936,
+            225.612,
+            226.394
+          ]
+        },
+        "candidate": {
+          "n": 4,
+          "median": 220.901,
+          "min": 217.213,
+          "max": 230.851,
+          "p95": 230.851,
+          "values": [
+            217.213,
+            217.623,
+            224.179,
+            230.851
+          ]
+        },
+        "candidate_change_pct": 1.0664775586768593,
+        "reduction_pct": -1.0664775586768593
+      },
+      "rare_4_qzvx": {
+        "baseline": {
+          "n": 8,
+          "median": 221.16250000000002,
+          "min": 213.563,
+          "max": 227.701,
+          "p95": 227.701,
+          "values": [
+            213.563,
+            214.2,
+            219.372,
+            220.288,
+            222.037,
+            222.408,
+            224.497,
+            227.701
+          ]
+        },
+        "candidate": {
+          "n": 4,
+          "median": 222.8665,
+          "min": 218.732,
+          "max": 232.42,
+          "p95": 232.42,
+          "values": [
+            218.732,
+            219.685,
+            226.048,
+            232.42
+          ]
+        },
+        "candidate_change_pct": 0.7704741988356911,
+        "reduction_pct": -0.7704741988356911
+      },
+      "common_5_cache": {
+        "baseline": {
+          "n": 8,
+          "median": 228.6805,
+          "min": 220.908,
+          "max": 234.504,
+          "p95": 234.504,
+          "values": [
+            220.908,
+            222.885,
+            226.111,
+            227.494,
+            229.867,
+            230.57,
+            232.566,
+            234.504
+          ]
+        },
+        "candidate": {
+          "n": 4,
+          "median": 229.8385,
+          "min": 223.958,
+          "max": 238.473,
+          "p95": 238.473,
+          "values": [
+            223.958,
+            226.969,
+            232.708,
+            238.473
+          ]
+        },
+        "candidate_change_pct": 0.50638336019031,
+        "reduction_pct": -0.50638336019031
+      },
+      "common_5_build": {
+        "baseline": {
+          "n": 8,
+          "median": 221.5325,
+          "min": 213.909,
+          "max": 228.986,
+          "p95": 228.986,
+          "values": [
+            213.909,
+            215.948,
+            219.277,
+            220.365,
+            222.7,
+            222.839,
+            224.188,
+            228.986
+          ]
+        },
+        "candidate": {
+          "n": 4,
+          "median": 222.22000000000003,
+          "min": 218.222,
+          "max": 228.091,
+          "p95": 228.091,
+          "values": [
+            218.222,
+            218.449,
+            225.991,
+            228.091
+          ]
+        },
+        "candidate_change_pct": 0.3103382122262133,
+        "reduction_pct": -0.3103382122262133
+      },
+      "rare_5_qzvxj": {
+        "baseline": {
+          "n": 8,
+          "median": 221.99450000000002,
+          "min": 214.824,
+          "max": 228.246,
+          "p95": 228.246,
+          "values": [
+            214.824,
+            218.238,
+            220.295,
+            220.873,
+            223.116,
+            223.554,
+            226.773,
+            228.246
+          ]
+        },
+        "candidate": {
+          "n": 4,
+          "median": 222.98649999999998,
+          "min": 218.135,
+          "max": 233.302,
+          "p95": 233.302,
+          "values": [
+            218.135,
+            219.052,
+            226.921,
+            233.302
+          ]
+        },
+        "candidate_change_pct": 0.44685791765108895,
+        "reduction_pct": -0.44685791765108895
+      },
+      "common_6_report": {
+        "baseline": {
+          "n": 8,
+          "median": 231.13799999999998,
+          "min": 221.892,
+          "max": 237.037,
+          "p95": 237.037,
+          "values": [
+            221.892,
+            226.138,
+            230.133,
+            230.689,
+            231.587,
+            231.822,
+            235.174,
+            237.037
+          ]
+        },
+        "candidate": {
+          "n": 4,
+          "median": 231.92149999999998,
+          "min": 228.167,
+          "max": 238.235,
+          "p95": 238.235,
+          "values": [
+            228.167,
+            228.344,
+            235.499,
+            238.235
+          ]
+        },
+        "candidate_change_pct": 0.338974984641216,
+        "reduction_pct": -0.338974984641216
+      },
+      "common_6_source": {
+        "baseline": {
+          "n": 8,
+          "median": 230.765,
+          "min": 222.693,
+          "max": 234.634,
+          "p95": 234.634,
+          "values": [
+            222.693,
+            225.886,
+            230.075,
+            230.33,
+            231.2,
+            232.632,
+            234.477,
+            234.634
+          ]
+        },
+        "candidate": {
+          "n": 4,
+          "median": 231.197,
+          "min": 226.145,
+          "max": 235.753,
+          "p95": 235.753,
+          "values": [
+            226.145,
+            227.224,
+            235.17,
+            235.753
+          ]
+        },
+        "candidate_change_pct": 0.18720343206293233,
+        "reduction_pct": -0.18720343206293233
+      },
+      "rare_6_qzvxjk": {
+        "baseline": {
+          "n": 8,
+          "median": 223.82,
+          "min": 214.599,
+          "max": 226.767,
+          "p95": 226.767,
+          "values": [
+            214.599,
+            222.852,
+            223.091,
+            223.725,
+            223.915,
+            225.748,
+            226.684,
+            226.767
+          ]
+        },
+        "candidate": {
+          "n": 4,
+          "median": 222.94400000000002,
+          "min": 219.325,
+          "max": 230.678,
+          "p95": 230.678,
+          "values": [
+            219.325,
+            220.118,
+            225.77,
+            230.678
+          ]
+        },
+        "candidate_change_pct": -0.3913859351264315,
+        "reduction_pct": 0.3913859351264315
+      },
+      "common_7_project": {
+        "baseline": {
+          "n": 8,
+          "median": 228.3755,
+          "min": 221.053,
+          "max": 232.737,
+          "p95": 232.737,
+          "values": [
+            221.053,
+            226.413,
+            227.113,
+            228.205,
+            228.546,
+            229.404,
+            231.723,
+            232.737
+          ]
+        },
+        "candidate": {
+          "n": 4,
+          "median": 226.2615,
+          "min": 220.722,
+          "max": 231.599,
+          "p95": 231.599,
+          "values": [
+            220.722,
+            222.988,
+            229.535,
+            231.599
+          ]
+        },
+        "candidate_change_pct": -0.9256684714428531,
+        "reduction_pct": 0.9256684714428531
+      },
+      "common_7_library": {
+        "baseline": {
+          "n": 8,
+          "median": 225.11,
+          "min": 215.239,
+          "max": 229.468,
+          "p95": 229.468,
+          "values": [
+            215.239,
+            217.03,
+            224.867,
+            224.997,
+            225.223,
+            225.887,
+            227.838,
+            229.468
+          ]
+        },
+        "candidate": {
+          "n": 4,
+          "median": 224.8765,
+          "min": 214.407,
+          "max": 235.018,
+          "p95": 235.018,
+          "values": [
+            214.407,
+            221.267,
+            228.486,
+            235.018
+          ]
+        },
+        "candidate_change_pct": -0.10372706676736732,
+        "reduction_pct": 0.10372706676736732
+      },
+      "rare_7_qzvxjkw": {
+        "baseline": {
+          "n": 8,
+          "median": 225.4845,
+          "min": 215.591,
+          "max": 228.399,
+          "p95": 228.399,
+          "values": [
+            215.591,
+            216.571,
+            224.479,
+            225.206,
+            225.763,
+            226.113,
+            227.385,
+            228.399
+          ]
+        },
+        "candidate": {
+          "n": 4,
+          "median": 224.3125,
+          "min": 212.18,
+          "max": 225.053,
+          "p95": 225.053,
+          "values": [
+            212.18,
+            223.723,
+            224.902,
+            225.053
+          ]
+        },
+        "candidate_change_pct": -0.5197696515724992,
+        "reduction_pct": 0.5197696515724992
+      },
+      "unicode_3_han": {
+        "baseline": {
+          "n": 8,
+          "median": 226.9905,
+          "min": 219.134,
+          "max": 231.331,
+          "p95": 231.331,
+          "values": [
+            219.134,
+            220.212,
+            226.107,
+            226.713,
+            227.268,
+            227.296,
+            227.919,
+            231.331
+          ]
+        },
+        "candidate": {
+          "n": 4,
+          "median": 231.4165,
+          "min": 226.744,
+          "max": 231.907,
+          "p95": 231.907,
+          "values": [
+            226.744,
+            231.211,
+            231.622,
+            231.907
+          ]
+        },
+        "candidate_change_pct": 1.9498613378093,
+        "reduction_pct": -1.9498613378093
+      },
+      "unicode_6_han": {
+        "baseline": {
+          "n": 8,
+          "median": 222.856,
+          "min": 213.611,
+          "max": 225.675,
+          "p95": 225.675,
+          "values": [
+            213.611,
+            218.803,
+            221.049,
+            222.302,
+            223.41,
+            223.817,
+            224.636,
+            225.675
+          ]
+        },
+        "candidate": {
+          "n": 4,
+          "median": 227.14,
+          "min": 218.923,
+          "max": 229.241,
+          "p95": 229.241,
+          "values": [
+            218.923,
+            226.963,
+            227.317,
+            229.241
+          ]
+        },
+        "candidate_change_pct": 1.9223175503463974,
+        "reduction_pct": -1.9223175503463974
+      },
+      "unicode_2_sigma": {
+        "baseline": {
+          "n": 8,
+          "median": 226.1235,
+          "min": 212.686,
+          "max": 230.498,
+          "p95": 230.498,
+          "values": [
+            212.686,
+            218.007,
+            223.171,
+            225.465,
+            226.782,
+            227.011,
+            227.641,
+            230.498
+          ]
+        },
+        "candidate": {
+          "n": 4,
+          "median": 223.7945,
+          "min": 218.267,
+          "max": 250.948,
+          "p95": 250.948,
+          "values": [
+            218.267,
+            220.077,
+            227.512,
+            250.948
+          ]
+        },
+        "candidate_change_pct": -1.0299681368809543,
+        "reduction_pct": 1.0299681368809543
+      },
+      "unicode_2_dotted_i": {
+        "baseline": {
+          "n": 8,
+          "median": 227.5505,
+          "min": 218.237,
+          "max": 232.224,
+          "p95": 232.224,
+          "values": [
+            218.237,
+            223.377,
+            225.566,
+            225.766,
+            229.335,
+            230.299,
+            231.112,
+            232.224
+          ]
+        },
+        "candidate": {
+          "n": 4,
+          "median": 227.86599999999999,
+          "min": 221.718,
+          "max": 229.151,
+          "p95": 229.151,
+          "values": [
+            221.718,
+            226.745,
+            228.987,
+            229.151
+          ]
+        },
+        "candidate_change_pct": 0.13865054130841603,
+        "reduction_pct": -0.13865054130841603
+      },
+      "unicode_4_emoji": {
+        "baseline": {
+          "n": 8,
+          "median": 217.6245,
+          "min": 206.133,
+          "max": 218.769,
+          "p95": 218.769,
+          "values": [
+            206.133,
+            208.065,
+            210.527,
+            217.21,
+            218.039,
+            218.054,
+            218.271,
+            218.769
+          ]
+        },
+        "candidate": {
+          "n": 4,
+          "median": 218.1135,
+          "min": 210.869,
+          "max": 222.207,
+          "p95": 222.207,
+          "values": [
+            210.869,
+            214.541,
+            221.686,
+            222.207
+          ]
+        },
+        "candidate_change_pct": 0.2246989654197895,
+        "reduction_pct": -0.2246989654197895
+      },
+      "unicode_5_accent": {
+        "baseline": {
+          "n": 8,
+          "median": 220.587,
+          "min": 211.769,
+          "max": 223.949,
+          "p95": 223.949,
+          "values": [
+            211.769,
+            212.502,
+            217.298,
+            220.249,
+            220.925,
+            221.077,
+            223.248,
+            223.949
+          ]
+        },
+        "candidate": {
+          "n": 4,
+          "median": 218.97750000000002,
+          "min": 216.671,
+          "max": 220.039,
+          "p95": 220.039,
+          "values": [
+            216.671,
+            218.436,
+            219.519,
+            220.039
+          ]
+        },
+        "candidate_change_pct": -0.7296440860068643,
+        "reduction_pct": 0.7296440860068643
+      },
+      "broad": {
+        "baseline": {
+          "n": 8,
+          "median": 48.1135,
+          "min": 46.082,
+          "max": 48.833,
+          "p95": 48.833,
+          "values": [
+            46.082,
+            46.783,
+            47.108,
+            47.826,
+            48.401,
+            48.564,
+            48.64,
+            48.833
+          ]
+        },
+        "candidate": {
+          "n": 4,
+          "median": 49.6075,
+          "min": 47.519,
+          "max": 51.466,
+          "p95": 51.466,
+          "values": [
+            47.519,
+            49.588,
+            49.627,
+            51.466
+          ]
+        },
+        "candidate_change_pct": 3.1051575961008826,
+        "reduction_pct": -3.1051575961008826
+      },
+      "nohit": {
+        "baseline": {
+          "n": 8,
+          "median": 101.3815,
+          "min": 98.771,
+          "max": 105.699,
+          "p95": 105.699,
+          "values": [
+            98.771,
+            100.338,
+            100.546,
+            101.302,
+            101.461,
+            101.927,
+            104.93,
+            105.699
+          ]
+        },
+        "candidate": {
+          "n": 4,
+          "median": 104.4685,
+          "min": 102.623,
+          "max": 104.919,
+          "p95": 104.919,
+          "values": [
+            102.623,
+            104.16,
+            104.777,
+            104.919
+          ]
+        },
+        "candidate_change_pct": 3.0449342335633345,
+        "reduction_pct": -3.0449342335633345
+      }
+    }
+  },
+  "Top300": {
+    "topk-fixture": {
+      "status": "PASS",
+      "views": 6,
+      "ordered_comparisons": 144,
+      "candidate_actual_max_query_seconds": 0.06458112500000013,
+      "six_fields_and_order_match": true,
+      "real_fuzzy_executed": true,
+      "required_probe_fuzzy": true,
+      "cleanup_verified": true
+    },
+    "topk-real": {
+      "status": "PASS",
+      "views": 6,
+      "ordered_comparisons": 144,
+      "candidate_actual_max_query_seconds": 4.214726332999994,
+      "six_fields_and_order_match": true,
+      "real_fuzzy_executed": true,
+      "required_probe_fuzzy": true,
+      "cleanup_verified": true
+    }
+  },
+  "invalid_memory_endpoints": [
+    {
+      "dataset": "topk-fixture",
+      "variant": "baseline",
+      "mode": "cli",
+      "phase": "initial/real_ext_or",
+      "field": "end_footprint_bytes",
+      "value": 0,
+      "classification": "INVALID_MEMORY_ENDPOINT_NOT_RELEASE"
+    },
+    {
+      "dataset": "topk-fixture",
+      "variant": "baseline",
+      "mode": "cli",
+      "phase": "initial/real_path",
+      "field": "end_footprint_bytes",
+      "value": 0,
+      "classification": "INVALID_MEMORY_ENDPOINT_NOT_RELEASE"
+    },
+    {
+      "dataset": "topk-fixture",
+      "variant": "baseline",
+      "mode": "cli",
+      "phase": "modify/probes",
+      "field": "end_footprint_bytes",
+      "value": 0,
+      "classification": "INVALID_MEMORY_ENDPOINT_NOT_RELEASE"
+    },
+    {
+      "dataset": "topk-fixture",
+      "variant": "candidate",
+      "mode": "cli",
+      "phase": "initial/real_part",
+      "field": "end_footprint_bytes",
+      "value": 0,
+      "classification": "INVALID_MEMORY_ENDPOINT_NOT_RELEASE"
+    },
+    {
+      "dataset": "topk-real",
+      "variant": "baseline",
+      "mode": "cli",
+      "phase": "initial/real_filtered_code",
+      "field": "end_footprint_bytes",
+      "value": 0,
+      "classification": "INVALID_MEMORY_ENDPOINT_NOT_RELEASE"
+    },
+    {
+      "dataset": "topk-real",
+      "variant": "candidate",
+      "mode": "cli",
+      "phase": "initial/code",
+      "field": "end_footprint_bytes",
+      "value": 0,
+      "classification": "INVALID_MEMORY_ENDPOINT_NOT_RELEASE"
+    },
+    {
+      "dataset": "topk-real",
+      "variant": "candidate",
+      "mode": "cli",
+      "phase": "initial/glob",
+      "field": "end_footprint_bytes",
+      "value": 0,
+      "classification": "INVALID_MEMORY_ENDPOINT_NOT_RELEASE"
+    },
+    {
+      "dataset": "topk-real",
+      "variant": "candidate",
+      "mode": "cli",
+      "phase": "initial/real_path",
+      "field": "end_footprint_bytes",
+      "value": 0,
+      "classification": "INVALID_MEMORY_ENDPOINT_NOT_RELEASE"
+    },
+    {
+      "dataset": "topk-real",
+      "variant": "candidate",
+      "mode": "cli",
+      "phase": "rename/unicode",
+      "field": "end_footprint_bytes",
+      "value": 0,
+      "classification": "INVALID_MEMORY_ENDPOINT_NOT_RELEASE"
+    },
+    {
+      "dataset": "topk-real",
+      "variant": "candidate",
+      "mode": "cli",
+      "phase": "modify/code",
+      "field": "end_footprint_bytes",
+      "value": 0,
+      "classification": "INVALID_MEMORY_ENDPOINT_NOT_RELEASE"
+    },
+    {
+      "dataset": "topk-real",
+      "variant": "candidate",
+      "mode": "cli",
+      "phase": "modify/unicode",
+      "field": "end_footprint_bytes",
+      "value": 0,
+      "classification": "INVALID_MEMORY_ENDPOINT_NOT_RELEASE"
+    },
+    {
+      "dataset": "topk-real",
+      "variant": "candidate",
+      "mode": "cli",
+      "phase": "modify/probes",
+      "field": "end_footprint_bytes",
+      "value": 0,
+      "classification": "INVALID_MEMORY_ENDPOINT_NOT_RELEASE"
+    },
+    {
+      "dataset": "topk-real",
+      "variant": "candidate",
+      "mode": "cli",
+      "phase": "delete/code",
+      "field": "end_footprint_bytes",
+      "value": 0,
+      "classification": "INVALID_MEMORY_ENDPOINT_NOT_RELEASE"
+    }
+  ],
+  "App_native_acceptance": "NOT_RUN",
+  "App_installation": "NOT_RUN",
+  "new_observation": "NOT_STARTED",
+  "limits": [
+    "Small-tree recovery does not reproduce OS UserDropped or full-root millions-of-files runtime.",
+    "No scan-count saving measured; fixed root batch adds about0.82seconds per batch.",
+    "Warm same-input A/B/A, no universal or cache-cold CPU/memory claim.",
+    "Post-exit nonpositive memory endpoints are invalid, not released memory."
+  ]
+}
