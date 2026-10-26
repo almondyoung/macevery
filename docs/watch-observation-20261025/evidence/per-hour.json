@@ -1,0 +1,2193 @@
+{
+  "schema": 1,
+  "roles": {
+    "gui": {
+      "identity_key": "87acbcdcd81519af81a6118de49fb85ce74df414937ee4a56fcd537004b7347d",
+      "hourly": [
+        {
+          "elapsed_hour_slot": 0,
+          "nominal_window_seconds_in_slot": 3600,
+          "partial_or_terminal_hour": false,
+          "terminal_endpoint_only": false,
+          "full_nominal_strict_cpu_coverage": false,
+          "memory": {
+            "endpoints": 60,
+            "first_sequence": 1,
+            "last_sequence": 60,
+            "first_elapsed_seconds": 0.05692025,
+            "last_elapsed_seconds": 3540.022877125,
+            "observed_endpoint_span_seconds": 3539.965956875,
+            "context_unverified_endpoints": 0,
+            "rss_bytes": {
+              "n": 60,
+              "median": 124583936.0,
+              "p95": 124665856,
+              "max": 124665856,
+              "end": 124583936,
+              "slopes": {
+                "status": "measured_observed_endpoints",
+                "ols_mib_per_hour": 0.017634980850915867,
+                "theil_sen_mib_per_hour": 0.0,
+                "theil_sen_pairs": 1770
+              }
+            },
+            "footprint_bytes": {
+              "n": 60,
+              "median": 41354296.0,
+              "p95": 41387064,
+              "max": 41436216,
+              "end": 41387064,
+              "slopes": {
+                "status": "measured_observed_endpoints",
+                "ols_mib_per_hour": 0.06655467342655344,
+                "theil_sen_mib_per_hour": 0.07211488663680618,
+                "theil_sen_pairs": 1770
+              }
+            }
+          },
+          "cpu": {
+            "interval_parts": 60,
+            "distinct_intervals": 60,
+            "valid_awake_seconds": 3599.94307683272,
+            "cpu_seconds": 2.4846645419999995,
+            "weighted_average_percent_one_core": 0.0690195508365105,
+            "interval_percent_one_core": {
+              "n": 60,
+              "median": 0.0014868297304984506,
+              "p95": 0.30998298067461305,
+              "max": 0.35279528372416885,
+              "end": 0.0
+            },
+            "awake_weighted_median_percent": 0.0017708326533928183,
+            "awake_weighted_p95_percent": 0.3365257649479043,
+            "split_boundary_parts": 1
+          },
+          "process_measured_cpu": {
+            "interval_parts": 60,
+            "distinct_intervals": 60,
+            "valid_awake_seconds": 3599.94307683272,
+            "cpu_seconds": 2.4846645419999995,
+            "weighted_average_percent_one_core": 0.0690195508365105,
+            "interval_percent_one_core": {
+              "n": 60,
+              "median": 0.0014868297304984506,
+              "p95": 0.30998298067461305,
+              "max": 0.35279528372416885,
+              "end": 0.0
+            },
+            "awake_weighted_median_percent": 0.0017708326533928183,
+            "awake_weighted_p95_percent": 0.3365257649479043,
+            "split_boundary_parts": 1
+          }
+        },
+        {
+          "elapsed_hour_slot": 1,
+          "nominal_window_seconds_in_slot": 3600,
+          "partial_or_terminal_hour": false,
+          "terminal_endpoint_only": false,
+          "full_nominal_strict_cpu_coverage": true,
+          "memory": {
+            "endpoints": 60,
+            "first_sequence": 61,
+            "last_sequence": 120,
+            "first_elapsed_seconds": 3600.023689167,
+            "last_elapsed_seconds": 7140.030548334,
+            "observed_endpoint_span_seconds": 3540.0068591669997,
+            "context_unverified_endpoints": 0,
+            "rss_bytes": {
+              "n": 60,
+              "median": 124583936.0,
+              "p95": 124583936,
+              "max": 124600320,
+              "end": 124583936,
+              "slopes": {
+                "status": "measured_observed_endpoints",
+                "ols_mib_per_hour": -0.0005470250286067455,
+                "theil_sen_mib_per_hour": 0.0,
+                "theil_sen_pairs": 1770
+              }
+            },
+            "footprint_bytes": {
+              "n": 60,
+              "median": 41387064.0,
+              "p95": 41387064,
+              "max": 41403448,
+              "end": 41387064,
+              "slopes": {
+                "status": "measured_observed_endpoints",
+                "ols_mib_per_hour": -0.0005470250286067454,
+                "theil_sen_mib_per_hour": 0.0,
+                "theil_sen_pairs": 1770
+              }
+            }
+          },
+          "cpu": {
+            "interval_parts": 61,
+            "distinct_intervals": 61,
+            "valid_awake_seconds": 3600.0000001242797,
+            "cpu_seconds": 0.164466041,
+            "weighted_average_percent_one_core": 0.004568501138731175,
+            "interval_percent_one_core": {
+              "n": 61,
+              "median": 0.0,
+              "p95": 0.030343996440907545,
+              "max": 0.0911015051464844,
+              "end": 0.0
+            },
+            "awake_weighted_median_percent": 0.0,
+            "awake_weighted_p95_percent": 0.030343996440907545,
+            "split_boundary_parts": 2
+          },
+          "process_measured_cpu": {
+            "interval_parts": 61,
+            "distinct_intervals": 61,
+            "valid_awake_seconds": 3600.0000001242797,
+            "cpu_seconds": 0.164466041,
+            "weighted_average_percent_one_core": 0.004568501138731175,
+            "interval_percent_one_core": {
+              "n": 61,
+              "median": 0.0,
+              "p95": 0.030343996440907545,
+              "max": 0.0911015051464844,
+              "end": 0.0
+            },
+            "awake_weighted_median_percent": 0.0,
+            "awake_weighted_p95_percent": 0.030343996440907545,
+            "split_boundary_parts": 2
+          }
+        },
+        {
+          "elapsed_hour_slot": 2,
+          "nominal_window_seconds_in_slot": 3600,
+          "partial_or_terminal_hour": false,
+          "terminal_endpoint_only": false,
+          "full_nominal_strict_cpu_coverage": true,
+          "memory": {
+            "endpoints": 60,
+            "first_sequence": 121,
+            "last_sequence": 180,
+            "first_elapsed_seconds": 7200.030934709,
+            "last_elapsed_seconds": 10740.03044825,
+            "observed_endpoint_span_seconds": 3539.999513541,
+            "context_unverified_endpoints": 0,
+            "rss_bytes": {
+              "n": 60,
+              "median": 124583936.0,
+              "p95": 124583936,
+              "max": 124583936,
+              "end": 124583936,
+              "slopes": {
+                "status": "measured_observed_endpoints",
+                "ols_mib_per_hour": 0.0,
+                "theil_sen_mib_per_hour": 0.0,
+                "theil_sen_pairs": 1770
+              }
+            },
+            "footprint_bytes": {
+              "n": 60,
+              "median": 41387064.0,
+              "p95": 41387064,
+              "max": 41387064,
+              "end": 41387064,
+              "slopes": {
+                "status": "measured_observed_endpoints",
+                "ols_mib_per_hour": 0.0,
+                "theil_sen_mib_per_hour": 0.0,
+                "theil_sen_pairs": 1770
+              }
+            }
+          },
+          "cpu": {
+            "interval_parts": 61,
+            "distinct_intervals": 61,
+            "valid_awake_seconds": 3599.999999958692,
+            "cpu_seconds": 0.094893959,
+            "weighted_average_percent_one_core": 0.0026359433055858014,
+            "interval_percent_one_core": {
+              "n": 61,
+              "median": 0.0,
+              "p95": 0.030397105426800908,
+              "max": 0.06357499221268009,
+              "end": 0.0
+            },
+            "awake_weighted_median_percent": 0.0,
+            "awake_weighted_p95_percent": 0.030397105426800908,
+            "split_boundary_parts": 2
+          },
+          "process_measured_cpu": {
+            "interval_parts": 61,
+            "distinct_intervals": 61,
+            "valid_awake_seconds": 3599.999999958692,
+            "cpu_seconds": 0.094893959,
+            "weighted_average_percent_one_core": 0.0026359433055858014,
+            "interval_percent_one_core": {
+              "n": 61,
+              "median": 0.0,
+              "p95": 0.030397105426800908,
+              "max": 0.06357499221268009,
+              "end": 0.0
+            },
+            "awake_weighted_median_percent": 0.0,
+            "awake_weighted_p95_percent": 0.030397105426800908,
+            "split_boundary_parts": 2
+          }
+        },
+        {
+          "elapsed_hour_slot": 3,
+          "nominal_window_seconds_in_slot": 3600,
+          "partial_or_terminal_hour": false,
+          "terminal_endpoint_only": false,
+          "full_nominal_strict_cpu_coverage": true,
+          "memory": {
+            "endpoints": 60,
+            "first_sequence": 181,
+            "last_sequence": 240,
+            "first_elapsed_seconds": 10800.027558334,
+            "last_elapsed_seconds": 14340.027552,
+            "observed_endpoint_span_seconds": 3539.9999936659988,
+            "context_unverified_endpoints": 0,
+            "rss_bytes": {
+              "n": 60,
+              "median": 124583936.0,
+              "p95": 124583936,
+              "max": 124600320,
+              "end": 124583936,
+              "slopes": {
+                "status": "measured_observed_endpoints",
+                "ols_mib_per_hour": -0.0003907377956361046,
+                "theil_sen_mib_per_hour": 0.0,
+                "theil_sen_pairs": 1770
+              }
+            },
+            "footprint_bytes": {
+              "n": 60,
+              "median": 41387064.0,
+              "p95": 41387064,
+              "max": 41403448,
+              "end": 41387064,
+              "slopes": {
+                "status": "measured_observed_endpoints",
+                "ols_mib_per_hour": -0.00039073779563610463,
+                "theil_sen_mib_per_hour": 0.0,
+                "theil_sen_pairs": 1770
+              }
+            }
+          },
+          "cpu": {
+            "interval_parts": 61,
+            "distinct_intervals": 61,
+            "valid_awake_seconds": 3600.000000124821,
+            "cpu_seconds": 0.148733667,
+            "weighted_average_percent_one_core": 0.004131490749856751,
+            "interval_percent_one_core": {
+              "n": 61,
+              "median": 0.0,
+              "p95": 0.031014255972466338,
+              "max": 0.09270744967506744,
+              "end": 0.0
+            },
+            "awake_weighted_median_percent": 0.0,
+            "awake_weighted_p95_percent": 0.031014255972466338,
+            "split_boundary_parts": 2
+          },
+          "process_measured_cpu": {
+            "interval_parts": 61,
+            "distinct_intervals": 61,
+            "valid_awake_seconds": 3600.000000124821,
+            "cpu_seconds": 0.148733667,
+            "weighted_average_percent_one_core": 0.004131490749856751,
+            "interval_percent_one_core": {
+              "n": 61,
+              "median": 0.0,
+              "p95": 0.031014255972466338,
+              "max": 0.09270744967506744,
+              "end": 0.0
+            },
+            "awake_weighted_median_percent": 0.0,
+            "awake_weighted_p95_percent": 0.031014255972466338,
+            "split_boundary_parts": 2
+          }
+        },
+        {
+          "elapsed_hour_slot": 4,
+          "nominal_window_seconds_in_slot": 3600,
+          "partial_or_terminal_hour": false,
+          "terminal_endpoint_only": false,
+          "full_nominal_strict_cpu_coverage": true,
+          "memory": {
+            "endpoints": 60,
+            "first_sequence": 241,
+            "last_sequence": 300,
+            "first_elapsed_seconds": 14400.030424584,
+            "last_elapsed_seconds": 17940.027386875,
+            "observed_endpoint_span_seconds": 3539.996962291001,
+            "context_unverified_endpoints": 0,
+            "rss_bytes": {
+              "n": 60,
+              "median": 124583936.0,
+              "p95": 124583936,
+              "max": 124600320,
+              "end": 124583936,
+              "slopes": {
+                "status": "measured_observed_endpoints",
+                "ols_mib_per_hour": -0.000494932880423047,
+                "theil_sen_mib_per_hour": 0.0,
+                "theil_sen_pairs": 1770
+              }
+            },
+            "footprint_bytes": {
+              "n": 60,
+              "median": 41387064.0,
+              "p95": 41387064,
+              "max": 41403448,
+              "end": 41387064,
+              "slopes": {
+                "status": "measured_observed_endpoints",
+                "ols_mib_per_hour": -0.0004949328804230468,
+                "theil_sen_mib_per_hour": 0.0,
+                "theil_sen_pairs": 1770
+              }
+            }
+          },
+          "cpu": {
+            "interval_parts": 61,
+            "distinct_intervals": 61,
+            "valid_awake_seconds": 3600.000000292155,
+            "cpu_seconds": 0.11273808299999999,
+            "weighted_average_percent_one_core": 0.0031316134164125226,
+            "interval_percent_one_core": {
+              "n": 61,
+              "median": 0.0,
+              "p95": 0.030610302565769344,
+              "max": 0.09144771894154577,
+              "end": 0.0
+            },
+            "awake_weighted_median_percent": 0.0,
+            "awake_weighted_p95_percent": 0.030610302565769344,
+            "split_boundary_parts": 2
+          },
+          "process_measured_cpu": {
+            "interval_parts": 61,
+            "distinct_intervals": 61,
+            "valid_awake_seconds": 3600.000000292155,
+            "cpu_seconds": 0.11273808299999999,
+            "weighted_average_percent_one_core": 0.0031316134164125226,
+            "interval_percent_one_core": {
+              "n": 61,
+              "median": 0.0,
+              "p95": 0.030610302565769344,
+              "max": 0.09144771894154577,
+              "end": 0.0
+            },
+            "awake_weighted_median_percent": 0.0,
+            "awake_weighted_p95_percent": 0.030610302565769344,
+            "split_boundary_parts": 2
+          }
+        },
+        {
+          "elapsed_hour_slot": 5,
+          "nominal_window_seconds_in_slot": 3600,
+          "partial_or_terminal_hour": false,
+          "terminal_endpoint_only": false,
+          "full_nominal_strict_cpu_coverage": true,
+          "memory": {
+            "endpoints": 60,
+            "first_sequence": 301,
+            "last_sequence": 360,
+            "first_elapsed_seconds": 18000.031940167,
+            "last_elapsed_seconds": 21540.022175084,
+            "observed_endpoint_span_seconds": 3539.9902349170006,
+            "context_unverified_endpoints": 0,
+            "rss_bytes": {
+              "n": 60,
+              "median": 121061376.0,
+              "p95": 124583936,
+              "max": 124583936,
+              "end": 121061376,
+              "slopes": {
+                "status": "measured_observed_endpoints",
+                "ols_mib_per_hour": -2.3299392719972163,
+                "theil_sen_mib_per_hour": 0.0,
+                "theil_sen_pairs": 1770
+              }
+            },
+            "footprint_bytes": {
+              "n": 60,
+              "median": 41378848.0,
+              "p95": 41403424,
+              "max": 41436192,
+              "end": 41354272,
+              "slopes": {
+                "status": "measured_observed_endpoints",
+                "ols_mib_per_hour": -0.0008493635449692955,
+                "theil_sen_mib_per_hour": 0.0,
+                "theil_sen_pairs": 1770
+              }
+            }
+          },
+          "cpu": {
+            "interval_parts": 61,
+            "distinct_intervals": 61,
+            "valid_awake_seconds": 3600.0000016664403,
+            "cpu_seconds": 1.16311316434945,
+            "weighted_average_percent_one_core": 0.03230869899475124,
+            "interval_percent_one_core": {
+              "n": 61,
+              "median": 0.009310032848724335,
+              "p95": 0.1350362594307519,
+              "max": 0.2082956191422532,
+              "end": 0.1738504991590403
+            },
+            "awake_weighted_median_percent": 0.009310032848724335,
+            "awake_weighted_p95_percent": 0.1350362594307519,
+            "split_boundary_parts": 2
+          },
+          "process_measured_cpu": {
+            "interval_parts": 61,
+            "distinct_intervals": 61,
+            "valid_awake_seconds": 3600.0000016664403,
+            "cpu_seconds": 1.16311316434945,
+            "weighted_average_percent_one_core": 0.03230869899475124,
+            "interval_percent_one_core": {
+              "n": 61,
+              "median": 0.009310032848724335,
+              "p95": 0.1350362594307519,
+              "max": 0.2082956191422532,
+              "end": 0.1738504991590403
+            },
+            "awake_weighted_median_percent": 0.009310032848724335,
+            "awake_weighted_p95_percent": 0.1350362594307519,
+            "split_boundary_parts": 2
+          }
+        },
+        {
+          "elapsed_hour_slot": 6,
+          "nominal_window_seconds_in_slot": 3600,
+          "partial_or_terminal_hour": false,
+          "terminal_endpoint_only": false,
+          "full_nominal_strict_cpu_coverage": true,
+          "memory": {
+            "endpoints": 60,
+            "first_sequence": 361,
+            "last_sequence": 420,
+            "first_elapsed_seconds": 21600.017545334,
+            "last_elapsed_seconds": 25140.0193945,
+            "observed_endpoint_span_seconds": 3540.0018491659976,
+            "context_unverified_endpoints": 0,
+            "rss_bytes": {
+              "n": 60,
+              "median": 121012224.0,
+              "p95": 121094144,
+              "max": 121143296,
+              "end": 121110528,
+              "slopes": {
+                "status": "measured_observed_endpoints",
+                "ols_mib_per_hour": -0.008596187851337492,
+                "theil_sen_mib_per_hour": 0.0,
+                "theil_sen_pairs": 1770
+              }
+            },
+            "footprint_bytes": {
+              "n": 60,
+              "median": 41354272.0,
+              "p95": 41403424,
+              "max": 41403424,
+              "end": 41387040,
+              "slopes": {
+                "status": "measured_observed_endpoints",
+                "ols_mib_per_hour": 0.02925294766233427,
+                "theil_sen_mib_per_hour": 0.0312501475738054,
+                "theil_sen_pairs": 1770
+              }
+            }
+          },
+          "cpu": {
+            "interval_parts": 61,
+            "distinct_intervals": 61,
+            "valid_awake_seconds": 3599.999994669727,
+            "cpu_seconds": 3.4008510926201874,
+            "weighted_average_percent_one_core": 0.09446808604598873,
+            "interval_percent_one_core": {
+              "n": 61,
+              "median": 0.05858299682953007,
+              "p95": 0.3213243069355144,
+              "max": 0.3760123570605137,
+              "end": 0.3760123570605137
+            },
+            "awake_weighted_median_percent": 0.05858299682953007,
+            "awake_weighted_p95_percent": 0.3213243069355144,
+            "split_boundary_parts": 2
+          },
+          "process_measured_cpu": {
+            "interval_parts": 61,
+            "distinct_intervals": 61,
+            "valid_awake_seconds": 3599.999994669727,
+            "cpu_seconds": 3.4008510926201874,
+            "weighted_average_percent_one_core": 0.09446808604598873,
+            "interval_percent_one_core": {
+              "n": 61,
+              "median": 0.05858299682953007,
+              "p95": 0.3213243069355144,
+              "max": 0.3760123570605137,
+              "end": 0.3760123570605137
+            },
+            "awake_weighted_median_percent": 0.05858299682953007,
+            "awake_weighted_p95_percent": 0.3213243069355144,
+            "split_boundary_parts": 2
+          }
+        },
+        {
+          "elapsed_hour_slot": 7,
+          "nominal_window_seconds_in_slot": 3600,
+          "partial_or_terminal_hour": false,
+          "terminal_endpoint_only": false,
+          "full_nominal_strict_cpu_coverage": true,
+          "memory": {
+            "endpoints": 60,
+            "first_sequence": 421,
+            "last_sequence": 480,
+            "first_elapsed_seconds": 25200.028365834,
+            "last_elapsed_seconds": 28740.027206042,
+            "observed_endpoint_span_seconds": 3539.998840207998,
+            "context_unverified_endpoints": 0,
+            "rss_bytes": {
+              "n": 60,
+              "median": 121028608.0,
+              "p95": 121028608,
+              "max": 121044992,
+              "end": 121028608,
+              "slopes": {
+                "status": "measured_observed_endpoints",
+                "ols_mib_per_hour": 0.0010419553325109177,
+                "theil_sen_mib_per_hour": 0.0,
+                "theil_sen_pairs": 1770
+              }
+            },
+            "footprint_bytes": {
+              "n": 60,
+              "median": 41403424.0,
+              "p95": 41403424,
+              "max": 41419808,
+              "end": 41403424,
+              "slopes": {
+                "status": "measured_observed_endpoints",
+                "ols_mib_per_hour": 0.028705909846370392,
+                "theil_sen_mib_per_hour": 0.0,
+                "theil_sen_pairs": 1770
+              }
+            }
+          },
+          "cpu": {
+            "interval_parts": 61,
+            "distinct_intervals": 61,
+            "valid_awake_seconds": 3600.0000031631484,
+            "cpu_seconds": 0.7861733270303639,
+            "weighted_average_percent_one_core": 0.021838147953877524,
+            "interval_percent_one_core": {
+              "n": 61,
+              "median": 0.0,
+              "p95": 0.162845060729604,
+              "max": 0.3760123570605137,
+              "end": 0.0
+            },
+            "awake_weighted_median_percent": 0.0,
+            "awake_weighted_p95_percent": 0.162845060729604,
+            "split_boundary_parts": 2
+          },
+          "process_measured_cpu": {
+            "interval_parts": 61,
+            "distinct_intervals": 61,
+            "valid_awake_seconds": 3600.0000031631484,
+            "cpu_seconds": 0.7861733270303639,
+            "weighted_average_percent_one_core": 0.021838147953877524,
+            "interval_percent_one_core": {
+              "n": 61,
+              "median": 0.0,
+              "p95": 0.162845060729604,
+              "max": 0.3760123570605137,
+              "end": 0.0
+            },
+            "awake_weighted_median_percent": 0.0,
+            "awake_weighted_p95_percent": 0.162845060729604,
+            "split_boundary_parts": 2
+          }
+        },
+        {
+          "elapsed_hour_slot": 8,
+          "nominal_window_seconds_in_slot": 3600,
+          "partial_or_terminal_hour": true,
+          "terminal_endpoint_only": false,
+          "full_nominal_strict_cpu_coverage": false,
+          "memory": {
+            "endpoints": 46,
+            "first_sequence": 481,
+            "last_sequence": 526,
+            "first_elapsed_seconds": 28800.024356334,
+            "last_elapsed_seconds": 31500.022916375,
+            "observed_endpoint_span_seconds": 2699.998560041,
+            "context_unverified_endpoints": 0,
+            "rss_bytes": {
+              "n": 46,
+              "median": 121028608.0,
+              "p95": 121028608,
+              "max": 121044992,
+              "end": 120995840,
+              "slopes": {
+                "status": "measured_observed_endpoints",
+                "ols_mib_per_hour": -0.005492570054512558,
+                "theil_sen_mib_per_hour": 0.0,
+                "theil_sen_pairs": 1035
+              }
+            },
+            "footprint_bytes": {
+              "n": 46,
+              "median": 41403424.0,
+              "p95": 41403424,
+              "max": 41419808,
+              "end": 41387040,
+              "slopes": {
+                "status": "measured_observed_endpoints",
+                "ols_mib_per_hour": -0.0028908256190311875,
+                "theil_sen_mib_per_hour": 0.0,
+                "theil_sen_pairs": 1035
+              }
+            }
+          },
+          "cpu": {
+            "interval_parts": 46,
+            "distinct_intervals": 46,
+            "valid_awake_seconds": 2700.0229171680185,
+            "cpu_seconds": 0.09423174900000002,
+            "weighted_average_percent_one_core": 0.0034900351549177655,
+            "interval_percent_one_core": {
+              "n": 46,
+              "median": 0.0,
+              "p95": 0.0308430811487239,
+              "max": 0.06345895862916924,
+              "end": 0.0015277942813759298
+            },
+            "awake_weighted_median_percent": 0.0,
+            "awake_weighted_p95_percent": 0.0308430811487239,
+            "split_boundary_parts": 1
+          },
+          "process_measured_cpu": {
+            "interval_parts": 46,
+            "distinct_intervals": 46,
+            "valid_awake_seconds": 2700.0229171680185,
+            "cpu_seconds": 0.09423174900000002,
+            "weighted_average_percent_one_core": 0.0034900351549177655,
+            "interval_percent_one_core": {
+              "n": 46,
+              "median": 0.0,
+              "p95": 0.0308430811487239,
+              "max": 0.06345895862916924,
+              "end": 0.0015277942813759298
+            },
+            "awake_weighted_median_percent": 0.0,
+            "awake_weighted_p95_percent": 0.0308430811487239,
+            "split_boundary_parts": 1
+          }
+        }
+      ],
+      "memory_overall": {
+        "endpoints": 526,
+        "first_sequence": 1,
+        "last_sequence": 526,
+        "first_elapsed_seconds": 0.05692025,
+        "last_elapsed_seconds": 31500.022916375,
+        "observed_endpoint_span_seconds": 31499.965996125,
+        "context_unverified_endpoints": 0,
+        "rss_bytes": {
+          "n": 526,
+          "median": 124583936.0,
+          "p95": 124583936,
+          "max": 124665856,
+          "end": 120995840
+        },
+        "footprint_bytes": {
+          "n": 526,
+          "median": 41387064.0,
+          "p95": 41403424,
+          "max": 41436216,
+          "end": 41387040
+        }
+      },
+      "CPU_overall": {
+        "interval_parts": 525,
+        "distinct_intervals": 525,
+        "valid_awake_seconds": 31499.965993999995,
+        "cpu_seconds": 8.449865625000003,
+        "weighted_average_percent_one_core": 0.026824999197172163,
+        "interval_percent_one_core": {
+          "n": 525,
+          "median": 0.0,
+          "p95": 0.16725833166513013,
+          "max": 0.3760123570605137,
+          "end": 0.0015277942813759298
+        },
+        "awake_weighted_median_percent": 0.0,
+        "awake_weighted_p95_percent": 0.16725833166513013,
+        "split_boundary_parts": 0
+      }
+    },
+    "serve": {
+      "identity_key": "c63d47caa585223f1bc3a89a53041fb70d1ac65a4b5493668b05d0b900c6f9fe",
+      "hourly": [
+        {
+          "elapsed_hour_slot": 0,
+          "nominal_window_seconds_in_slot": 3600,
+          "partial_or_terminal_hour": false,
+          "terminal_endpoint_only": false,
+          "full_nominal_strict_cpu_coverage": false,
+          "memory": {
+            "endpoints": 60,
+            "first_sequence": 1,
+            "last_sequence": 60,
+            "first_elapsed_seconds": 0.05692025,
+            "last_elapsed_seconds": 3540.022877125,
+            "observed_endpoint_span_seconds": 3539.965956875,
+            "context_unverified_endpoints": 0,
+            "rss_bytes": {
+              "n": 60,
+              "median": 1669890048.0,
+              "p95": 1669890048,
+              "max": 1669906432,
+              "end": 1669890048,
+              "slopes": {
+                "status": "measured_observed_endpoints",
+                "ols_mib_per_hour": 0.08049075211563156,
+                "theil_sen_mib_per_hour": 0.0,
+                "theil_sen_pairs": 1770
+              }
+            },
+            "footprint_bytes": {
+              "n": 60,
+              "median": 1412810552.0,
+              "p95": 1412826936,
+              "max": 1412843320,
+              "end": 1412826936,
+              "slopes": {
+                "status": "measured_observed_endpoints",
+                "ols_mib_per_hour": 0.03823961974265792,
+                "theil_sen_mib_per_hour": 0.0,
+                "theil_sen_pairs": 1770
+              }
+            }
+          },
+          "cpu": {
+            "interval_parts": 60,
+            "distinct_intervals": 60,
+            "valid_awake_seconds": 3599.94307683272,
+            "cpu_seconds": 0.06176513651459722,
+            "weighted_average_percent_one_core": 0.0017157253655504755,
+            "interval_percent_one_core": {
+              "n": 60,
+              "median": 0.0018204763482407914,
+              "p95": 0.0020497229881357953,
+              "max": 0.002176765860278436,
+              "end": 0.0018847661359387168
+            },
+            "awake_weighted_median_percent": 0.0018197170541691923,
+            "awake_weighted_p95_percent": 0.002119959498670595,
+            "split_boundary_parts": 1
+          },
+          "process_measured_cpu": {
+            "interval_parts": 60,
+            "distinct_intervals": 60,
+            "valid_awake_seconds": 3599.94307683272,
+            "cpu_seconds": 0.06176513651459722,
+            "weighted_average_percent_one_core": 0.0017157253655504755,
+            "interval_percent_one_core": {
+              "n": 60,
+              "median": 0.0018204763482407914,
+              "p95": 0.0020497229881357953,
+              "max": 0.002176765860278436,
+              "end": 0.0018847661359387168
+            },
+            "awake_weighted_median_percent": 0.0018197170541691923,
+            "awake_weighted_p95_percent": 0.002119959498670595,
+            "split_boundary_parts": 1
+          }
+        },
+        {
+          "elapsed_hour_slot": 1,
+          "nominal_window_seconds_in_slot": 3600,
+          "partial_or_terminal_hour": false,
+          "terminal_endpoint_only": false,
+          "full_nominal_strict_cpu_coverage": true,
+          "memory": {
+            "endpoints": 60,
+            "first_sequence": 61,
+            "last_sequence": 120,
+            "first_elapsed_seconds": 3600.023689167,
+            "last_elapsed_seconds": 7140.030548334,
+            "observed_endpoint_span_seconds": 3540.0068591669997,
+            "context_unverified_endpoints": 0,
+            "rss_bytes": {
+              "n": 60,
+              "median": 1669890048.0,
+              "p95": 1669890048,
+              "max": 1669890048,
+              "end": 1669890048,
+              "slopes": {
+                "status": "measured_observed_endpoints",
+                "ols_mib_per_hour": 0.0,
+                "theil_sen_mib_per_hour": 0.0,
+                "theil_sen_pairs": 1770
+              }
+            },
+            "footprint_bytes": {
+              "n": 60,
+              "median": 1412826936.0,
+              "p95": 1412826936,
+              "max": 1412826936,
+              "end": 1412826936,
+              "slopes": {
+                "status": "measured_observed_endpoints",
+                "ols_mib_per_hour": 0.0,
+                "theil_sen_mib_per_hour": 0.0,
+                "theil_sen_pairs": 1770
+              }
+            }
+          },
+          "cpu": {
+            "interval_parts": 61,
+            "distinct_intervals": 61,
+            "valid_awake_seconds": 3600.0000001242797,
+            "cpu_seconds": 0.06957634433692043,
+            "weighted_average_percent_one_core": 0.001932676231514403,
+            "interval_percent_one_core": {
+              "n": 61,
+              "median": 0.0019523914117968392,
+              "p95": 0.0020666632380545126,
+              "max": 0.002211454379926772,
+              "end": 0.0019465141319267047
+            },
+            "awake_weighted_median_percent": 0.0019523914117968392,
+            "awake_weighted_p95_percent": 0.002078317546763961,
+            "split_boundary_parts": 2
+          },
+          "process_measured_cpu": {
+            "interval_parts": 61,
+            "distinct_intervals": 61,
+            "valid_awake_seconds": 3600.0000001242797,
+            "cpu_seconds": 0.06957634433692043,
+            "weighted_average_percent_one_core": 0.001932676231514403,
+            "interval_percent_one_core": {
+              "n": 61,
+              "median": 0.0019523914117968392,
+              "p95": 0.0020666632380545126,
+              "max": 0.002211454379926772,
+              "end": 0.0019465141319267047
+            },
+            "awake_weighted_median_percent": 0.0019523914117968392,
+            "awake_weighted_p95_percent": 0.002078317546763961,
+            "split_boundary_parts": 2
+          }
+        },
+        {
+          "elapsed_hour_slot": 2,
+          "nominal_window_seconds_in_slot": 3600,
+          "partial_or_terminal_hour": false,
+          "terminal_endpoint_only": false,
+          "full_nominal_strict_cpu_coverage": true,
+          "memory": {
+            "endpoints": 60,
+            "first_sequence": 121,
+            "last_sequence": 180,
+            "first_elapsed_seconds": 7200.030934709,
+            "last_elapsed_seconds": 10740.03044825,
+            "observed_endpoint_span_seconds": 3539.999513541,
+            "context_unverified_endpoints": 0,
+            "rss_bytes": {
+              "n": 60,
+              "median": 1669890048.0,
+              "p95": 1669890048,
+              "max": 1669890048,
+              "end": 1669890048,
+              "slopes": {
+                "status": "measured_observed_endpoints",
+                "ols_mib_per_hour": 0.0,
+                "theil_sen_mib_per_hour": 0.0,
+                "theil_sen_pairs": 1770
+              }
+            },
+            "footprint_bytes": {
+              "n": 60,
+              "median": 1412826936.0,
+              "p95": 1412826936,
+              "max": 1412826936,
+              "end": 1412826936,
+              "slopes": {
+                "status": "measured_observed_endpoints",
+                "ols_mib_per_hour": 0.0,
+                "theil_sen_mib_per_hour": 0.0,
+                "theil_sen_pairs": 1770
+              }
+            }
+          },
+          "cpu": {
+            "interval_parts": 61,
+            "distinct_intervals": 61,
+            "valid_awake_seconds": 3599.999999958692,
+            "cpu_seconds": 0.06919387424231596,
+            "weighted_average_percent_one_core": 0.0019220520623086088,
+            "interval_percent_one_core": {
+              "n": 61,
+              "median": 0.0019317919027084718,
+              "p95": 0.002014557045440439,
+              "max": 0.002282085565182492,
+              "end": 0.0018829373379450614
+            },
+            "awake_weighted_median_percent": 0.0019317919027084718,
+            "awake_weighted_p95_percent": 0.002014557045440439,
+            "split_boundary_parts": 2
+          },
+          "process_measured_cpu": {
+            "interval_parts": 61,
+            "distinct_intervals": 61,
+            "valid_awake_seconds": 3599.999999958692,
+            "cpu_seconds": 0.06919387424231596,
+            "weighted_average_percent_one_core": 0.0019220520623086088,
+            "interval_percent_one_core": {
+              "n": 61,
+              "median": 0.0019317919027084718,
+              "p95": 0.002014557045440439,
+              "max": 0.002282085565182492,
+              "end": 0.0018829373379450614
+            },
+            "awake_weighted_median_percent": 0.0019317919027084718,
+            "awake_weighted_p95_percent": 0.002014557045440439,
+            "split_boundary_parts": 2
+          }
+        },
+        {
+          "elapsed_hour_slot": 3,
+          "nominal_window_seconds_in_slot": 3600,
+          "partial_or_terminal_hour": false,
+          "terminal_endpoint_only": false,
+          "full_nominal_strict_cpu_coverage": true,
+          "memory": {
+            "endpoints": 60,
+            "first_sequence": 181,
+            "last_sequence": 240,
+            "first_elapsed_seconds": 10800.027558334,
+            "last_elapsed_seconds": 14340.027552,
+            "observed_endpoint_span_seconds": 3539.9999936659988,
+            "context_unverified_endpoints": 0,
+            "rss_bytes": {
+              "n": 60,
+              "median": 1669890048.0,
+              "p95": 1669890048,
+              "max": 1669890048,
+              "end": 1669890048,
+              "slopes": {
+                "status": "measured_observed_endpoints",
+                "ols_mib_per_hour": 0.0,
+                "theil_sen_mib_per_hour": 0.0,
+                "theil_sen_pairs": 1770
+              }
+            },
+            "footprint_bytes": {
+              "n": 60,
+              "median": 1412826936.0,
+              "p95": 1412826936,
+              "max": 1412826936,
+              "end": 1412826936,
+              "slopes": {
+                "status": "measured_observed_endpoints",
+                "ols_mib_per_hour": 0.0,
+                "theil_sen_mib_per_hour": 0.0,
+                "theil_sen_pairs": 1770
+              }
+            }
+          },
+          "cpu": {
+            "interval_parts": 61,
+            "distinct_intervals": 61,
+            "valid_awake_seconds": 3600.000000124821,
+            "cpu_seconds": 0.06964706135204594,
+            "weighted_average_percent_one_core": 0.0019346405930453087,
+            "interval_percent_one_core": {
+              "n": 61,
+              "median": 0.0019480057497445506,
+              "p95": 0.0020592551152278015,
+              "max": 0.002315330190265478,
+              "end": 0.001918034807440389
+            },
+            "awake_weighted_median_percent": 0.0019480057497445506,
+            "awake_weighted_p95_percent": 0.0020648991368698963,
+            "split_boundary_parts": 2
+          },
+          "process_measured_cpu": {
+            "interval_parts": 61,
+            "distinct_intervals": 61,
+            "valid_awake_seconds": 3600.000000124821,
+            "cpu_seconds": 0.06964706135204594,
+            "weighted_average_percent_one_core": 0.0019346405930453087,
+            "interval_percent_one_core": {
+              "n": 61,
+              "median": 0.0019480057497445506,
+              "p95": 0.0020592551152278015,
+              "max": 0.002315330190265478,
+              "end": 0.001918034807440389
+            },
+            "awake_weighted_median_percent": 0.0019480057497445506,
+            "awake_weighted_p95_percent": 0.0020648991368698963,
+            "split_boundary_parts": 2
+          }
+        },
+        {
+          "elapsed_hour_slot": 4,
+          "nominal_window_seconds_in_slot": 3600,
+          "partial_or_terminal_hour": false,
+          "terminal_endpoint_only": false,
+          "full_nominal_strict_cpu_coverage": true,
+          "memory": {
+            "endpoints": 60,
+            "first_sequence": 241,
+            "last_sequence": 300,
+            "first_elapsed_seconds": 14400.030424584,
+            "last_elapsed_seconds": 17940.027386875,
+            "observed_endpoint_span_seconds": 3539.996962291001,
+            "context_unverified_endpoints": 0,
+            "rss_bytes": {
+              "n": 60,
+              "median": 1669890048.0,
+              "p95": 1669890048,
+              "max": 1669890048,
+              "end": 1669890048,
+              "slopes": {
+                "status": "measured_observed_endpoints",
+                "ols_mib_per_hour": 0.0,
+                "theil_sen_mib_per_hour": 0.0,
+                "theil_sen_pairs": 1770
+              }
+            },
+            "footprint_bytes": {
+              "n": 60,
+              "median": 1412826936.0,
+              "p95": 1412826936,
+              "max": 1412826936,
+              "end": 1412826936,
+              "slopes": {
+                "status": "measured_observed_endpoints",
+                "ols_mib_per_hour": 0.0,
+                "theil_sen_mib_per_hour": 0.0,
+                "theil_sen_pairs": 1770
+              }
+            }
+          },
+          "cpu": {
+            "interval_parts": 61,
+            "distinct_intervals": 61,
+            "valid_awake_seconds": 3600.000000292155,
+            "cpu_seconds": 0.07212629905408421,
+            "weighted_average_percent_one_core": 0.0020035083068953015,
+            "interval_percent_one_core": {
+              "n": 61,
+              "median": 0.0019402187431242816,
+              "p95": 0.0021502326269504215,
+              "max": 0.005908363693957904,
+              "end": 0.0018018065787065085
+            },
+            "awake_weighted_median_percent": 0.0019402187431242816,
+            "awake_weighted_p95_percent": 0.0021502326269504215,
+            "split_boundary_parts": 2
+          },
+          "process_measured_cpu": {
+            "interval_parts": 61,
+            "distinct_intervals": 61,
+            "valid_awake_seconds": 3600.000000292155,
+            "cpu_seconds": 0.07212629905408421,
+            "weighted_average_percent_one_core": 0.0020035083068953015,
+            "interval_percent_one_core": {
+              "n": 61,
+              "median": 0.0019402187431242816,
+              "p95": 0.0021502326269504215,
+              "max": 0.005908363693957904,
+              "end": 0.0018018065787065085
+            },
+            "awake_weighted_median_percent": 0.0019402187431242816,
+            "awake_weighted_p95_percent": 0.0021502326269504215,
+            "split_boundary_parts": 2
+          }
+        },
+        {
+          "elapsed_hour_slot": 5,
+          "nominal_window_seconds_in_slot": 3600,
+          "partial_or_terminal_hour": false,
+          "terminal_endpoint_only": false,
+          "full_nominal_strict_cpu_coverage": true,
+          "memory": {
+            "endpoints": 60,
+            "first_sequence": 301,
+            "last_sequence": 360,
+            "first_elapsed_seconds": 18000.031940167,
+            "last_elapsed_seconds": 21540.022175084,
+            "observed_endpoint_span_seconds": 3539.9902349170006,
+            "context_unverified_endpoints": 0,
+            "rss_bytes": {
+              "n": 60,
+              "median": 1669890048.0,
+              "p95": 1669890048,
+              "max": 1669922816,
+              "end": 1669890048,
+              "slopes": {
+                "status": "measured_observed_endpoints",
+                "ols_mib_per_hour": -0.002344404711608207,
+                "theil_sen_mib_per_hour": 0.0,
+                "theil_sen_pairs": 1770
+              }
+            },
+            "footprint_bytes": {
+              "n": 60,
+              "median": 1412843320.0,
+              "p95": 1412843320,
+              "max": 1412843320,
+              "end": 1412843320,
+              "slopes": {
+                "status": "measured_observed_endpoints",
+                "ols_mib_per_hour": 0.00966411885161921,
+                "theil_sen_mib_per_hour": 0.0,
+                "theil_sen_pairs": 1770
+              }
+            }
+          },
+          "cpu": {
+            "interval_parts": 61,
+            "distinct_intervals": 61,
+            "valid_awake_seconds": 3600.0000016664403,
+            "cpu_seconds": 0.050598338095980286,
+            "weighted_average_percent_one_core": 0.0014055093909043975,
+            "interval_percent_one_core": {
+              "n": 61,
+              "median": 0.0012996450321520634,
+              "p95": 0.002146757574447986,
+              "max": 0.002223700490079805,
+              "end": 0.0013530894162188877
+            },
+            "awake_weighted_median_percent": 0.00129836531187621,
+            "awake_weighted_p95_percent": 0.002146757574447986,
+            "split_boundary_parts": 2
+          },
+          "process_measured_cpu": {
+            "interval_parts": 61,
+            "distinct_intervals": 61,
+            "valid_awake_seconds": 3600.0000016664403,
+            "cpu_seconds": 0.050598338095980286,
+            "weighted_average_percent_one_core": 0.0014055093909043975,
+            "interval_percent_one_core": {
+              "n": 61,
+              "median": 0.0012996450321520634,
+              "p95": 0.002146757574447986,
+              "max": 0.002223700490079805,
+              "end": 0.0013530894162188877
+            },
+            "awake_weighted_median_percent": 0.00129836531187621,
+            "awake_weighted_p95_percent": 0.002146757574447986,
+            "split_boundary_parts": 2
+          }
+        },
+        {
+          "elapsed_hour_slot": 6,
+          "nominal_window_seconds_in_slot": 3600,
+          "partial_or_terminal_hour": false,
+          "terminal_endpoint_only": false,
+          "full_nominal_strict_cpu_coverage": true,
+          "memory": {
+            "endpoints": 60,
+            "first_sequence": 361,
+            "last_sequence": 420,
+            "first_elapsed_seconds": 21600.017545334,
+            "last_elapsed_seconds": 25140.0193945,
+            "observed_endpoint_span_seconds": 3540.0018491659976,
+            "context_unverified_endpoints": 0,
+            "rss_bytes": {
+              "n": 60,
+              "median": 1669890048.0,
+              "p95": 1669890048,
+              "max": 1669890048,
+              "end": 1669890048,
+              "slopes": {
+                "status": "measured_observed_endpoints",
+                "ols_mib_per_hour": 0.018312404674722275,
+                "theil_sen_mib_per_hour": 0.0,
+                "theil_sen_pairs": 1770
+              }
+            },
+            "footprint_bytes": {
+              "n": 60,
+              "median": 1412843320.0,
+              "p95": 1412843320,
+              "max": 1412843320,
+              "end": 1412843320,
+              "slopes": {
+                "status": "measured_observed_endpoints",
+                "ols_mib_per_hour": 0.0,
+                "theil_sen_mib_per_hour": 0.0,
+                "theil_sen_pairs": 1770
+              }
+            }
+          },
+          "cpu": {
+            "interval_parts": 61,
+            "distinct_intervals": 61,
+            "valid_awake_seconds": 3599.999994669727,
+            "cpu_seconds": 0.04896362985260608,
+            "weighted_average_percent_one_core": 0.0013601008312528657,
+            "interval_percent_one_core": {
+              "n": 61,
+              "median": 0.0013530894162188877,
+              "p95": 0.001634824590236653,
+              "max": 0.0019606222551288425,
+              "end": 0.0018492370162084089
+            },
+            "awake_weighted_median_percent": 0.0013463112136658296,
+            "awake_weighted_p95_percent": 0.001634824590236653,
+            "split_boundary_parts": 2
+          },
+          "process_measured_cpu": {
+            "interval_parts": 61,
+            "distinct_intervals": 61,
+            "valid_awake_seconds": 3599.999994669727,
+            "cpu_seconds": 0.04896362985260608,
+            "weighted_average_percent_one_core": 0.0013601008312528657,
+            "interval_percent_one_core": {
+              "n": 61,
+              "median": 0.0013530894162188877,
+              "p95": 0.001634824590236653,
+              "max": 0.0019606222551288425,
+              "end": 0.0018492370162084089
+            },
+            "awake_weighted_median_percent": 0.0013463112136658296,
+            "awake_weighted_p95_percent": 0.001634824590236653,
+            "split_boundary_parts": 2
+          }
+        },
+        {
+          "elapsed_hour_slot": 7,
+          "nominal_window_seconds_in_slot": 3600,
+          "partial_or_terminal_hour": false,
+          "terminal_endpoint_only": false,
+          "full_nominal_strict_cpu_coverage": true,
+          "memory": {
+            "endpoints": 60,
+            "first_sequence": 421,
+            "last_sequence": 480,
+            "first_elapsed_seconds": 25200.028365834,
+            "last_elapsed_seconds": 28740.027206042,
+            "observed_endpoint_span_seconds": 3539.998840207998,
+            "context_unverified_endpoints": 0,
+            "rss_bytes": {
+              "n": 60,
+              "median": 1669890048.0,
+              "p95": 1669890048,
+              "max": 1669890048,
+              "end": 1669890048,
+              "slopes": {
+                "status": "measured_observed_endpoints",
+                "ols_mib_per_hour": 0.0,
+                "theil_sen_mib_per_hour": 0.0,
+                "theil_sen_pairs": 1770
+              }
+            },
+            "footprint_bytes": {
+              "n": 60,
+              "median": 1412843320.0,
+              "p95": 1412843320,
+              "max": 1412843320,
+              "end": 1412843320,
+              "slopes": {
+                "status": "measured_observed_endpoints",
+                "ols_mib_per_hour": 0.0,
+                "theil_sen_mib_per_hour": 0.0,
+                "theil_sen_pairs": 1770
+              }
+            }
+          },
+          "cpu": {
+            "interval_parts": 61,
+            "distinct_intervals": 61,
+            "valid_awake_seconds": 3600.0000031631484,
+            "cpu_seconds": 0.0663805341045927,
+            "weighted_average_percent_one_core": 0.0018439037235074248,
+            "interval_percent_one_core": {
+              "n": 61,
+              "median": 0.001867547391644738,
+              "p95": 0.0019956908966157765,
+              "max": 0.0021516458753520354,
+              "end": 0.0018452976413965644
+            },
+            "awake_weighted_median_percent": 0.001867547391644738,
+            "awake_weighted_p95_percent": 0.0020087463650632076,
+            "split_boundary_parts": 2
+          },
+          "process_measured_cpu": {
+            "interval_parts": 61,
+            "distinct_intervals": 61,
+            "valid_awake_seconds": 3600.0000031631484,
+            "cpu_seconds": 0.0663805341045927,
+            "weighted_average_percent_one_core": 0.0018439037235074248,
+            "interval_percent_one_core": {
+              "n": 61,
+              "median": 0.001867547391644738,
+              "p95": 0.0019956908966157765,
+              "max": 0.0021516458753520354,
+              "end": 0.0018452976413965644
+            },
+            "awake_weighted_median_percent": 0.001867547391644738,
+            "awake_weighted_p95_percent": 0.0020087463650632076,
+            "split_boundary_parts": 2
+          }
+        },
+        {
+          "elapsed_hour_slot": 8,
+          "nominal_window_seconds_in_slot": 3600,
+          "partial_or_terminal_hour": true,
+          "terminal_endpoint_only": false,
+          "full_nominal_strict_cpu_coverage": false,
+          "memory": {
+            "endpoints": 46,
+            "first_sequence": 481,
+            "last_sequence": 526,
+            "first_elapsed_seconds": 28800.024356334,
+            "last_elapsed_seconds": 31500.022916375,
+            "observed_endpoint_span_seconds": 2699.998560041,
+            "context_unverified_endpoints": 0,
+            "rss_bytes": {
+              "n": 46,
+              "median": 1669890048.0,
+              "p95": 1669890048,
+              "max": 1669890048,
+              "end": 1669873664,
+              "slopes": {
+                "status": "measured_observed_endpoints",
+                "ols_mib_per_hour": -0.00260174443548137,
+                "theil_sen_mib_per_hour": 0.0,
+                "theil_sen_pairs": 1035
+              }
+            },
+            "footprint_bytes": {
+              "n": 46,
+              "median": 1412843320.0,
+              "p95": 1412843320,
+              "max": 1412843320,
+              "end": 1412843320,
+              "slopes": {
+                "status": "measured_observed_endpoints",
+                "ols_mib_per_hour": 0.0,
+                "theil_sen_mib_per_hour": 0.0,
+                "theil_sen_pairs": 1035
+              }
+            }
+          },
+          "cpu": {
+            "interval_parts": 46,
+            "distinct_intervals": 46,
+            "valid_awake_seconds": 2700.0229171680185,
+            "cpu_seconds": 0.050096365446857166,
+            "weighted_average_percent_one_core": 0.001855405194093756,
+            "interval_percent_one_core": {
+              "n": 46,
+              "median": 0.0018665579398343681,
+              "p95": 0.0019693356697252614,
+              "max": 0.0020416674335683705,
+              "end": 0.0018870140736563768
+            },
+            "awake_weighted_median_percent": 0.0018676421474885096,
+            "awake_weighted_p95_percent": 0.0019693356697252614,
+            "split_boundary_parts": 1
+          },
+          "process_measured_cpu": {
+            "interval_parts": 46,
+            "distinct_intervals": 46,
+            "valid_awake_seconds": 2700.0229171680185,
+            "cpu_seconds": 0.050096365446857166,
+            "weighted_average_percent_one_core": 0.001855405194093756,
+            "interval_percent_one_core": {
+              "n": 46,
+              "median": 0.0018665579398343681,
+              "p95": 0.0019693356697252614,
+              "max": 0.0020416674335683705,
+              "end": 0.0018870140736563768
+            },
+            "awake_weighted_median_percent": 0.0018676421474885096,
+            "awake_weighted_p95_percent": 0.0019693356697252614,
+            "split_boundary_parts": 1
+          }
+        }
+      ],
+      "memory_overall": {
+        "endpoints": 526,
+        "first_sequence": 1,
+        "last_sequence": 526,
+        "first_elapsed_seconds": 0.05692025,
+        "last_elapsed_seconds": 31500.022916375,
+        "observed_endpoint_span_seconds": 31499.965996125,
+        "context_unverified_endpoints": 0,
+        "rss_bytes": {
+          "n": 526,
+          "median": 1669890048.0,
+          "p95": 1669890048,
+          "max": 1669922816,
+          "end": 1669873664
+        },
+        "footprint_bytes": {
+          "n": 526,
+          "median": 1412826936.0,
+          "p95": 1412843320,
+          "max": 1412843320,
+          "end": 1412843320
+        }
+      },
+      "CPU_overall": {
+        "interval_parts": 525,
+        "distinct_intervals": 525,
+        "valid_awake_seconds": 31499.965993999995,
+        "cpu_seconds": 0.5583475830000005,
+        "weighted_average_percent_one_core": 0.0017725339230726554,
+        "interval_percent_one_core": {
+          "n": 525,
+          "median": 0.0018771539176970083,
+          "p95": 0.0020592551152278015,
+          "max": 0.005908363693957904,
+          "end": 0.0018870140736563768
+        },
+        "awake_weighted_median_percent": 0.0018771539176970083,
+        "awake_weighted_p95_percent": 0.0020592551152278015,
+        "split_boundary_parts": 0
+      }
+    },
+    "watch": {
+      "identity_key": "2e19704303846f7e5f07d1f32c937d02c3c51d2365a77567e6cc6dfcca41d28d",
+      "hourly": [
+        {
+          "elapsed_hour_slot": 0,
+          "nominal_window_seconds_in_slot": 3600,
+          "partial_or_terminal_hour": false,
+          "terminal_endpoint_only": false,
+          "full_nominal_strict_cpu_coverage": false,
+          "memory": {
+            "endpoints": 60,
+            "first_sequence": 1,
+            "last_sequence": 60,
+            "first_elapsed_seconds": 0.05692025,
+            "last_elapsed_seconds": 3540.022877125,
+            "observed_endpoint_span_seconds": 3539.965956875,
+            "context_unverified_endpoints": 0,
+            "rss_bytes": {
+              "n": 60,
+              "median": 25919488.0,
+              "p95": 25919488,
+              "max": 25919488,
+              "end": 25919488,
+              "slopes": {
+                "status": "measured_observed_endpoints",
+                "ols_mib_per_hour": 0.28705760555092164,
+                "theil_sen_mib_per_hour": 0.1480249999792778,
+                "theil_sen_pairs": 1770
+              }
+            },
+            "footprint_bytes": {
+              "n": 60,
+              "median": 12091968.0,
+              "p95": 12108352,
+              "max": 12108352,
+              "end": 12108352,
+              "slopes": {
+                "status": "measured_observed_endpoints",
+                "ols_mib_per_hour": 0.2505329540746296,
+                "theil_sen_mib_per_hour": 0.11718702632171149,
+                "theil_sen_pairs": 1770
+              }
+            }
+          },
+          "cpu": {
+            "interval_parts": 60,
+            "distinct_intervals": 60,
+            "valid_awake_seconds": 3599.94307683272,
+            "cpu_seconds": 1.118081546736823,
+            "weighted_average_percent_one_core": 0.031058311836434,
+            "interval_percent_one_core": {
+              "n": 60,
+              "median": 0.007765596537912964,
+              "p95": 0.12698548131857404,
+              "max": 0.2295369912686798,
+              "end": 0.0019133774150417655
+            },
+            "awake_weighted_median_percent": 0.007480678461378189,
+            "awake_weighted_p95_percent": 0.15658946665179035,
+            "split_boundary_parts": 1
+          },
+          "process_measured_cpu": {
+            "interval_parts": 60,
+            "distinct_intervals": 60,
+            "valid_awake_seconds": 3599.94307683272,
+            "cpu_seconds": 1.118081546736823,
+            "weighted_average_percent_one_core": 0.031058311836434,
+            "interval_percent_one_core": {
+              "n": 60,
+              "median": 0.007765596537912964,
+              "p95": 0.12698548131857404,
+              "max": 0.2295369912686798,
+              "end": 0.0019133774150417655
+            },
+            "awake_weighted_median_percent": 0.007480678461378189,
+            "awake_weighted_p95_percent": 0.15658946665179035,
+            "split_boundary_parts": 1
+          }
+        },
+        {
+          "elapsed_hour_slot": 1,
+          "nominal_window_seconds_in_slot": 3600,
+          "partial_or_terminal_hour": false,
+          "terminal_endpoint_only": false,
+          "full_nominal_strict_cpu_coverage": true,
+          "memory": {
+            "endpoints": 60,
+            "first_sequence": 61,
+            "last_sequence": 120,
+            "first_elapsed_seconds": 3600.023689167,
+            "last_elapsed_seconds": 7140.030548334,
+            "observed_endpoint_span_seconds": 3540.0068591669997,
+            "context_unverified_endpoints": 0,
+            "rss_bytes": {
+              "n": 60,
+              "median": 25919488.0,
+              "p95": 25919488,
+              "max": 25919488,
+              "end": 25919488,
+              "slopes": {
+                "status": "measured_observed_endpoints",
+                "ols_mib_per_hour": 0.0,
+                "theil_sen_mib_per_hour": 0.0,
+                "theil_sen_pairs": 1770
+              }
+            },
+            "footprint_bytes": {
+              "n": 60,
+              "median": 12108352.0,
+              "p95": 12108352,
+              "max": 12108352,
+              "end": 12108352,
+              "slopes": {
+                "status": "measured_observed_endpoints",
+                "ols_mib_per_hour": 0.0,
+                "theil_sen_mib_per_hour": 0.0,
+                "theil_sen_pairs": 1770
+              }
+            }
+          },
+          "cpu": {
+            "interval_parts": 61,
+            "distinct_intervals": 61,
+            "valid_awake_seconds": 3600.0000001242797,
+            "cpu_seconds": 0.10985622784488075,
+            "weighted_average_percent_one_core": 0.0030515618844746744,
+            "interval_percent_one_core": {
+              "n": 61,
+              "median": 0.0019600340666244198,
+              "p95": 0.006316325508931642,
+              "max": 0.02333678118263913,
+              "end": 0.0020734583144590623
+            },
+            "awake_weighted_median_percent": 0.0019600340666244198,
+            "awake_weighted_p95_percent": 0.006316325508931642,
+            "split_boundary_parts": 2
+          },
+          "process_measured_cpu": {
+            "interval_parts": 61,
+            "distinct_intervals": 61,
+            "valid_awake_seconds": 3600.0000001242797,
+            "cpu_seconds": 0.10985622784488075,
+            "weighted_average_percent_one_core": 0.0030515618844746744,
+            "interval_percent_one_core": {
+              "n": 61,
+              "median": 0.0019600340666244198,
+              "p95": 0.006316325508931642,
+              "max": 0.02333678118263913,
+              "end": 0.0020734583144590623
+            },
+            "awake_weighted_median_percent": 0.0019600340666244198,
+            "awake_weighted_p95_percent": 0.006316325508931642,
+            "split_boundary_parts": 2
+          }
+        },
+        {
+          "elapsed_hour_slot": 2,
+          "nominal_window_seconds_in_slot": 3600,
+          "partial_or_terminal_hour": false,
+          "terminal_endpoint_only": false,
+          "full_nominal_strict_cpu_coverage": true,
+          "memory": {
+            "endpoints": 60,
+            "first_sequence": 121,
+            "last_sequence": 180,
+            "first_elapsed_seconds": 7200.030934709,
+            "last_elapsed_seconds": 10740.03044825,
+            "observed_endpoint_span_seconds": 3539.999513541,
+            "context_unverified_endpoints": 0,
+            "rss_bytes": {
+              "n": 60,
+              "median": 25919488.0,
+              "p95": 25919488,
+              "max": 25919488,
+              "end": 25919488,
+              "slopes": {
+                "status": "measured_observed_endpoints",
+                "ols_mib_per_hour": 0.0,
+                "theil_sen_mib_per_hour": 0.0,
+                "theil_sen_pairs": 1770
+              }
+            },
+            "footprint_bytes": {
+              "n": 60,
+              "median": 12108352.0,
+              "p95": 12108352,
+              "max": 12108352,
+              "end": 12108352,
+              "slopes": {
+                "status": "measured_observed_endpoints",
+                "ols_mib_per_hour": 0.0,
+                "theil_sen_mib_per_hour": 0.0,
+                "theil_sen_pairs": 1770
+              }
+            }
+          },
+          "cpu": {
+            "interval_parts": 61,
+            "distinct_intervals": 61,
+            "valid_awake_seconds": 3599.999999958692,
+            "cpu_seconds": 0.09659993321590399,
+            "weighted_average_percent_one_core": 0.002683331478250345,
+            "interval_percent_one_core": {
+              "n": 61,
+              "median": 0.001921420007932434,
+              "p95": 0.006005786883670184,
+              "max": 0.025042573075568033,
+              "end": 0.0019638429005516735
+            },
+            "awake_weighted_median_percent": 0.001921420007932434,
+            "awake_weighted_p95_percent": 0.006005786883670184,
+            "split_boundary_parts": 2
+          },
+          "process_measured_cpu": {
+            "interval_parts": 61,
+            "distinct_intervals": 61,
+            "valid_awake_seconds": 3599.999999958692,
+            "cpu_seconds": 0.09659993321590399,
+            "weighted_average_percent_one_core": 0.002683331478250345,
+            "interval_percent_one_core": {
+              "n": 61,
+              "median": 0.001921420007932434,
+              "p95": 0.006005786883670184,
+              "max": 0.025042573075568033,
+              "end": 0.0019638429005516735
+            },
+            "awake_weighted_median_percent": 0.001921420007932434,
+            "awake_weighted_p95_percent": 0.006005786883670184,
+            "split_boundary_parts": 2
+          }
+        },
+        {
+          "elapsed_hour_slot": 3,
+          "nominal_window_seconds_in_slot": 3600,
+          "partial_or_terminal_hour": false,
+          "terminal_endpoint_only": false,
+          "full_nominal_strict_cpu_coverage": true,
+          "memory": {
+            "endpoints": 60,
+            "first_sequence": 181,
+            "last_sequence": 240,
+            "first_elapsed_seconds": 10800.027558334,
+            "last_elapsed_seconds": 14340.027552,
+            "observed_endpoint_span_seconds": 3539.9999936659988,
+            "context_unverified_endpoints": 0,
+            "rss_bytes": {
+              "n": 60,
+              "median": 25919488.0,
+              "p95": 25919488,
+              "max": 25919488,
+              "end": 25919488,
+              "slopes": {
+                "status": "measured_observed_endpoints",
+                "ols_mib_per_hour": 0.0,
+                "theil_sen_mib_per_hour": 0.0,
+                "theil_sen_pairs": 1770
+              }
+            },
+            "footprint_bytes": {
+              "n": 60,
+              "median": 12108352.0,
+              "p95": 12108352,
+              "max": 12108352,
+              "end": 12108352,
+              "slopes": {
+                "status": "measured_observed_endpoints",
+                "ols_mib_per_hour": 0.0,
+                "theil_sen_mib_per_hour": 0.0,
+                "theil_sen_pairs": 1770
+              }
+            }
+          },
+          "cpu": {
+            "interval_parts": 61,
+            "distinct_intervals": 61,
+            "valid_awake_seconds": 3600.000000124821,
+            "cpu_seconds": 0.1037000245991507,
+            "weighted_average_percent_one_core": 0.0028805562387654213,
+            "interval_percent_one_core": {
+              "n": 61,
+              "median": 0.0019877873036287844,
+              "p95": 0.005908844269984157,
+              "max": 0.02274240688919794,
+              "end": 0.0019740721236806928
+            },
+            "awake_weighted_median_percent": 0.0019882586325606524,
+            "awake_weighted_p95_percent": 0.005908844269984157,
+            "split_boundary_parts": 2
+          },
+          "process_measured_cpu": {
+            "interval_parts": 61,
+            "distinct_intervals": 61,
+            "valid_awake_seconds": 3600.000000124821,
+            "cpu_seconds": 0.1037000245991507,
+            "weighted_average_percent_one_core": 0.0028805562387654213,
+            "interval_percent_one_core": {
+              "n": 61,
+              "median": 0.0019877873036287844,
+              "p95": 0.005908844269984157,
+              "max": 0.02274240688919794,
+              "end": 0.0019740721236806928
+            },
+            "awake_weighted_median_percent": 0.0019882586325606524,
+            "awake_weighted_p95_percent": 0.005908844269984157,
+            "split_boundary_parts": 2
+          }
+        },
+        {
+          "elapsed_hour_slot": 4,
+          "nominal_window_seconds_in_slot": 3600,
+          "partial_or_terminal_hour": false,
+          "terminal_endpoint_only": false,
+          "full_nominal_strict_cpu_coverage": true,
+          "memory": {
+            "endpoints": 60,
+            "first_sequence": 241,
+            "last_sequence": 300,
+            "first_elapsed_seconds": 14400.030424584,
+            "last_elapsed_seconds": 17940.027386875,
+            "observed_endpoint_span_seconds": 3539.996962291001,
+            "context_unverified_endpoints": 0,
+            "rss_bytes": {
+              "n": 60,
+              "median": 25919488.0,
+              "p95": 25919488,
+              "max": 25919488,
+              "end": 25919488,
+              "slopes": {
+                "status": "measured_observed_endpoints",
+                "ols_mib_per_hour": 0.0,
+                "theil_sen_mib_per_hour": 0.0,
+                "theil_sen_pairs": 1770
+              }
+            },
+            "footprint_bytes": {
+              "n": 60,
+              "median": 12108352.0,
+              "p95": 12108352,
+              "max": 12108352,
+              "end": 12108352,
+              "slopes": {
+                "status": "measured_observed_endpoints",
+                "ols_mib_per_hour": 0.0,
+                "theil_sen_mib_per_hour": 0.0,
+                "theil_sen_pairs": 1770
+              }
+            }
+          },
+          "cpu": {
+            "interval_parts": 61,
+            "distinct_intervals": 61,
+            "valid_awake_seconds": 3600.000000292155,
+            "cpu_seconds": 0.11008837716977603,
+            "weighted_average_percent_one_core": 0.0030580104766900528,
+            "interval_percent_one_core": {
+              "n": 61,
+              "median": 0.0019912761200071042,
+              "p95": 0.007046448365197858,
+              "max": 0.01931123134898395,
+              "end": 0.001873607795760126
+            },
+            "awake_weighted_median_percent": 0.0019937292187944787,
+            "awake_weighted_p95_percent": 0.007046448365197858,
+            "split_boundary_parts": 2
+          },
+          "process_measured_cpu": {
+            "interval_parts": 61,
+            "distinct_intervals": 61,
+            "valid_awake_seconds": 3600.000000292155,
+            "cpu_seconds": 0.11008837716977603,
+            "weighted_average_percent_one_core": 0.0030580104766900528,
+            "interval_percent_one_core": {
+              "n": 61,
+              "median": 0.0019912761200071042,
+              "p95": 0.007046448365197858,
+              "max": 0.01931123134898395,
+              "end": 0.001873607795760126
+            },
+            "awake_weighted_median_percent": 0.0019937292187944787,
+            "awake_weighted_p95_percent": 0.007046448365197858,
+            "split_boundary_parts": 2
+          }
+        },
+        {
+          "elapsed_hour_slot": 5,
+          "nominal_window_seconds_in_slot": 3600,
+          "partial_or_terminal_hour": false,
+          "terminal_endpoint_only": false,
+          "full_nominal_strict_cpu_coverage": true,
+          "memory": {
+            "endpoints": 60,
+            "first_sequence": 301,
+            "last_sequence": 360,
+            "first_elapsed_seconds": 18000.031940167,
+            "last_elapsed_seconds": 21540.022175084,
+            "observed_endpoint_span_seconds": 3539.9902349170006,
+            "context_unverified_endpoints": 0,
+            "rss_bytes": {
+              "n": 60,
+              "median": 25919488.0,
+              "p95": 27115520,
+              "max": 27164672,
+              "end": 27164672,
+              "slopes": {
+                "status": "measured_observed_endpoints",
+                "ols_mib_per_hour": 0.5116794486692469,
+                "theil_sen_mib_per_hour": 0.0,
+                "theil_sen_pairs": 1770
+              }
+            },
+            "footprint_bytes": {
+              "n": 60,
+              "median": 12124736.0,
+              "p95": 12321344,
+              "max": 22102592,
+              "end": 12321344,
+              "slopes": {
+                "status": "measured_observed_endpoints",
+                "ols_mib_per_hour": 1.969513128322349,
+                "theil_sen_mib_per_hour": 0.0,
+                "theil_sen_pairs": 1770
+              }
+            }
+          },
+          "cpu": {
+            "interval_parts": 61,
+            "distinct_intervals": 61,
+            "valid_awake_seconds": 3600.0000016664403,
+            "cpu_seconds": 90.50924470235339,
+            "weighted_average_percent_one_core": 2.514145685012685,
+            "interval_percent_one_core": {
+              "n": 61,
+              "median": 0.0021205834094489588,
+              "p95": 6.964281526126069,
+              "max": 63.84203456381694,
+              "end": 0.03383851294241229
+            },
+            "awake_weighted_median_percent": 0.0021205834094489588,
+            "awake_weighted_p95_percent": 17.046287530644314,
+            "split_boundary_parts": 2
+          },
+          "process_measured_cpu": {
+            "interval_parts": 61,
+            "distinct_intervals": 61,
+            "valid_awake_seconds": 3600.0000016664403,
+            "cpu_seconds": 90.50924470235339,
+            "weighted_average_percent_one_core": 2.514145685012685,
+            "interval_percent_one_core": {
+              "n": 61,
+              "median": 0.0021205834094489588,
+              "p95": 6.964281526126069,
+              "max": 63.84203456381694,
+              "end": 0.03383851294241229
+            },
+            "awake_weighted_median_percent": 0.0021205834094489588,
+            "awake_weighted_p95_percent": 17.046287530644314,
+            "split_boundary_parts": 2
+          }
+        },
+        {
+          "elapsed_hour_slot": 6,
+          "nominal_window_seconds_in_slot": 3600,
+          "partial_or_terminal_hour": false,
+          "terminal_endpoint_only": false,
+          "full_nominal_strict_cpu_coverage": true,
+          "memory": {
+            "endpoints": 60,
+            "first_sequence": 361,
+            "last_sequence": 420,
+            "first_elapsed_seconds": 21600.017545334,
+            "last_elapsed_seconds": 25140.0193945,
+            "observed_endpoint_span_seconds": 3540.0018491659976,
+            "context_unverified_endpoints": 0,
+            "rss_bytes": {
+              "n": 60,
+              "median": 27181056.0,
+              "p95": 27361280,
+              "max": 27377664,
+              "end": 27377664,
+              "slopes": {
+                "status": "measured_observed_endpoints",
+                "ols_mib_per_hour": 0.2860430735173261,
+                "theil_sen_mib_per_hour": 0.23880395563340323,
+                "theil_sen_pairs": 1770
+              }
+            },
+            "footprint_bytes": {
+              "n": 60,
+              "median": 12321344.0,
+              "p95": 12337728,
+              "max": 12337728,
+              "end": 8356416,
+              "slopes": {
+                "status": "measured_observed_endpoints",
+                "ols_mib_per_hour": -5.4487796651260485,
+                "theil_sen_mib_per_hour": -4.380998786442342,
+                "theil_sen_pairs": 1770
+              }
+            }
+          },
+          "cpu": {
+            "interval_parts": 61,
+            "distinct_intervals": 61,
+            "valid_awake_seconds": 3599.999994669727,
+            "cpu_seconds": 2.2456698915591438,
+            "weighted_average_percent_one_core": 0.062379719302337586,
+            "interval_percent_one_core": {
+              "n": 61,
+              "median": 0.02246250893067989,
+              "p95": 0.1588015293357914,
+              "max": 1.3376896786322634,
+              "end": 0.09284945955972211
+            },
+            "awake_weighted_median_percent": 0.02246250893067989,
+            "awake_weighted_p95_percent": 0.1588015293357914,
+            "split_boundary_parts": 2
+          },
+          "process_measured_cpu": {
+            "interval_parts": 61,
+            "distinct_intervals": 61,
+            "valid_awake_seconds": 3599.999994669727,
+            "cpu_seconds": 2.2456698915591438,
+            "weighted_average_percent_one_core": 0.062379719302337586,
+            "interval_percent_one_core": {
+              "n": 61,
+              "median": 0.02246250893067989,
+              "p95": 0.1588015293357914,
+              "max": 1.3376896786322634,
+              "end": 0.09284945955972211
+            },
+            "awake_weighted_median_percent": 0.02246250893067989,
+            "awake_weighted_p95_percent": 0.1588015293357914,
+            "split_boundary_parts": 2
+          }
+        },
+        {
+          "elapsed_hour_slot": 7,
+          "nominal_window_seconds_in_slot": 3600,
+          "partial_or_terminal_hour": false,
+          "terminal_endpoint_only": false,
+          "full_nominal_strict_cpu_coverage": true,
+          "memory": {
+            "endpoints": 60,
+            "first_sequence": 421,
+            "last_sequence": 480,
+            "first_elapsed_seconds": 25200.028365834,
+            "last_elapsed_seconds": 28740.027206042,
+            "observed_endpoint_span_seconds": 3539.998840207998,
+            "context_unverified_endpoints": 0,
+            "rss_bytes": {
+              "n": 60,
+              "median": 27377664.0,
+              "p95": 27377664,
+              "max": 27377664,
+              "end": 27377664,
+              "slopes": {
+                "status": "measured_observed_endpoints",
+                "ols_mib_per_hour": 0.0,
+                "theil_sen_mib_per_hour": 0.0,
+                "theil_sen_pairs": 1770
+              }
+            },
+            "footprint_bytes": {
+              "n": 60,
+              "median": 8356416.0,
+              "p95": 8356416,
+              "max": 8356416,
+              "end": 8356416,
+              "slopes": {
+                "status": "measured_observed_endpoints",
+                "ols_mib_per_hour": 0.0,
+                "theil_sen_mib_per_hour": 0.0,
+                "theil_sen_pairs": 1770
+              }
+            }
+          },
+          "cpu": {
+            "interval_parts": 61,
+            "distinct_intervals": 61,
+            "valid_awake_seconds": 3600.0000031631484,
+            "cpu_seconds": 0.2921503661697937,
+            "weighted_average_percent_one_core": 0.008115287942030418,
+            "interval_percent_one_core": {
+              "n": 61,
+              "median": 0.0019231156569268313,
+              "p95": 0.05411446651955328,
+              "max": 0.09284945955972211,
+              "end": 0.001935230246029492
+            },
+            "awake_weighted_median_percent": 0.001921289403640343,
+            "awake_weighted_p95_percent": 0.05411446651955328,
+            "split_boundary_parts": 2
+          },
+          "process_measured_cpu": {
+            "interval_parts": 61,
+            "distinct_intervals": 61,
+            "valid_awake_seconds": 3600.0000031631484,
+            "cpu_seconds": 0.2921503661697937,
+            "weighted_average_percent_one_core": 0.008115287942030418,
+            "interval_percent_one_core": {
+              "n": 61,
+              "median": 0.0019231156569268313,
+              "p95": 0.05411446651955328,
+              "max": 0.09284945955972211,
+              "end": 0.001935230246029492
+            },
+            "awake_weighted_median_percent": 0.001921289403640343,
+            "awake_weighted_p95_percent": 0.05411446651955328,
+            "split_boundary_parts": 2
+          }
+        },
+        {
+          "elapsed_hour_slot": 8,
+          "nominal_window_seconds_in_slot": 3600,
+          "partial_or_terminal_hour": true,
+          "terminal_endpoint_only": false,
+          "full_nominal_strict_cpu_coverage": false,
+          "memory": {
+            "endpoints": 46,
+            "first_sequence": 481,
+            "last_sequence": 526,
+            "first_elapsed_seconds": 28800.024356334,
+            "last_elapsed_seconds": 31500.022916375,
+            "observed_endpoint_span_seconds": 2699.998560041,
+            "context_unverified_endpoints": 0,
+            "rss_bytes": {
+              "n": 46,
+              "median": 27377664.0,
+              "p95": 27377664,
+              "max": 27377664,
+              "end": 27344896,
+              "slopes": {
+                "status": "measured_observed_endpoints",
+                "ols_mib_per_hour": -0.0052034888709627395,
+                "theil_sen_mib_per_hour": 0.0,
+                "theil_sen_pairs": 1035
+              }
+            },
+            "footprint_bytes": {
+              "n": 46,
+              "median": 8356416.0,
+              "p95": 8356416,
+              "max": 8356416,
+              "end": 8356416,
+              "slopes": {
+                "status": "measured_observed_endpoints",
+                "ols_mib_per_hour": 0.0,
+                "theil_sen_mib_per_hour": 0.0,
+                "theil_sen_pairs": 1035
+              }
+            }
+          },
+          "cpu": {
+            "interval_parts": 46,
+            "distinct_intervals": 46,
+            "valid_awake_seconds": 2700.0229171680185,
+            "cpu_seconds": 0.08188526335114271,
+            "weighted_average_percent_one_core": 0.0030327617899269525,
+            "interval_percent_one_core": {
+              "n": 46,
+              "median": 0.001962859994235476,
+              "p95": 0.005466866096766754,
+              "max": 0.02247470355815164,
+              "end": 0.0018024882396565768
+            },
+            "awake_weighted_median_percent": 0.001966858969064197,
+            "awake_weighted_p95_percent": 0.005466866096766754,
+            "split_boundary_parts": 1
+          },
+          "process_measured_cpu": {
+            "interval_parts": 46,
+            "distinct_intervals": 46,
+            "valid_awake_seconds": 2700.0229171680185,
+            "cpu_seconds": 0.08188526335114271,
+            "weighted_average_percent_one_core": 0.0030327617899269525,
+            "interval_percent_one_core": {
+              "n": 46,
+              "median": 0.001962859994235476,
+              "p95": 0.005466866096766754,
+              "max": 0.02247470355815164,
+              "end": 0.0018024882396565768
+            },
+            "awake_weighted_median_percent": 0.001966858969064197,
+            "awake_weighted_p95_percent": 0.005466866096766754,
+            "split_boundary_parts": 1
+          }
+        }
+      ],
+      "memory_overall": {
+        "endpoints": 526,
+        "first_sequence": 1,
+        "last_sequence": 526,
+        "first_elapsed_seconds": 0.05692025,
+        "last_elapsed_seconds": 31500.022916375,
+        "observed_endpoint_span_seconds": 31499.965996125,
+        "context_unverified_endpoints": 0,
+        "rss_bytes": {
+          "n": 526,
+          "median": 25919488.0,
+          "p95": 27377664,
+          "max": 27377664,
+          "end": 27344896
+        },
+        "footprint_bytes": {
+          "n": 526,
+          "median": 12108352.0,
+          "p95": 12321344,
+          "max": 22102592,
+          "end": 8356416
+        }
+      },
+      "CPU_overall": {
+        "interval_parts": 525,
+        "distinct_intervals": 525,
+        "valid_awake_seconds": 31499.965993999995,
+        "cpu_seconds": 94.66727633299998,
+        "weighted_average_percent_one_core": 0.30053136041807754,
+        "interval_percent_one_core": {
+          "n": 525,
+          "median": 0.001999358649549431,
+          "p95": 0.05847056291799028,
+          "max": 63.84203456381694,
+          "end": 0.0018024882396565768
+        },
+        "awake_weighted_median_percent": 0.001999358649549431,
+        "awake_weighted_p95_percent": 0.05847056291799028,
+        "split_boundary_parts": 0
+      }
+    }
+  },
+  "boundary": "JSONL-derived per-identity hours, not cumulative worker hourly snapshots; CPU minute intervals split uniformly at hour boundaries are estimates; original minute totals retained in journal. Last hour is partial; invalid/missing endpoints are not releases."
+}

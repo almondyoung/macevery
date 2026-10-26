@@ -1,0 +1,173 @@
+{
+  "schema": 1,
+  "events": [
+    {
+      "at": "2026-10-25T14:56:01.095513+08:00",
+      "kind": "first_endpoint",
+      "detail": "Ordinary baseline; no preceding CPU interval."
+    },
+    {
+      "at": "2026-10-25T20:49:44.959000+08:00",
+      "kind": "UserDropped_root_recovery_start",
+      "detail": {
+        "visible_root_recovery_batches": 1,
+        "scan_start_local": "2026-10-25T20:49:44.959000+08:00",
+        "scan_complete_local": "2026-10-25T20:52:23.650000+08:00",
+        "checkpoint_complete_local": "2026-10-25T20:52:23.653000+08:00",
+        "recovery_event": {
+          "flags": 3,
+          "id": 859027178,
+          "path_hash": "799fa5af5ff2c0be"
+        },
+        "admitted_raw": {
+          "must_scan": 8,
+          "user_dropped": 8,
+          "kernel_dropped": 0,
+          "ids_wrapped": 0,
+          "root_changed": 0,
+          "first_id": 859027178,
+          "last_id": 859034808
+        },
+        "callback_signals": {
+          "must_scan": 8,
+          "user_dropped": 8,
+          "kernel_dropped": 0,
+          "ids_wrapped": 0,
+          "root_changed": 0,
+          "first_id": 859027178,
+          "last_id": 859034808
+        },
+        "raw_flag_counts_not_independent_OS_drop_or_lost_file_count": true,
+        "scan_elapsed_ms": 158691,
+        "indexed": 7388826,
+        "rows_written": 383,
+        "unchanged": 7388443,
+        "stale_removed": 0,
+        "legacy_fallback": false,
+        "warnings": 0,
+        "own_inbox_or_worker_overflow": false,
+        "retry_or_failure_visible": false,
+        "upstream_OS_drop_cause": "UNKNOWN; no injection or unique attribution"
+      }
+    },
+    {
+      "at": "2026-10-25T20:51:00.914272+08:00",
+      "kind": "watch_CPU_at_least_50_percent",
+      "detail": {
+        "identity_key": "2e19704303846f7e5f07d1f32c937d02c3c51d2365a77567e6cc6dfcca41d28d",
+        "sequence": 356,
+        "from_sequence": 355,
+        "start_elapsed_seconds": 21240.02425425,
+        "end_elapsed_seconds": 21300.025222917,
+        "start_utc": "2026-10-25T12:50:00.913691+00:00",
+        "end_utc": "2026-10-25T12:51:00.914272+00:00",
+        "cpu_seconds": 38.305839208,
+        "awake_seconds": 60.00096875,
+        "percent": 63.84203456381694,
+        "revision_delta": 0,
+        "last_indexed_at_before": "1792775290",
+        "last_indexed_at_after": "1792775290"
+      }
+    },
+    {
+      "at": "2026-10-25T20:52:00.911751+08:00",
+      "kind": "watch_CPU_at_least_50_percent",
+      "detail": {
+        "identity_key": "2e19704303846f7e5f07d1f32c937d02c3c51d2365a77567e6cc6dfcca41d28d",
+        "sequence": 357,
+        "from_sequence": 356,
+        "start_elapsed_seconds": 21300.025222917,
+        "end_elapsed_seconds": 21360.023103584,
+        "start_utc": "2026-10-25T12:51:00.914272+00:00",
+        "end_utc": "2026-10-25T12:52:00.911751+00:00",
+        "cpu_seconds": 37.465449625,
+        "awake_seconds": 59.997879583,
+        "percent": 62.44462285233091,
+        "revision_delta": 0,
+        "last_indexed_at_before": "1792775290",
+        "last_indexed_at_after": "1792775290"
+      }
+    },
+    {
+      "at": "2026-10-25T20:52:23.650000+08:00",
+      "kind": "root_recovery_complete",
+      "detail": "383 rows written, unchanged7388443 skipped; no visible failure/retry."
+    },
+    {
+      "at": "2026-10-25T20:52:23.653000+08:00",
+      "kind": "checkpoint_complete"
+    },
+    {
+      "at": "2026-10-25T20:53:00.906954+08:00",
+      "kind": "sampled_watch_FP_fall",
+      "from_MiB": 21.07867431640625,
+      "to_MiB": 11.75054931640625,
+      "causal_allocation_explanation": "UNKNOWN"
+    },
+    {
+      "at": "2026-10-25T21:31:00.891938+08:00",
+      "kind": "sampled_watch_FP_fall",
+      "from_MiB": 11.76617431640625,
+      "to_MiB": 9.31304931640625,
+      "causal_allocation_explanation": "UNKNOWN"
+    },
+    {
+      "at": "2026-10-25T21:34:00.894447+08:00",
+      "kind": "sampled_watch_FP_fall",
+      "from_MiB": 9.31304931640625,
+      "to_MiB": 7.93804931640625,
+      "causal_allocation_explanation": "UNKNOWN"
+    },
+    {
+      "at": "2026-10-25T23:42:01.166479+08:00",
+      "kind": "role_identity_unverified",
+      "detail": {
+        "sequence": 527,
+        "utc": "2026-10-25T15:42:01.166479+00:00",
+        "roles": {
+          "gui": "missing",
+          "serve": "unknown",
+          "watch": "missing"
+        },
+        "interval_barriers": []
+      }
+    },
+    {
+      "at": "2026-10-25T23:43:01.093719+08:00",
+      "kind": "role_identity_unverified",
+      "detail": {
+        "sequence": 528,
+        "utc": "2026-10-25T15:43:01.093719+00:00",
+        "roles": {
+          "gui": "missing",
+          "serve": "missing",
+          "watch": "missing"
+        },
+        "interval_barriers": [
+          "power_transition"
+        ]
+      }
+    },
+    {
+      "at": "2026-10-25T23:43:16.172698+08:00",
+      "kind": "collector_requested_signal_stop",
+      "detail": {
+        "at_utc": "2026-10-25T15:43:16.172698+00:00",
+        "reason": "requested_signal_stop",
+        "exit_code": 0,
+        "sequence": 528
+      }
+    },
+    {
+      "at": "2026-10-25T23:50:16+08:00",
+      "kind": "subsequent_system_boot_outside_original_window_coverage",
+      "signal_sender_or_upgrade_not_proven": true
+    },
+    {
+      "at": "2026-10-26T14:56:01.038606+08:00",
+      "kind": "original_nominal_deadline",
+      "window_finished_remains_false": true
+    }
+  ],
+  "complete_for_saved_evidence_not_all_OS_events": true
+}

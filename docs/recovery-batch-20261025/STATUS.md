@@ -1,6 +1,6 @@
 # MacEvery 恢复批处理与有界日志追赶
 
-2026-10-25，r3，ISOLATED_FUNCTIONAL_CPU_GATES_PASS_MEMORY_TRADEOFF_PENDING_CHOICE。
+2026-10-26，r4，HISTORICAL_CANDIDATE_PRESERVED_DUPLICATE_WORK_COPY_RETENTION_EXPIRED。
 
 项目：MacEvery；lane code / benchmark / report；本机隔离开发。基线源码6d9873c（业务源码b027），当前App0.1.3-gb027a42保持不变，私有根`.build/recovery-batch-20261025`。原窗口已封存，数据、异常、冻结App/source和所有真实索引回滚保留；不启动/补足/拼接任何观察，不改真实库或请求App。
 
@@ -21,3 +21,6 @@
 用户2026-10-25回忆：凌晨退出“应该是系统升级/重启自动退出的”。作为用户提供的原因候选，非已验证重启；封存中collector同boot/同PID连续，不能据此确认整机重启。原UNKNOWN证据不回写，本轮不新增崩溃修复范围。
 
 2026-10-25后续选择：用户明确只采用扫描/根批次优化，catch-up暂不进入App。完整本阶段候选1b21ef4及原始资源取舍保持；交付已由[scanner-only-20261025](../scanner-only-20261025/STATUS.md)接续。当前运行App以新任务状态为准，不再停留于本文件历史待选择状态。
+
+
+2026-10-26保留策略补记：按用户最新“过期文件清理”授权，只删除与所在母本实际SHA完全相同、无打开FD的重复catch-up工作主库；母本、每run WAL/SHM/copy回执/测量和全部失败/异常保持，native-attempt1/2与所有真实回滚/冻结App/source不动。精确范围及新tombstone见[清理报告](../build-cleanup-20261026/REPORT.md)。原preservation.json和SHA256.local.json不回写，仍是历史保留回执；部分旧工作副本路径现由本次保留期届满回执解释，不能再称全部原路径仍存在。旧编译缓存仅清理明确叶目录，release和冻结binary保留。当前e687观察已提前信号退出，原定14:56仅封存部分覆盖，不补采不拼接，是否新开一轮由用户汇总后决定。

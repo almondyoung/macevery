@@ -1,0 +1,526 @@
+{
+  "schema": 1,
+  "status": "SEALED_PARTIAL_INTERRUPTED_NOT_24H_COMPLETE",
+  "source_commit": "e6878efa2515e00ff35192eb29f4c6eb73a37b4b",
+  "build_label": "0.1.3-ge6878ef",
+  "window_start_utc": "2026-10-25T06:56:01.038606+00:00",
+  "original_deadline_utc": "2026-10-26T06:56:01.038606+00:00",
+  "window_finished": false,
+  "last_exit": {
+    "at_utc": "2026-10-25T15:43:16.172698+00:00",
+    "reason": "requested_signal_stop",
+    "exit_code": 0,
+    "sequence": 528
+  },
+  "coverage": {
+    "nominal_window_seconds": 86400,
+    "recorded_endpoints": 528,
+    "recorded_wall_span_from_start_seconds": 31620.055113,
+    "CPU_valid_seconds_each_role": 31499.965993999995,
+    "CPU_valid_percent_of_nominal_window": 36.45829397453703,
+    "CPU_uncovered_seconds_against_nominal_window": 54900.034006,
+    "first_endpoint_no_preceding_CPU_seconds": 0.05692025,
+    "barriers": {
+      "initial_endpoint": 1,
+      "power_transition": 1
+    },
+    "capture_barrier_endpoint_count": 0,
+    "unverified_role_endpoints": [
+      {
+        "sequence": 527,
+        "utc": "2026-10-25T15:42:01.166479+00:00",
+        "roles": {
+          "gui": "missing",
+          "serve": "unknown",
+          "watch": "missing"
+        },
+        "interval_barriers": []
+      },
+      {
+        "sequence": 528,
+        "utc": "2026-10-25T15:43:01.093719+00:00",
+        "roles": {
+          "gui": "missing",
+          "serve": "missing",
+          "watch": "missing"
+        },
+        "interval_barriers": [
+          "power_transition"
+        ]
+      }
+    ],
+    "last_record_to_nominal_deadline_seconds": 54779.944887,
+    "boundary": "Wall, continuous and measured awake CPU use distinct clocks. No extension or gap filling; no observation after original worker exit or across the subsequent reboot. Missing processes do not mean memory released; microsecond clock differences below tolerance do not prove actual sleep."
+  },
+  "roles": {
+    "gui": {
+      "identity_key": "87acbcdcd81519af81a6118de49fb85ce74df414937ee4a56fcd537004b7347d",
+      "boot_segment": "original-boot-1",
+      "pid": 98862,
+      "binary_basename": "MacEveryApp",
+      "known_endpoints": 526,
+      "unverified_endpoints": 2,
+      "first_known_utc": "2026-10-25T06:56:01.095513+00:00",
+      "last_known_utc": "2026-10-25T15:41:01.131370+00:00",
+      "CPU_valid_intervals": 525,
+      "CPU_valid_awake_seconds": 31499.965993999995,
+      "CPU_seconds": 8.449865625000003,
+      "RSS_first_peak_last_MiB": [
+        118.78125,
+        118.890625,
+        115.390625
+      ],
+      "FP_first_peak_last_MiB": [
+        39.39165496826172,
+        39.51665496826172,
+        39.469757080078125
+      ],
+      "tail_60_observed_endpoints": {
+        "requested_endpoints": 60,
+        "actual_endpoints": 60,
+        "memory": {
+          "endpoints": 60,
+          "first_sequence": 467,
+          "last_sequence": 526,
+          "first_elapsed_seconds": 27960.033070875,
+          "last_elapsed_seconds": 31500.022916375,
+          "observed_endpoint_span_seconds": 3539.9898455000002,
+          "context_unverified_endpoints": 0,
+          "rss_bytes": {
+            "n": 60,
+            "median": 121028608.0,
+            "p95": 121028608,
+            "max": 121044992,
+            "end": 120995840,
+            "slopes": {
+              "status": "measured_observed_endpoints",
+              "ols_mib_per_hour": -0.0027872251300962592,
+              "theil_sen_mib_per_hour": 0.0,
+              "theil_sen_pairs": 1770
+            }
+          },
+          "footprint_bytes": {
+            "n": 60,
+            "median": 41403424.0,
+            "p95": 41403424,
+            "max": 41419808,
+            "end": 41387040,
+            "slopes": {
+              "status": "measured_observed_endpoints",
+              "ols_mib_per_hour": -0.0012503444307696468,
+              "theil_sen_mib_per_hour": 0.0,
+              "theil_sen_pairs": 1770
+            }
+          }
+        },
+        "cpu": {
+          "interval_parts": 59,
+          "distinct_intervals": 59,
+          "valid_awake_seconds": 3539.9898537920003,
+          "cpu_seconds": 0.16719025,
+          "weighted_average_percent_one_core": 0.004722901954673897,
+          "interval_percent_one_core": {
+            "n": 59,
+            "median": 0.0,
+            "p95": 0.0325161018524071,
+            "max": 0.06345895862916924,
+            "end": 0.0015277942813759298
+          },
+          "awake_weighted_median_percent": 0.0,
+          "awake_weighted_p95_percent": 0.0325161018524071,
+          "split_boundary_parts": 0
+        },
+        "tail_memory_is_current_endpoint": false,
+        "incident_sequences": [],
+        "continuous_coverage_not_claimed": true
+      },
+      "tail_is_historical_not_current": true
+    },
+    "serve": {
+      "identity_key": "c63d47caa585223f1bc3a89a53041fb70d1ac65a4b5493668b05d0b900c6f9fe",
+      "boot_segment": "original-boot-1",
+      "pid": 98877,
+      "binary_basename": "macevery",
+      "known_endpoints": 526,
+      "unverified_endpoints": 2,
+      "first_known_utc": "2026-10-25T06:56:01.095513+00:00",
+      "last_known_utc": "2026-10-25T15:41:01.131370+00:00",
+      "CPU_valid_intervals": 525,
+      "CPU_valid_awake_seconds": 31499.965993999995,
+      "CPU_seconds": 0.5583475830000005,
+      "RSS_first_peak_last_MiB": [
+        1592.453125,
+        1592.5625,
+        1592.515625
+      ],
+      "FP_first_peak_last_MiB": [
+        1347.3298873901367,
+        1347.3923873901367,
+        1347.3923873901367
+      ],
+      "tail_60_observed_endpoints": {
+        "requested_endpoints": 60,
+        "actual_endpoints": 60,
+        "memory": {
+          "endpoints": 60,
+          "first_sequence": 467,
+          "last_sequence": 526,
+          "first_elapsed_seconds": 27960.033070875,
+          "last_elapsed_seconds": 31500.022916375,
+          "observed_endpoint_span_seconds": 3539.9898455000002,
+          "context_unverified_endpoints": 0,
+          "rss_bytes": {
+            "n": 60,
+            "median": 1669890048.0,
+            "p95": 1669890048,
+            "max": 1669890048,
+            "end": 1669873664,
+            "slopes": {
+              "status": "measured_observed_endpoints",
+              "ols_mib_per_hour": -0.0015368806993266125,
+              "theil_sen_mib_per_hour": 0.0,
+              "theil_sen_pairs": 1770
+            }
+          },
+          "footprint_bytes": {
+            "n": 60,
+            "median": 1412843320.0,
+            "p95": 1412843320,
+            "max": 1412843320,
+            "end": 1412843320,
+            "slopes": {
+              "status": "measured_observed_endpoints",
+              "ols_mib_per_hour": 0.0,
+              "theil_sen_mib_per_hour": 0.0,
+              "theil_sen_pairs": 1770
+            }
+          }
+        },
+        "cpu": {
+          "interval_parts": 59,
+          "distinct_intervals": 59,
+          "valid_awake_seconds": 3539.9898537920003,
+          "cpu_seconds": 0.06598025,
+          "weighted_average_percent_one_core": 0.0018638542121617281,
+          "interval_percent_one_core": {
+            "n": 59,
+            "median": 0.0018676421474885096,
+            "p95": 0.0020087463650632076,
+            "max": 0.0021516458753520354,
+            "end": 0.0018870140736563768
+          },
+          "awake_weighted_median_percent": 0.0018676421474885096,
+          "awake_weighted_p95_percent": 0.0020087463650632076,
+          "split_boundary_parts": 0
+        },
+        "tail_memory_is_current_endpoint": false,
+        "incident_sequences": [],
+        "continuous_coverage_not_claimed": true
+      },
+      "tail_is_historical_not_current": true
+    },
+    "watch": {
+      "identity_key": "2e19704303846f7e5f07d1f32c937d02c3c51d2365a77567e6cc6dfcca41d28d",
+      "boot_segment": "original-boot-1",
+      "pid": 98878,
+      "binary_basename": "macevery",
+      "known_endpoints": 526,
+      "unverified_endpoints": 2,
+      "first_known_utc": "2026-10-25T06:56:01.095513+00:00",
+      "last_known_utc": "2026-10-25T15:41:01.131370+00:00",
+      "CPU_valid_intervals": 525,
+      "CPU_valid_awake_seconds": 31499.965993999995,
+      "CPU_seconds": 94.66727633299998,
+      "RSS_first_peak_last_MiB": [
+        24.40625,
+        26.109375,
+        26.078125
+      ],
+      "FP_first_peak_last_MiB": [
+        11.250503540039062,
+        21.07867431640625,
+        7.96929931640625
+      ],
+      "tail_60_observed_endpoints": {
+        "requested_endpoints": 60,
+        "actual_endpoints": 60,
+        "memory": {
+          "endpoints": 60,
+          "first_sequence": 467,
+          "last_sequence": 526,
+          "first_elapsed_seconds": 27960.033070875,
+          "last_elapsed_seconds": 31500.022916375,
+          "observed_endpoint_span_seconds": 3539.9898455000002,
+          "context_unverified_endpoints": 0,
+          "rss_bytes": {
+            "n": 60,
+            "median": 27377664.0,
+            "p95": 27377664,
+            "max": 27377664,
+            "end": 27344896,
+            "slopes": {
+              "status": "measured_observed_endpoints",
+              "ols_mib_per_hour": -0.0030737613986532245,
+              "theil_sen_mib_per_hour": 0.0,
+              "theil_sen_pairs": 1770
+            }
+          },
+          "footprint_bytes": {
+            "n": 60,
+            "median": 8356416.0,
+            "p95": 8356416,
+            "max": 8356416,
+            "end": 8356416,
+            "slopes": {
+              "status": "measured_observed_endpoints",
+              "ols_mib_per_hour": 0.0,
+              "theil_sen_mib_per_hour": 0.0,
+              "theil_sen_pairs": 1770
+            }
+          }
+        },
+        "cpu": {
+          "interval_parts": 59,
+          "distinct_intervals": 59,
+          "valid_awake_seconds": 3539.9898537920003,
+          "cpu_seconds": 0.10823983400000001,
+          "weighted_average_percent_one_core": 0.003057631193040133,
+          "interval_percent_one_core": {
+            "n": 59,
+            "median": 0.001935230246029492,
+            "p95": 0.013871520779180297,
+            "max": 0.02247470355815164,
+            "end": 0.0018024882396565768
+          },
+          "awake_weighted_median_percent": 0.001935230246029492,
+          "awake_weighted_p95_percent": 0.013871520779180297,
+          "split_boundary_parts": 0
+        },
+        "tail_memory_is_current_endpoint": false,
+        "incident_sequences": [],
+        "continuous_coverage_not_claimed": true
+      },
+      "tail_is_historical_not_current": true
+    }
+  },
+  "watch_all_process_measured_high_CPU_candidates": [
+    {
+      "sequence": 356,
+      "from_sequence": 355,
+      "at_utc": "2026-10-25T12:51:00.914272+00:00",
+      "identity_key": "2e19704303846f7e5f07d1f32c937d02c3c51d2365a77567e6cc6dfcca41d28d",
+      "average_cpu_percent_one_core": 63.84203456381694,
+      "cpu_seconds": 38.305839208,
+      "awake_seconds": 60.00096875,
+      "strict_eligible": true,
+      "strict_exclusion_reasons": [],
+      "process_measured_eligible": true,
+      "source_status": "match",
+      "database_pin_status": "match"
+    },
+    {
+      "sequence": 357,
+      "from_sequence": 356,
+      "at_utc": "2026-10-25T12:52:00.911751+00:00",
+      "identity_key": "2e19704303846f7e5f07d1f32c937d02c3c51d2365a77567e6cc6dfcca41d28d",
+      "average_cpu_percent_one_core": 62.44462285233091,
+      "cpu_seconds": 37.465449625,
+      "awake_seconds": 59.997879583,
+      "strict_eligible": true,
+      "strict_exclusion_reasons": [],
+      "process_measured_eligible": true,
+      "source_status": "match",
+      "database_pin_status": "match"
+    }
+  ],
+  "watch_strict_high_CPU_intervals": [
+    {
+      "identity_key": "2e19704303846f7e5f07d1f32c937d02c3c51d2365a77567e6cc6dfcca41d28d",
+      "sequence": 356,
+      "from_sequence": 355,
+      "start_elapsed_seconds": 21240.02425425,
+      "end_elapsed_seconds": 21300.025222917,
+      "start_utc": "2026-10-25T12:50:00.913691+00:00",
+      "end_utc": "2026-10-25T12:51:00.914272+00:00",
+      "cpu_seconds": 38.305839208,
+      "awake_seconds": 60.00096875,
+      "percent": 63.84203456381694,
+      "revision_delta": 0,
+      "last_indexed_at_before": "1792775290",
+      "last_indexed_at_after": "1792775290"
+    },
+    {
+      "identity_key": "2e19704303846f7e5f07d1f32c937d02c3c51d2365a77567e6cc6dfcca41d28d",
+      "sequence": 357,
+      "from_sequence": 356,
+      "start_elapsed_seconds": 21300.025222917,
+      "end_elapsed_seconds": 21360.023103584,
+      "start_utc": "2026-10-25T12:51:00.914272+00:00",
+      "end_utc": "2026-10-25T12:52:00.911751+00:00",
+      "cpu_seconds": 37.465449625,
+      "awake_seconds": 59.997879583,
+      "percent": 62.44462285233091,
+      "revision_delta": 0,
+      "last_indexed_at_before": "1792775290",
+      "last_indexed_at_after": "1792775290"
+    }
+  ],
+  "watch_excluded_high_CPU_candidates": [],
+  "watch_high_CPU_segments": [
+    {
+      "identity_key": "2e19704303846f7e5f07d1f32c937d02c3c51d2365a77567e6cc6dfcca41d28d",
+      "start_sequence": 355,
+      "start_utc": "2026-10-25T12:50:00.913691+00:00",
+      "intervals": [
+        {
+          "identity_key": "2e19704303846f7e5f07d1f32c937d02c3c51d2365a77567e6cc6dfcca41d28d",
+          "sequence": 356,
+          "from_sequence": 355,
+          "start_elapsed_seconds": 21240.02425425,
+          "end_elapsed_seconds": 21300.025222917,
+          "start_utc": "2026-10-25T12:50:00.913691+00:00",
+          "end_utc": "2026-10-25T12:51:00.914272+00:00",
+          "cpu_seconds": 38.305839208,
+          "awake_seconds": 60.00096875,
+          "percent": 63.84203456381694,
+          "revision_delta": 0,
+          "last_indexed_at_before": "1792775290",
+          "last_indexed_at_after": "1792775290"
+        },
+        {
+          "identity_key": "2e19704303846f7e5f07d1f32c937d02c3c51d2365a77567e6cc6dfcca41d28d",
+          "sequence": 357,
+          "from_sequence": 356,
+          "start_elapsed_seconds": 21300.025222917,
+          "end_elapsed_seconds": 21360.023103584,
+          "start_utc": "2026-10-25T12:51:00.914272+00:00",
+          "end_utc": "2026-10-25T12:52:00.911751+00:00",
+          "cpu_seconds": 37.465449625,
+          "awake_seconds": 59.997879583,
+          "percent": 62.44462285233091,
+          "revision_delta": 0,
+          "last_indexed_at_before": "1792775290",
+          "last_indexed_at_after": "1792775290"
+        }
+      ],
+      "cpu_seconds": 75.771288833,
+      "valid_awake_seconds": 119.998848333,
+      "peak_percent_one_core": 63.84203456381694,
+      "end_sequence": 357,
+      "end_utc": "2026-10-25T12:52:00.911751+00:00"
+    }
+  ],
+  "UserDropped_visible_recovery": {
+    "visible_root_recovery_batches": 1,
+    "scan_start_local": "2026-10-25T20:49:44.959000+08:00",
+    "scan_complete_local": "2026-10-25T20:52:23.650000+08:00",
+    "checkpoint_complete_local": "2026-10-25T20:52:23.653000+08:00",
+    "recovery_event": {
+      "flags": 3,
+      "id": 859027178,
+      "path_hash": "799fa5af5ff2c0be"
+    },
+    "admitted_raw": {
+      "must_scan": 8,
+      "user_dropped": 8,
+      "kernel_dropped": 0,
+      "ids_wrapped": 0,
+      "root_changed": 0,
+      "first_id": 859027178,
+      "last_id": 859034808
+    },
+    "callback_signals": {
+      "must_scan": 8,
+      "user_dropped": 8,
+      "kernel_dropped": 0,
+      "ids_wrapped": 0,
+      "root_changed": 0,
+      "first_id": 859027178,
+      "last_id": 859034808
+    },
+    "raw_flag_counts_not_independent_OS_drop_or_lost_file_count": true,
+    "scan_elapsed_ms": 158691,
+    "indexed": 7388826,
+    "rows_written": 383,
+    "unchanged": 7388443,
+    "stale_removed": 0,
+    "legacy_fallback": false,
+    "warnings": 0,
+    "own_inbox_or_worker_overflow": false,
+    "retry_or_failure_visible": false,
+    "upstream_OS_drop_cause": "UNKNOWN; no injection or unique attribution"
+  },
+  "merged_saved_log_summary": {
+    "status": "PARTIAL_SAVED_LOGS_ORIGINAL_IDENTITY_AND_WINDOW_FILTERED",
+    "excluded_rows": {
+      "outside_original_window_or_committed_cutoff": 3314,
+      "duplicate_saved_row": 2956
+    },
+    "watch": {
+      "verified_unique_rows": 1795,
+      "session": "fee05a8c06ca0912",
+      "root_rows_by_kind": {
+        "scan_start": 1,
+        "scan_complete": 1
+      },
+      "visible_root_recovery_starts": 1,
+      "callback_first": {
+        "must_scan": 0,
+        "user_dropped": 0,
+        "kernel_dropped": 0,
+        "ids_wrapped": 0,
+        "root_changed": 0,
+        "first_id": null,
+        "last_id": null
+      },
+      "callback_last": {
+        "must_scan": 8,
+        "user_dropped": 8,
+        "kernel_dropped": 0,
+        "ids_wrapped": 0,
+        "root_changed": 0,
+        "first_id": 859027178,
+        "last_id": 859034808
+      },
+      "callback_counts_not_independent_OS_drop_count": true,
+      "per_row_cookie_UUID_absent_bracketing_native_identity_association_only": true
+    },
+    "serve": {
+      "verified_unique_rows": 526,
+      "same_native_identity_session": true,
+      "first_counters": {
+        "load_attempts": 2,
+        "successful_loads": 2,
+        "incremental_attempts": 6,
+        "incremental_applies": 5,
+        "http_completed": 29,
+        "searches_started": 6,
+        "searches_completed": 6
+      },
+      "last_counters": {
+        "load_attempts": 2,
+        "successful_loads": 2,
+        "incremental_attempts": 6,
+        "incremental_applies": 5,
+        "http_completed": 29,
+        "searches_started": 6,
+        "searches_completed": 6
+      },
+      "phases": {
+        "idle": 526
+      },
+      "last_at_ms": 1792942865928,
+      "last_snapshot_at_ms": 1792910743178,
+      "visible_completed_full_operations_by_reason": {},
+      "snapshot_reconcile_completed_operation_keys": 0
+    },
+    "boundary": "Bounded logs are rate/event sampled and can rotate or be lost; a missing row is not a zero event. Interruption snapshots may contain later-boot rows, excluded from this analysis. Idle cached phase/method is not a new refresh. No new search means no validation of the next post-recovery search path."
+  },
+  "boundaries": [
+    "Historical tail60 spans about59minutes and ends at last verified original identity, not the current endpoint or later boot.",
+    "Minute CPU averages can miss shorter peaks. Bounded saved logs are not a complete trigger or allocation audit.",
+    "No new search observed; absence of full_after does not prove the next search cannot reload.",
+    "No sleep/gap seen within valid recorded intervals does not describe the uncovered period.",
+    "This ordinary window is not a controlled optimization AB and does not prove absence of leaks."
+  ]
+}

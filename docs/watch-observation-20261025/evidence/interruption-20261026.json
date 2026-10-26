@@ -1,0 +1,44 @@
+{
+  "schema": 1,
+  "recorded_at_utc": "2026-10-26T02:19:53.694259+00:00",
+  "status": "INTERRUPTED_SIGNAL_STOP_NOT_WINDOW_ELAPSED_PENDING_DEADLINE_SEAL",
+  "source_commit": "e6878efa2515e00ff35192eb29f4c6eb73a37b4b",
+  "window_start_utc": "2026-10-25T06:56:01.038606+00:00",
+  "original_deadline_utc": "2026-10-26T06:56:01.038606+00:00",
+  "window_finished": false,
+  "last_exit": {
+    "at_utc": "2026-10-25T15:43:16.172698+00:00",
+    "reason": "requested_signal_stop",
+    "exit_code": 0,
+    "sequence": 528
+  },
+  "actual_original_worker_absent": true,
+  "writer_lock_free": true,
+  "collector_inventory_empty": true,
+  "current_boot_changed_since_launch": true,
+  "current_boot_time_utc": "2026-10-25T15:50:16+00:00",
+  "committed_endpoints": 528,
+  "last_known_roles_endpoint": {
+    "sequence": 526,
+    "utc": "2026-10-25T15:41:01.131370+00:00"
+  },
+  "last_recorded_endpoint_utc": "2026-10-25T15:43:01.093719+00:00",
+  "known_endpoints_each_role": 526,
+  "unverified_endpoints_each_role": 2,
+  "valid_CPU_awake_seconds_each_role": {
+    "gui": 31499.965993999995,
+    "serve": 31499.965993999995,
+    "watch": 31499.965993999995
+  },
+  "uncovered_seconds_from_last_record_to_original_deadline": 54779.944887,
+  "journal_sha256": "65046c6d851e92c06aa60cee12fe01716f5d38aa110fff199539c934fbd95b99",
+  "private_receipt_relative_path": "interruption-20261026/receipt.local.json",
+  "private_receipt_sha256": "7582f66f2551ece65bc902e412454bbb3e12f435acd81b9a924abf903bfec255",
+  "known_recurrence_preserved": "One 20:49:44 UserDropped recovery and two >=50% CPU intervals remain independently preserved in incident-20261025-204944.json. The frozen analyzer does not ingest its extra directory.",
+  "cause_boundary": [
+    "Exact signal sender is not captured.",
+    "The subsequent boot change does not alone prove OS upgrade or the precise cause of the role exits."
+  ],
+  "no_restart_resume_fill_or_window_join": true,
+  "sealing": "Pending original nominal deadline, partial interrupted window only."
+}

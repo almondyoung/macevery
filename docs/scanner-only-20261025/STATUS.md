@@ -1,6 +1,6 @@
 # MacEvery 扫描优化交付与独立观察准备
 
-2026-10-25，r4，DELIVERED_INDEPENDENT_OBSERVATION_RUNNING。
+2026-10-26，r5，DELIVERED_OBSERVATION_INTERRUPTED_CLEANUP_AUDITED。
 
 用户明确选择只采用scanner/精确seen与固定根批次优化；catch-up暂不进入App，完整候选1b21ef4、隔离原始和内存取舍保留于recovery-batch-20261025。src/server.rs及journal读取恢复b027基线路径。当前App已固定0.1.3-ge6878ef；旧窗口、异常、冻结版和所有真实回滚不改不拼。
 
@@ -13,3 +13,6 @@
 原生与安装已完成：固定App0.1.3-ge6878ef/source e6878efa2515e00ff35192eb29f4c6eb73a37b4b；源码已推送精确SHA回读；新真实索引回滚闭合quick_check ok，旧App原inode保留，真实库未adopt。两次原生更新均1/1/1/0。验收/tmp不收敛和Quit后UI自动重开连接真实库的事件已在REPORT r3/installation证据保留，净变更范围未知，不得宣称真实库全程零变化。新观察开始前收完全部调查/采样与原始，随后只用唯一冻结采样器。
 
 新的独立观察已于2026-10-25 14:56:01.038606开始，至2026-10-26 14:56:01.038606（Asia/Shanghai）自然到期，按[观察STATUS](../watch-observation-20261025/STATUS.md)接续。固定e687，不随docs HEAD重建；本轮CPU/内存调查和验收数据不拼入新窗，正常无变化安静，到期统一汇总。
+
+
+2026-10-26保留策略补记：按用户最新“过期文件清理”授权，只删除与所在母本实际SHA完全相同、无打开FD的重复catch-up工作主库；母本、每run WAL/SHM/copy回执/测量和全部失败/异常保持，native-attempt1/2与所有真实回滚/冻结App/source不动。精确范围及新tombstone见[清理报告](../build-cleanup-20261026/REPORT.md)。原preservation.json和SHA256.local.json不回写，仍是历史保留回执；部分旧工作副本路径现由本次保留期届满回执解释，不能再称全部原路径仍存在。旧编译缓存仅清理明确叶目录，release和冻结binary保留。当前e687观察已提前信号退出，原定14:56仅封存部分覆盖，不补采不拼接，是否新开一轮由用户汇总后决定。

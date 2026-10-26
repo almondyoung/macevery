@@ -1,0 +1,108 @@
+{
+  "schema": 1,
+  "recorded_at_utc": "2026-10-26T02:46:43.204808+00:00",
+  "status": "EXACT_ALLOWLIST_CLEANUP_COMPLETED_RETAINED_CONTENT_VERIFIED",
+  "authorization": "2026-10-26 user requested expired .build cleanup while preserving observation data, anomalies, frozen Apps/source and true rollback material.",
+  "private_audit_root": "cleanup-20261026",
+  "private_preflight_sha256": "8a0f88791973ff364e61cc5a23e90d0afe1e654fff37fbbdf408774d4864ff60",
+  "private_completed_receipt_sha256": "d0623b6a90957fd981cb7a2ff3d31eb6f7d06e4e9abd79e4e27e278940cf8022",
+  "private_hardlink_accounting_sha256": "698b1b6a8a44976624ab43305ea43a422de326d940fb8236cb36f909e95b812c",
+  "duplicate_work_DBs_removed": [
+    {
+      "path": "recovery-batch-20261025/isolated-raw/validation/catchup-aba/b0-0-baseline/index.sqlite",
+      "bytes": 5117849600,
+      "sha256": "24f6965b216af024a2f95383601e9c1ed725ca6243bf8aeffb19bfc5b41183f8",
+      "retained_canonical_mother": "recovery-batch-20261025/isolated-raw/validation/catchup-aba/mother.sqlite"
+    },
+    {
+      "path": "recovery-batch-20261025/isolated-raw/validation/catchup-aba/b0-1-candidate/index.sqlite",
+      "bytes": 5117849600,
+      "sha256": "24f6965b216af024a2f95383601e9c1ed725ca6243bf8aeffb19bfc5b41183f8",
+      "retained_canonical_mother": "recovery-batch-20261025/isolated-raw/validation/catchup-aba/mother.sqlite"
+    },
+    {
+      "path": "recovery-batch-20261025/isolated-raw/validation/catchup-aba/b0-2-baseline/index.sqlite",
+      "bytes": 5117849600,
+      "sha256": "24f6965b216af024a2f95383601e9c1ed725ca6243bf8aeffb19bfc5b41183f8",
+      "retained_canonical_mother": "recovery-batch-20261025/isolated-raw/validation/catchup-aba/mother.sqlite"
+    },
+    {
+      "path": "recovery-batch-20261025/isolated-raw/validation/catchup-aba/b1-0-baseline/index.sqlite",
+      "bytes": 5117849600,
+      "sha256": "24f6965b216af024a2f95383601e9c1ed725ca6243bf8aeffb19bfc5b41183f8",
+      "retained_canonical_mother": "recovery-batch-20261025/isolated-raw/validation/catchup-aba/mother.sqlite"
+    },
+    {
+      "path": "recovery-batch-20261025/isolated-raw/validation/catchup-aba/b1-1-candidate/index.sqlite",
+      "bytes": 5117849600,
+      "sha256": "24f6965b216af024a2f95383601e9c1ed725ca6243bf8aeffb19bfc5b41183f8",
+      "retained_canonical_mother": "recovery-batch-20261025/isolated-raw/validation/catchup-aba/mother.sqlite"
+    },
+    {
+      "path": "recovery-batch-20261025/isolated-raw/validation/catchup-aba/b1-2-baseline/index.sqlite",
+      "bytes": 5117849600,
+      "sha256": "24f6965b216af024a2f95383601e9c1ed725ca6243bf8aeffb19bfc5b41183f8",
+      "retained_canonical_mother": "recovery-batch-20261025/isolated-raw/validation/catchup-aba/mother.sqlite"
+    },
+    {
+      "path": "scanner-only-20261025/isolated-raw/catchup-memory-tail/b0-0-baseline/index.sqlite",
+      "bytes": 5117849600,
+      "sha256": "24f6965b216af024a2f95383601e9c1ed725ca6243bf8aeffb19bfc5b41183f8",
+      "retained_canonical_mother": "scanner-only-20261025/isolated-raw/catchup-memory-tail/mother.sqlite"
+    },
+    {
+      "path": "scanner-only-20261025/isolated-raw/catchup-memory-tail/b0-1-candidate/index.sqlite",
+      "bytes": 5117849600,
+      "sha256": "24f6965b216af024a2f95383601e9c1ed725ca6243bf8aeffb19bfc5b41183f8",
+      "retained_canonical_mother": "scanner-only-20261025/isolated-raw/catchup-memory-tail/mother.sqlite"
+    },
+    {
+      "path": "scanner-only-20261025/isolated-raw/catchup-memory-tail/b0-2-baseline/index.sqlite",
+      "bytes": 5117849600,
+      "sha256": "24f6965b216af024a2f95383601e9c1ed725ca6243bf8aeffb19bfc5b41183f8",
+      "retained_canonical_mother": "scanner-only-20261025/isolated-raw/catchup-memory-tail/mother.sqlite"
+    }
+  ],
+  "rebuildable_cache_directories_removed": [
+    "macevery-swift-module-cache",
+    "gui-tests/module-cache",
+    "watch-recovery-20261020/gui-tests/module-cache",
+    "performance-round1-20261017/gui-validation/swift-module-cache",
+    "performance-round5-20261019/candidate-target/debug/incremental",
+    "performance-round6-20261019/candidate-target/debug/incremental",
+    "performance-round7-20261019/candidate-target/debug/incremental",
+    "watch-recovery-20261020/candidate-target/debug/incremental",
+    "topk-consistency-20261019/candidate-target/debug/incremental",
+    "recovery-refresh-20261023/candidate/target/debug/incremental"
+  ],
+  "canonical_mothers_retained": [
+    {
+      "path": "recovery-batch-20261025/isolated-raw/validation/catchup-aba/mother.sqlite",
+      "bytes": 5117849600,
+      "sha256": "24f6965b216af024a2f95383601e9c1ed725ca6243bf8aeffb19bfc5b41183f8"
+    },
+    {
+      "path": "scanner-only-20261025/isolated-raw/catchup-memory-tail/mother.sqlite",
+      "bytes": 5117849600,
+      "sha256": "24f6965b216af024a2f95383601e9c1ed725ca6243bf8aeffb19bfc5b41183f8"
+    }
+  ],
+  "all_run_WAL_SHM_copy_receipts_logs_results_requests_samples_preserved": true,
+  "all_true_rollbacks_freezes_observations_and_failures_preserved": true,
+  "native_failed_attempt_DBs_preserved": true,
+  "protected_files_verified": 43396,
+  "protected_verification": "SHA256 for all retained files below64MiB; exact device/inode/size/mtime/mode/owner for retained large DBs; canonical mother DB SHA fully reverified; only nlink decrements exactly tied to removed cache links accepted.",
+  "historical_preservation_manifests_retained_byte_for_byte": true,
+  "initial_postcheck_failure_preserved": "verification-failure-001.local.json",
+  "retained_cache_hardlinks_exactly_accounted": 9327,
+  "build_du_before_KiB": 145313604,
+  "build_du_after_KiB": 98720440,
+  "directory_count_reduction_KiB": 46593164,
+  "volume_available_before_bytes": 786736222208,
+  "volume_available_after_bytes": 788369399808,
+  "observed_volume_free_delta_bytes": 1633177600,
+  "disk_accounting_boundary": "APFS clone extent sharing and retained hardlinks mean apparent/du reduction differs from reclaimed bytes. Volume free delta also includes concurrent machine writes and snapshots.",
+  "no_App_or_live_DB_request_restart_replace_rebuild_mutation": true,
+  "current_observation_final_seal_still_waits_original_deadline": "2026-10-26T14:56:01.038606+08:00",
+  "no_new_window_auto_start": true
+}

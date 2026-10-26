@@ -1,0 +1,217 @@
+{
+  "schema": 1,
+  "status": "CONFIRMED_USERDROPPED_ROOT_RECOVERY_AND_HIGH_CPU_RECURRENCE",
+  "as_of_local": "2026-10-25T20:56:00.904629+08:00",
+  "source_commit": "e6878efa2515e00ff35192eb29f4c6eb73a37b4b",
+  "scope": "Read-only committed samples and one extra bounded diagnostic snapshot; window unchanged, not final seal",
+  "committed_sequence": 361,
+  "committed_prefix_sha256": "788f1b29c8f8a39b891f11ae553afcc5eef6402ddbbc1a02ee7f891423f5d5cf",
+  "diagnostic_relative_root": "diagnostics-highcpu-20261025-2050",
+  "diagnostic_receipt_sha256": "c70675d144c5ed0b17fd01e5b5ea1cd6ee75bd28c17c052ca7dda9c49a40908e",
+  "diagnostic_files": [
+    {
+      "name": "macevery-watch-trigger.jsonl",
+      "bytes": 96654,
+      "sha256": "cae7be21ef243f557bea2c9a3a58d137514cbd38e1e290cba1b8f7e2dc976212",
+      "snapshot_bound_truncated": false,
+      "same_fd_size_mtime_during_read": true,
+      "same_path_inode_after_read": true,
+      "trailing_line_complete": true
+    },
+    {
+      "name": "macevery-watch-trigger.jsonl.1",
+      "bytes": 261942,
+      "sha256": "9425e294967c2fdb3c1a36eceaf40e5f6a5709e04732a847083f2b6494183656",
+      "snapshot_bound_truncated": false,
+      "same_fd_size_mtime_during_read": true,
+      "same_path_inode_after_read": true,
+      "trailing_line_complete": true
+    },
+    {
+      "name": "macevery-serve-memory.jsonl",
+      "bytes": 109896,
+      "sha256": "0a085985fa239a22698fd053d55518a10651b9dff18d781cdd2094d2761c774d",
+      "snapshot_bound_truncated": false,
+      "same_fd_size_mtime_during_read": true,
+      "same_path_inode_after_read": true,
+      "trailing_line_complete": true
+    },
+    {
+      "name": "macevery-serve-memory.jsonl.1",
+      "bytes": 522943,
+      "sha256": "a7c57c6af33380edd5bd92612ef644d38415fe5df641bcec16e3c46f116ec769",
+      "snapshot_bound_truncated": false,
+      "same_fd_size_mtime_during_read": true,
+      "same_path_inode_after_read": true,
+      "trailing_line_complete": true
+    }
+  ],
+  "watch_identity_key": "2e19704303846f7e5f07d1f32c937d02c3c51d2365a77567e6cc6dfcca41d28d",
+  "same_boot_PID_cookie_UUID_executable_verified": true,
+  "UserDropped": {
+    "visible_root_recovery_batches": 1,
+    "scan_start_local": "2026-10-25T20:49:44.959000+08:00",
+    "scan_complete_local": "2026-10-25T20:52:23.650000+08:00",
+    "checkpoint_complete_local": "2026-10-25T20:52:23.653000+08:00",
+    "recovery_event": {
+      "flags": 3,
+      "id": 859027178,
+      "path_hash": "799fa5af5ff2c0be"
+    },
+    "admitted_raw": {
+      "must_scan": 8,
+      "user_dropped": 8,
+      "kernel_dropped": 0,
+      "ids_wrapped": 0,
+      "root_changed": 0,
+      "first_id": 859027178,
+      "last_id": 859034808
+    },
+    "callback_signals": {
+      "must_scan": 8,
+      "user_dropped": 8,
+      "kernel_dropped": 0,
+      "ids_wrapped": 0,
+      "root_changed": 0,
+      "first_id": 859027178,
+      "last_id": 859034808
+    },
+    "raw_flag_counts_not_independent_OS_drop_or_lost_file_count": true,
+    "scan_elapsed_ms": 158691,
+    "indexed": 7388826,
+    "rows_written": 383,
+    "unchanged": 7388443,
+    "stale_removed": 0,
+    "legacy_fallback": false,
+    "warnings": 0,
+    "own_inbox_or_worker_overflow": false,
+    "retry_or_failure_visible": false,
+    "upstream_OS_drop_cause": "UNKNOWN; no injection or unique attribution"
+  },
+  "watch_CPU": {
+    "all_process_measured_candidates": [
+      {
+        "sequence": 356,
+        "from_sequence": 355,
+        "at_utc": "2026-10-25T12:51:00.914272+00:00",
+        "identity_key": "2e19704303846f7e5f07d1f32c937d02c3c51d2365a77567e6cc6dfcca41d28d",
+        "average_cpu_percent_one_core": 63.84203456381694,
+        "cpu_seconds": 38.305839208,
+        "awake_seconds": 60.00096875,
+        "strict_eligible": true,
+        "strict_exclusion_reasons": [],
+        "process_measured_eligible": true,
+        "source_status": "match",
+        "database_pin_status": "match"
+      },
+      {
+        "sequence": 357,
+        "from_sequence": 356,
+        "at_utc": "2026-10-25T12:52:00.911751+00:00",
+        "identity_key": "2e19704303846f7e5f07d1f32c937d02c3c51d2365a77567e6cc6dfcca41d28d",
+        "average_cpu_percent_one_core": 62.44462285233091,
+        "cpu_seconds": 37.465449625,
+        "awake_seconds": 59.997879583,
+        "strict_eligible": true,
+        "strict_exclusion_reasons": [],
+        "process_measured_eligible": true,
+        "source_status": "match",
+        "database_pin_status": "match"
+      }
+    ],
+    "strict_intervals": [
+      {
+        "identity_key": "2e19704303846f7e5f07d1f32c937d02c3c51d2365a77567e6cc6dfcca41d28d",
+        "sequence": 356,
+        "from_sequence": 355,
+        "start_elapsed_seconds": 21240.02425425,
+        "end_elapsed_seconds": 21300.025222917,
+        "start_utc": "2026-10-25T12:50:00.913691+00:00",
+        "end_utc": "2026-10-25T12:51:00.914272+00:00",
+        "cpu_seconds": 38.305839208,
+        "awake_seconds": 60.00096875,
+        "percent": 63.84203456381694,
+        "revision_delta": 0,
+        "last_indexed_at_before": "1792775290",
+        "last_indexed_at_after": "1792775290"
+      },
+      {
+        "identity_key": "2e19704303846f7e5f07d1f32c937d02c3c51d2365a77567e6cc6dfcca41d28d",
+        "sequence": 357,
+        "from_sequence": 356,
+        "start_elapsed_seconds": 21300.025222917,
+        "end_elapsed_seconds": 21360.023103584,
+        "start_utc": "2026-10-25T12:51:00.914272+00:00",
+        "end_utc": "2026-10-25T12:52:00.911751+00:00",
+        "cpu_seconds": 37.465449625,
+        "awake_seconds": 59.997879583,
+        "percent": 62.44462285233091,
+        "revision_delta": 0,
+        "last_indexed_at_before": "1792775290",
+        "last_indexed_at_after": "1792775290"
+      }
+    ],
+    "strict_high_segment_count": 1,
+    "high_minutes": 2,
+    "peak_percent_one_core": 63.84203456381694,
+    "high_interval_CPU_seconds": 75.771288833,
+    "high_interval_awake_seconds": 119.998848333,
+    "last_minute_CPU_percent": 0.03383851294241229,
+    "high_interval_revision_delta": [
+      0,
+      0
+    ],
+    "high_interval_last_indexed_at": [
+      "1792775290",
+      "1792775290"
+    ],
+    "next_minute_revision_delta": 383
+  },
+  "footprint_MiB": {
+    "watch_before": 11.56304931640625,
+    "watch_sampled_peak": 21.07867431640625,
+    "watch_end": 11.75054931640625,
+    "watch_remaining_above_before": 0.1875,
+    "GUI_end": 39.485382080078125,
+    "serve_end": 1347.3923873901367,
+    "watch_endpoints_after_recovery": 4,
+    "interpretation": "GUI/serve remain on their prior observed plateau. Watch fell from peak but only a few post-recovery endpoints; no new long-term plateau or leak claim."
+  },
+  "serve": {
+    "visible_full_after_operations": 0,
+    "history_gap_visible_full_after": 0,
+    "event_limit_visible_full_after": 0,
+    "same_PID_cookie_UUID_session_counter_rows": 360,
+    "first_counters": {
+      "load_attempts": 2,
+      "successful_loads": 2,
+      "incremental_attempts": 6,
+      "incremental_applies": 5,
+      "http_completed": 29,
+      "searches_started": 6,
+      "searches_completed": 6
+    },
+    "last_counters": {
+      "load_attempts": 2,
+      "successful_loads": 2,
+      "incremental_attempts": 6,
+      "incremental_applies": 5,
+      "http_completed": 29,
+      "searches_started": 6,
+      "searches_completed": 6
+    },
+    "no_new_search_in_retained_counters": true,
+    "last_VM_local": "2026-10-25T20:55:04.627000+08:00",
+    "last_cached_index_snapshot_local": "2026-10-25T14:45:43.178000+08:00",
+    "cached_method_not_new_operation": true,
+    "boundary": "No new search observed; does not establish that the next search after recovery cannot reload."
+  },
+  "boundaries": [
+    "All two measured >=50percent candidates retained and strict eligible; no sleep/gap/clock/source/DB barrier.",
+    "Whole raw/admitted counts are not batch OR per-event flags, independent OS episode counts or lost file counts.",
+    "Bounded source logs may rotate/suppress/lose details; no path or upstream cause guessed.",
+    "Frozen latest-trends only reads hourly snapshots. This supplemental incident evidence must be combined separately at final closeout.",
+    "Observation still ends2026-10-26 14:56:01.038606 Asia/Shanghai; no restart, second collector or window extension."
+  ],
+  "private_analysis_sha256": "20c635a41a06a4c9b09a725228d3412d8c1c25eb49d1f53372ec47cff3b9a4d0"
+}

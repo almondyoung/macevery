@@ -1,0 +1,28 @@
+{
+  "schema": 1,
+  "sealed_at_utc": "2026-10-26T07:31:07.879881+00:00",
+  "status": "SEALED_PARTIAL_INTERRUPTED_NOT_24H_COMPLETE",
+  "nominal_deadline_utc": "2026-10-26T06:56:01.038606+00:00",
+  "originals_retained_in_place": true,
+  "archive_root_name": "sealed-partial-20261026",
+  "source_file_count": 129,
+  "archive_manifest_file_count": 152,
+  "archive_manifest_bytes": 27065590,
+  "archive_manifest_sha256": "99dab4aff7be77fe24dbe93f49ffa8325ea675c29e484960f37032030ba4114a",
+  "journal_sha256": "65046c6d851e92c06aa60cee12fe01716f5d38aa110fff199539c934fbd95b99",
+  "original_worker_gone_writer_lock_free": true,
+  "window_finished": false,
+  "last_exit": {
+    "at_utc": "2026-10-25T15:43:16.172698+00:00",
+    "reason": "requested_signal_stop",
+    "exit_code": 0,
+    "sequence": 528
+  },
+  "no_sampler_resume_fill_extend_join_restart_replace_cleanup_or_DB_request": true,
+  "current_App_payload_stays_frozen_source": "e6878efa2515e00ff35192eb29f4c6eb73a37b4b",
+  "private_receipt_sha256": "af13b801a5bf6a57c48e7984b0442b9424fa0c0f5a2e7af9bc52f7d28fdf62b6",
+  "readback_all_archived_files_verified": true,
+  "summary_sha256": "9fdf0d19aab26cd08130a3af1f4497f634c291c7c0bc5df5fef8afee6b19c84b",
+  "per_hour_sha256": "2bad7c592e2726205aa17047dd57b5c62f9d103e3775a6614fb3234c80e3addb",
+  "timeline_sha256": "4dd053bd03313b57d2ade4742222d356c2efcd43aab9d351ef0eb71d08902dc0"
+}

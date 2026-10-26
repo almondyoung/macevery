@@ -1,6 +1,6 @@
 # MacEvery 扫描优化交付
 
-2026-10-25，r3，拆分后的隔离及原生门禁通过，App-only已替换为0.1.3-ge6878ef，源码远端精确回读通过。用户选择scanner/精确seen与固定根批次；catch-up不进入App，完整候选1b21ef4和原始证据保留。src/server.rs逐字节等于b027业务基线，journal读取不含catch-up。
+2026-10-26，r4，拆分后的隔离及原生门禁通过，App-only已替换为0.1.3-ge6878ef，源码远端精确回读通过。用户选择scanner/精确seen与固定根批次；catch-up不进入App，完整候选1b21ef4和原始证据保留。src/server.rs逐字节等于b027业务基线，journal读取不含catch-up。
 
 212项Rust单元+8集成在debug/release均通过，Clippy/fmt与Swift回归通过。同一6003条小树两组A/B/A共18次，完整13字段/ID、未变行写0、stale删除、失败checkpoint、后边界义务通过。
 
@@ -23,3 +23,6 @@
 catch-up继续隔离调查：旧候选一组65秒尾A/B/A，同容量1538889152B，full两次reusable均237.703MiB、catch-up为0，compressed均0；65秒尾FP full中位1348.650MiB、catch-up1569.674MiB，差+221.023MiB。较高FP持续65秒，与full重建后的VM页面记账状态不同相符；不是新增218MiB分配或已证明泄漏，具体allocator/SQLite页归属仍未知。按实际身份/session/sequence、at_ms与缓存snapshot_at_ms区分，idle不重复算full。详见[evidence/catchup-memory.json](evidence/catchup-memory.json)。该代码没有进入扫描App，也不会在新窗内继续资源压测。
 
 旧观察、异常、冻结版/source、完整候选和所有真实回滚均保留；新独立24小时观察另立watch-observation-20261025，当前文档及验收/调查原始不拼入其journal。
+
+
+2026-10-26保留策略补记：按用户最新“过期文件清理”授权，只删除与所在母本实际SHA完全相同、无打开FD的重复catch-up工作主库；母本、每run WAL/SHM/copy回执/测量和全部失败/异常保持，native-attempt1/2与所有真实回滚/冻结App/source不动。精确范围及新tombstone见[清理报告](../build-cleanup-20261026/REPORT.md)。原preservation.json和SHA256.local.json不回写，仍是历史保留回执；部分旧工作副本路径现由本次保留期届满回执解释，不能再称全部原路径仍存在。旧编译缓存仅清理明确叶目录，release和冻结binary保留。当前e687观察已提前信号退出，原定14:56仅封存部分覆盖，不补采不拼接，是否新开一轮由用户汇总后决定。
