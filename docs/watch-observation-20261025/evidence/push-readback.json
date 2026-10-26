@@ -1,0 +1,14 @@
+{
+  "schema": 1,
+  "at_utc": "2026-10-26T07:41:37.633519+00:00",
+  "status": "OBSERVATION_AND_CLEANUP_RESULT_COMMIT_PUSHED_EXACT_REMOTE_READBACK",
+  "result_commit": "ddaf9252089cb4c174f42042dfea9fe25d5a5c67",
+  "remote": "origin",
+  "branch": "main",
+  "exact_remote_SHA_read_back": "ddaf9252089cb4c174f42042dfea9fe25d5a5c67",
+  "readback_command": "git ls-remote origin refs/heads/main",
+  "result_data_and_cleanup_docs_in_remote_main": true,
+  "business_source_unchanged": true,
+  "fixed_App_source": "e6878efa2515e00ff35192eb29f4c6eb73a37b4b",
+  "boundary": "This pins the result-data commit. Final status/readback metadata is a later docs-only commit; its exact remote SHA is retained in private publication receipts."
+}

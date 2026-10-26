@@ -1,6 +1,6 @@
 # MacEvery .build过期产物清理
 
-2026-10-26，r1，EXACT_ALLOWLIST_CLEANUP_COMPLETED_RETAINED_CONTENT_VERIFIED。用户新授权过期产物清理，同时保留冻结版、真实索引回滚、观察数据和全部异常；清理没有启动App请求、构建、采样或下一轮观察。
+2026-10-26，r2，EXACT_ALLOWLIST_CLEANUP_COMPLETED_RETAINED_CONTENT_VERIFIED。用户新授权过期产物清理，同时保留冻结版、真实索引回滚、观察数据和全部异常；清理没有启动App请求、构建、采样或下一轮观察。
 
 目录du计数从138.582降至94.147 GiB，减少44.435 GiB；配对观测的卷可用空间净增1.521 GiB。大测试库使用APFS clone，共享extent；保留debug/deps对象也会继续占用缓存硬链接的数据。不能把目录减少量当作实际释放量，卷净变化还包括同期系统写入/快照。原始字节数见[审计摘要](evidence/cleanup.json)。
 
@@ -19,4 +19,4 @@
 
 本轮独立观察已提前中断，不把退出后的新boot或新进程拼入。528条部分观察、20:49 UserDropped/两个高CPU分钟及中断原件完整保留，[观察STATUS](../watch-observation-20261025/STATUS.md)仍按原2026-10-26 14:56:01.038606统一封存；封存后先汇总，再由用户决定下一轮，不自动开始。
 
-本清理记录当前本地已保存，随原截止时观察收尾统一提交推送并精确回读；不修改业务源码或重建App。
+本清理记录及保留策略补记已随结果提交ddaf9252089cb4c174f42042dfea9fe25d5a5c67推送并精确远端回读；仅文档，不修改业务源码或重建App。

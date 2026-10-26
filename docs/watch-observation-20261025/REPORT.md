@@ -1,6 +1,6 @@
 # MacEvery e687部分观察封存结果
 
-2026-10-26，r5，SEALED_PARTIAL_INTERRUPTED_NOT_24H_COMPLETE。固定App0.1.3-ge6878ef/source e6878efa2515e00ff35192eb29f4c6eb73a37b4b，catch-up未进入App。原计划10月25日14:56:01.038606至26日14:56:01.038606；实际原worker昨晚23:43:16信号退出，window_finished=false。原截止已过，封存核验于15:31完成，不是连续24小时完成或无泄漏PASS。
+2026-10-26，r6，SEALED_PARTIAL_INTERRUPTED_NOT_24H_COMPLETE。固定App0.1.3-ge6878ef/source e6878efa2515e00ff35192eb29f4c6eb73a37b4b，catch-up未进入App。原计划10月25日14:56:01.038606至26日14:56:01.038606；实际原worker昨晚23:43:16信号退出，window_finished=false。原截止已过，封存核验于15:31完成，不是连续24小时完成或无泄漏PASS。
 
 528个记录端点，三角色各526个已知端点/525段有效CPU，共31499.965994秒（约8小时45分，占原窗口36.458294%）。最后有效身份10月25日23:41:01，之后约15小时15分无角色CPU覆盖；记录止于23:43:01，末两段角色未知/电源UUID屏障另列。首端点前0.056920250秒无CPU，不补采续窗，不跨boot/新身份拼接。有效记录内无sleep/gap/clock屏障，不描述中断后睡眠；wall与awake基准不强凑差值。
 
@@ -24,4 +24,4 @@
 
 历史负向事实不回写：b027四批drop/11高分钟峰72.208859%/两event_limit及退出缺样；4dc一轮/六高分钟峰76.03%/7390140代次写放大与history_gap、GUI末80分钟+3.766MiB；29b四轮/24分钟峰82.08%与serve+47.578MiB；更早九分钟峰85.6349%无原始触发。TopK/普通安装/短词FP上涨及GUI旧台阶未知保持。小树扫描CPU约−33–36%、每批等待约+0.82秒、code+0.16%/最差+3.11%门禁，以及未安装catch-up CPU−94%但65秒FP仍约+221MiB/reusable差异，是各自独立证据。启动前/tmp不收敛、Quit后UI自动重开连接真实DB且有自然DML、净变更范围未知的事故保留，见[扫描交付](../scanner-only-20261025/REPORT.md)与[候选取舍](../recovery-batch-20261025/REPORT.md)，未拼入本窗。
 
-数据封存已完成；本记录及清理/保留补记进入文档提交推送，精确远端SHA另附。App不随docs HEAD构建/替换/重启，未发App请求或改DB/配置/权限。封存后先汇总，再由用户决定下一轮，禁止自动开窗；收尾后删除macevery-48，保留聊天和证据。
+数据封存已完成，结果及清理/保留补记已提交推送origin/main，结果提交ddaf9252089cb4c174f42042dfea9fe25d5a5c67已精确远端回读，见[回执](evidence/push-readback.json)。App不随docs HEAD构建/替换/重启，未发App请求或改DB/配置/权限。封存后先汇总，再由用户决定下一轮，禁止自动开窗；收尾后删除macevery-48，保留聊天和证据。
