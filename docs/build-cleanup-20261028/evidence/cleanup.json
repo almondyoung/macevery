@@ -1,0 +1,72 @@
+{
+  "schema": 1,
+  "status": "COMPLETED_RETAINED_FILES_VERIFIED",
+  "completed_at_utc": "2026-10-28T11:15:06.679929+00:00",
+  "removed_files": 12241,
+  "removed_path_bytes": 515486620,
+  "removed_unique_inode_bytes": 299544684,
+  "blocks_for_inodes_with_all_links_selected": 312717312,
+  "protected_files_verified": 31359,
+  "protected_hashed_files": 31316,
+  "usage_before": {
+    "at_utc": "2026-10-28T11:13:15.801762+00:00",
+    "build_du_bytes": 101117427712,
+    "volume_available_bytes": 750015942656
+  },
+  "usage_after": {
+    "at_utc": "2026-10-28T11:15:06.886940+00:00",
+    "build_du_bytes": 100823326720,
+    "volume_available_bytes": 750298882048
+  },
+  "build_du_reduction_bytes": 294100992,
+  "volume_available_delta_bytes": 282939392,
+  "preflight_sha256": "b9ae940f945a9771711e84fba14a7130fe980c4839c0663849fb1cd637948400",
+  "date": "2026-10-28",
+  "authorization": "User renewed expired file cleanup; previous master/frozen App/source/true rollback/observation/failure preservation boundaries retained.",
+  "candidate_reason_counts": {
+    "cargo_build_fingerprint_metadata": 476,
+    "rebuildable_rust_intermediate": 10688,
+    "rebuildable_python_bytecode": 1077
+  },
+  "cargo_roots": [
+    "performance-round5-20261019/baseline-target",
+    "performance-round5-20261019/candidate-target",
+    "performance-round6-20261019/candidate-target",
+    "performance-round7-20261019/candidate-target",
+    "recovery-refresh-20261023/baseline/target",
+    "recovery-refresh-20261023/candidate/target",
+    "topk-consistency-20261019/candidate-target",
+    "watch-recovery-20261020/baseline-target",
+    "watch-recovery-20261020/candidate-target"
+  ],
+  "python_cache_roots": [
+    "recovery-refresh-20261023/pycache",
+    "watch-recovery-20261020/pycache",
+    "scanner-only-20261025/pycache",
+    "recovery-batch-20261025/pycache",
+    "watch-observation-20261023/pycache",
+    "watch-observation-20261022/pycache",
+    "watch-observation-20261025/pycache",
+    "watch-observation-20261021/pycache",
+    "watch-memory-20261022/pycache",
+    "watch-observation-20261021-pycache"
+  ],
+  "kept_large_DB_count": 18,
+  "kept_large_DB_bytes": 95232397312,
+  "kept_large_static_files_metadata_only": 43,
+  "protected_hardlink_changes": 0,
+  "original_manifests_not_rewritten": true,
+  "new_tombstone": "expired-cache-tombstone.local.json",
+  "verification": "31,316 retained files fully SHA hashed; 43 retained large static DB files checked by exact device/inode/size/mtime/mode/owner/link count, no DB SQL. Current App and observation/journal/seal files fall in full SHA verification.",
+  "accounting_boundary": "Path bytes double count hardlinks; unique inode sizes and selected-all-link block counts are not isolated physical reclamation on APFS. du includes audit added during cleanup. Volume free delta includes concurrent host activity.",
+  "preflight_failure": "First prepare stopped on non-UTF-8 ps argv before audit creation/deletion; fixed listing decoding only, receipt retained.",
+  "no_app_or_DB_or_observation_actions": true,
+  "private_receipts": {
+    "preflight.local.json": "b9ae940f945a9771711e84fba14a7130fe980c4839c0663849fb1cd637948400",
+    "execution-start.local.json": "fa1b27760341d11f849f0098d236f498e84dcb479495661efbe7fde139f6ae3c",
+    "completed.local.json": "317b8eb814cb321b8ff1f025155372d18d2cbc3b2c243cba2ff8853606acc268",
+    "expired-cache-tombstone.local.json": "770f915b624c479b9b50e1c6f489cf86f4fa5935cead062c6a0d590829e73184",
+    "executed-script.py": "457808eddd0fe48ce4725dfd80b976cf5e844639c54bac9e168646486d757564",
+    "preflight-attempt-001.local.json": "20dce7ff4f070e5e6eec5ce4adec05eec1d987750adb903e8e46e5aa4d4b661b"
+  }
+}
