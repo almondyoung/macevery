@@ -1,6 +1,6 @@
 # MacEvery 扫描优化交付与独立观察准备
 
-2026-10-26，r5，DELIVERED_OBSERVATION_INTERRUPTED_CLEANUP_AUDITED。
+2026-10-29，r6，DELIVERED_OBSERVATION_INTERRUPTED_CLEANUP_AUDITED。
 
 用户明确选择只采用scanner/精确seen与固定根批次优化；catch-up暂不进入App，完整候选1b21ef4、隔离原始和内存取舍保留于recovery-batch-20261025。src/server.rs及journal读取恢复b027基线路径。当前App已固定0.1.3-ge6878ef；旧窗口、异常、冻结版和所有真实回滚不改不拼。
 
@@ -16,3 +16,6 @@
 
 
 2026-10-26保留策略补记：按用户最新“过期文件清理”授权，只删除与所在母本实际SHA完全相同、无打开FD的重复catch-up工作主库；母本、每run WAL/SHM/copy回执/测量和全部失败/异常保持，native-attempt1/2与所有真实回滚/冻结App/source不动。精确范围及新tombstone见[清理报告](../build-cleanup-20261026/REPORT.md)。原preservation.json和SHA256.local.json不回写，仍是历史保留回执；部分旧工作副本路径现由本次保留期届满回执解释，不能再称全部原路径仍存在。旧编译缓存仅清理明确叶目录，release和冻结binary保留。当前e687观察已提前信号退出，原定14:56仅封存部分覆盖，不补采不拼接，是否新开一轮由用户汇总后决定。
+
+
+2026-10-29大库保留策略：用户已新授权将18份历史大库清理为保留最近1份实际安装回滚。17份旧回滚/母本/frozen-input/native失败主库已过期删除，日志、WAL/SHM、冻结App/source、观察与异常原件保持；原历史SHA清单不回写，新tombstone及[本轮记录](../large-db-cleanup-20261029/STATUS.md)解释路径到期。已保存源码均在主干，catch-up不重新启用。此补记取代此前“全部大库继续原位保留”的当前策略，既有历史结论保持。未新开观察或替换App。

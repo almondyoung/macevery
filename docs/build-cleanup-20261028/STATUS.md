@@ -1,7 +1,10 @@
 # MacEvery 过期缓存清理状态
 
-2026-10-28，r1，COMPLETED_RETAINED_FILES_VERIFIED。
+2026-10-29，r2，COMPLETED_RETAINED_FILES_VERIFIED。
 
 本次新授权清理已完成，12,241个精确缓存/编译中间文件删除，去重inode约285.668MiB；31,359个保留文件复核通过，历史清单不改，新tombstone解释缓存过期。18份大母本/回滚/失败现场、所有冻结版/源码/测试程序/rlib、观察原件及封存保持。
 
 本轮不构建、请求或重启App，不修改真实数据库/配置/权限，不新开观察。当前App继续固定e687。已完成的10月26日清理与观察封存不重跑；本轮记录见[报告](REPORT.md)及[公开审计摘要](evidence/cleanup.json)，私有逐文件清单`.build/cleanup-20261028`。文档本地保存，尚未推送。
+
+
+2026-10-29大库保留策略：用户已新授权将18份历史大库清理为保留最近1份实际安装回滚。17份旧回滚/母本/frozen-input/native失败主库已过期删除，日志、WAL/SHM、冻结App/source、观察与异常原件保持；原历史SHA清单不回写，新tombstone及[本轮记录](../large-db-cleanup-20261029/STATUS.md)解释路径到期。已保存源码均在主干，catch-up不重新启用。此补记取代此前“全部大库继续原位保留”的当前策略，既有历史结论保持。未新开观察或替换App。

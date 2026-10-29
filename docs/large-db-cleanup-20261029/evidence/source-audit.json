@@ -1,0 +1,112 @@
+{
+  "schema": 1,
+  "at_utc": "2026-10-29T02:36:52.665812+00:00",
+  "local_main_at_audit": "2061f32d7e7d8cb01a1b86e644e5e99145a36fd2",
+  "origin_main_at_audit": "91424a69c151df8ff196f0bff5015281a87ed9c2",
+  "fetch_completed": true,
+  "source_commits": [
+    {
+      "commit": "ce375fe0bf8ed72f6ad25794a7a70bc68c9d19b0",
+      "in_local_main": true,
+      "in_fetched_origin_main": true
+    },
+    {
+      "commit": "09fe2a99f28f61adfd19de19e698d8519ba167f7",
+      "in_local_main": true,
+      "in_fetched_origin_main": true
+    },
+    {
+      "commit": "d93f3f67f3ca03d978f6f7d84edde3db3eea1acd",
+      "in_local_main": true,
+      "in_fetched_origin_main": true
+    },
+    {
+      "commit": "d62aa1dc9d3f754da6c6ad2aaa0203e365611f81",
+      "in_local_main": true,
+      "in_fetched_origin_main": true
+    },
+    {
+      "commit": "d70165868343806d959973a095bad18774ba5aa7",
+      "in_local_main": true,
+      "in_fetched_origin_main": true
+    },
+    {
+      "commit": "2f32302c640228dad9b3a2e4c111b3fff823450c",
+      "in_local_main": true,
+      "in_fetched_origin_main": true
+    },
+    {
+      "commit": "8096e0a9c61cacd3402cd3017e95fc60ddb2c0f3",
+      "in_local_main": true,
+      "in_fetched_origin_main": true
+    },
+    {
+      "commit": "a4418a717811d036017efc028d02e036e9be97a4",
+      "in_local_main": true,
+      "in_fetched_origin_main": true
+    },
+    {
+      "commit": "29b6140575cdd69c965732b943dccda77e8b586e",
+      "in_local_main": true,
+      "in_fetched_origin_main": true
+    },
+    {
+      "commit": "4dc3e4b5d05136ecb75ca72eaa6dc3f6ce18b114",
+      "in_local_main": true,
+      "in_fetched_origin_main": true
+    },
+    {
+      "commit": "b027a42c2cb859235b2a354c4c4bd8187a785a77",
+      "in_local_main": true,
+      "in_fetched_origin_main": true
+    },
+    {
+      "commit": "1b21ef4618ec8d981a2df30f38b1b7bccfefabc9",
+      "in_local_main": true,
+      "in_fetched_origin_main": true
+    },
+    {
+      "commit": "e6878efa2515e00ff35192eb29f4c6eb73a37b4b",
+      "in_local_main": true,
+      "in_fetched_origin_main": true
+    }
+  ],
+  "source_merge_required": false,
+  "all_84_reproducible_from_git": true,
+  "frozen_sources": [
+    {
+      "manifest": "scanner-only-20261025/candidate-frozen/manifest.local.json",
+      "manifest_sha256": "4dede6e439f86384b94922570f3081332fa1dc367214475ac2487e0835ceead4",
+      "commit": "e6878efa2515e00ff35192eb29f4c6eb73a37b4b",
+      "source_file_count": 22
+    },
+    {
+      "manifest": "watch-recovery-20261020/candidate-frozen/manifest.local.json",
+      "manifest_sha256": "d9d9c8d79fe4d097b415f7833fe423045c96672d3ae959e034f54455ed99ba33",
+      "commit": "29b6140575cdd69c965732b943dccda77e8b586e",
+      "source_file_count": 19
+    },
+    {
+      "manifest": "watch-memory-20261022/candidate-frozen/manifest.local.json",
+      "manifest_sha256": "03949213df58e76d4d89306a513aad7c23d462b2d1639a064e7d8b436d06b58d",
+      "commit": "4dc3e4b5d05136ecb75ca72eaa6dc3f6ce18b114",
+      "source_file_count": 20
+    },
+    {
+      "manifest": "recovery-refresh-20261023/candidate-frozen/manifest.local.json",
+      "manifest_sha256": "ea7aafc1a321c049967bcde8385df706351e9740b569193211772f1a6fef8172",
+      "commit": "b027a42c2cb859235b2a354c4c4bd8187a785a77",
+      "source_file_count": 23
+    }
+  ],
+  "no_business_source_delta_since_e687": true,
+  "catchup": {
+    "candidate": "1b21ef4618ec8d981a2df30f38b1b7bccfefabc9",
+    "status": "Already in Git history, deliberately withdrawn by e687; not reenabled",
+    "withdrawal_patch_sha256": "d926c8d48eb2c5005d1a87d7a4fe8585b18a749a4afc4570d3e0439d07961d62",
+    "reason": "Previously rejected short-tail footprint increase about218MiB; code remains recoverable without DB copies."
+  },
+  "branches": "* main\n  remotes/origin/HEAD -> origin/main\n  remotes/origin/main\n",
+  "worktrees": "worktree /Users/yangtao/pine/code/macevery\nHEAD 2061f32d7e7d8cb01a1b86e644e5e99145a36fd2\nbranch refs/heads/main\n\n",
+  "boundary": "84 manifest source hash records match corresponding Git commit blobs; does not assert every physical source archive was unpacked and reverified. No new build or tests needed because no business source changed."
+}

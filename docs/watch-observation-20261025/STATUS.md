@@ -1,6 +1,6 @@
 # MacEvery e687部分观察封存状态
 
-2026-10-26，r7，SEALED_PARTIAL_CLOSED_RESULTS_PUSH_VERIFIED。
+2026-10-29，r8，SEALED_PARTIAL_CLOSED_RESULTS_PUSH_VERIFIED。
 
 原14:56:01截止已过；worker昨晚23:43:16以requested_signal_stop/exit0退出，window_finished=false，不是window_elapsed。528端点/各526 known/525有效段，31499.965994秒（36.458294%）；最后有效身份23:41:01，此后不补足、不跨重启拼接。
 
@@ -15,3 +15,6 @@
 本轮收尾完成，不再清理/采样/补足/拼接，不等待window_finished变true。自动跟进macevery-48在最终文档回读后删除，工具回执保留于私有publication-20261026；保留聊天和全部证据，不归档。下一轮仅在用户看过汇总后另行决定，不自动开启。
 
 旧r5和封存前报告/证据已在私有seal/docs-before-closeout原样保存，历史结论不回写。
+
+
+2026-10-29大库保留策略：用户已新授权将18份历史大库清理为保留最近1份实际安装回滚。17份旧回滚/母本/frozen-input/native失败主库已过期删除，日志、WAL/SHM、冻结App/source、观察与异常原件保持；原历史SHA清单不回写，新tombstone及[本轮记录](../large-db-cleanup-20261029/STATUS.md)解释路径到期。已保存源码均在主干，catch-up不重新启用。此补记取代此前“全部大库继续原位保留”的当前策略，既有历史结论保持。未新开观察或替换App。

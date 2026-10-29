@@ -1,0 +1,154 @@
+{
+  "schema": 1,
+  "status": "COMPLETED_17_EXPIRED_DBS_REMOVED_LATEST_ROLLBACK_RETAINED",
+  "at_utc": "2026-10-29T02:39:17.121085+00:00",
+  "deleted_DBs": 17,
+  "deleted_apparent_bytes": 90113490944,
+  "preserved_sidecars_count": 14,
+  "preserved_sidecars_bytes": 493088,
+  "protected_files_verified": 31353,
+  "protected_full_SHA_verified": 31328,
+  "live_DB_identity_unchanged": true,
+  "source_audit_sha256": "629dfd4a44322e91d1d5d94cec111e4180b6bcefa3cfc1da0ae2f8950eb5557f",
+  "business_source_changed": false,
+  "source_merge_required": false,
+  "no_app_or_db_or_observation_actions": true,
+  "historical_manifests_not_rewritten": true,
+  "preflight_sha256": "47af6e5da91ff25ab6a7cb7593d0dcc9d3487a483378ee2ea339941a8364c23d",
+  "usage_before": {
+    "at_utc": "2026-10-29T02:37:40.060277+00:00",
+    "build_du_bytes": 100827262976,
+    "volume_available_bytes": 750222110720
+  },
+  "usage_after": {
+    "at_utc": "2026-10-29T02:39:17.127672+00:00",
+    "build_du_bytes": 10715770880,
+    "volume_available_bytes": 814740897792
+  },
+  "build_du_reduction_bytes": 90111492096,
+  "volume_available_delta_bytes": 64518787072,
+  "boundary": "Expired benchmark/failed-native DB bytes intentionally not retained; source, hashes, measurements, logs, sidecars, all observed journals/seals and latest actual rollback remain. APFS accounting differs from isolated reclaimed bytes.",
+  "authorization": "2026-10-29 human explicitly authorized large-DB retention expiry and valid code integration; current App/latest true rollback/small observations and anomaly evidence retained.",
+  "removed_databases": [
+    {
+      "path": "performance-round4-20261018/live-index-before-install-20261019.sqlite",
+      "bytes": 5477388288,
+      "sha256": "bb92a5386d7080ddd6b7e88b55503256555454ecc9b096ede1b1f49703158ede",
+      "retention": "Superseded historical installation rollback or benchmark snapshot; latest true rollback retained"
+    },
+    {
+      "path": "performance-round4-20261018/live-index-before.sqlite",
+      "bytes": 5477097472,
+      "sha256": "c2f97353d23ee90aab1117df5b00700416fe52019c1c6bbea74903aa8bc6c968",
+      "retention": "Superseded historical installation rollback or benchmark snapshot; latest true rollback retained"
+    },
+    {
+      "path": "performance-round5-20261019/live-index-before-install.sqlite",
+      "bytes": 5482917888,
+      "sha256": "3fb99b611f3a4217efb45b7ed3788c7b3c1bfa8bf17c1bf8e83a25e2a2014cb7",
+      "retention": "Superseded historical installation rollback or benchmark snapshot; latest true rollback retained"
+    },
+    {
+      "path": "watch-memory-20261022/installation-r2/rollback/index.sqlite",
+      "bytes": 5097496576,
+      "sha256": "63ae5b9997cedf35fc6aa7df03a745fbed7dbf8b51a8b69c59993a4688b4ed34",
+      "retention": "Superseded historical installation rollback or benchmark snapshot; latest true rollback retained"
+    },
+    {
+      "path": "watch-recovery-20261020/installation/rollback/index.sqlite",
+      "bytes": 5034500096,
+      "sha256": "7cb000cd4ebe725c1b23be1f93a9deddb79161c0c2898259e8c90a0499c80f50",
+      "retention": "Superseded historical installation rollback or benchmark snapshot; latest true rollback retained"
+    },
+    {
+      "path": "performance-round3-20261018/live-index-before.sqlite",
+      "bytes": 5476749312,
+      "sha256": "5a4f6ba128e381d3e31f0c894b922cfded0533c86f4cb71b4445f9fd33738997",
+      "retention": "Superseded historical installation rollback or benchmark snapshot; latest true rollback retained"
+    },
+    {
+      "path": "performance-round2-20261017/live-index-before.sqlite",
+      "bytes": 5472370688,
+      "sha256": "c18594824e5bda777213be4324ff0617b2006f5b26fa04711afd7806e314a3af",
+      "retention": "Superseded historical installation rollback or benchmark snapshot; latest true rollback retained"
+    },
+    {
+      "path": "performance-round6-20261019/live-index-before-install.sqlite",
+      "bytes": 5488377856,
+      "sha256": "dd4db6f36f1b059d71a57ad10752f399de722fd92721fa19e301d892a6c2ced8",
+      "retention": "Superseded historical installation rollback or benchmark snapshot; latest true rollback retained"
+    },
+    {
+      "path": "performance-round7-20261019/live-index-before-install.sqlite",
+      "bytes": 5490712576,
+      "sha256": "8e4b2d3b2cd09052f67be1ab69684cf4390a4342614492ba028712a2cc1194e8",
+      "retention": "Superseded historical installation rollback or benchmark snapshot; latest true rollback retained"
+    },
+    {
+      "path": "scanner-only-20261025/isolated-raw/catchup-memory-tail/mother.sqlite",
+      "bytes": 5117849600,
+      "sha256": "24f6965b216af024a2f95383601e9c1ed725ca6243bf8aeffb19bfc5b41183f8",
+      "retention": "Expired benchmark input/master; source and measurements remain, exact old input replay expires"
+    },
+    {
+      "path": "scanner-only-20261025/isolated-raw/native-attempt1/index.sqlite",
+      "bytes": 5117845504,
+      "sha256": "fea5bbe6b132ea68a51d93e3488d0dba5150eb87b91a22f02e41ab68cebeed51",
+      "retention": "Expired failed native test DB; small sidecars/logs remain, exact DB replay intentionally expires under new authorization"
+    },
+    {
+      "path": "scanner-only-20261025/isolated-raw/native-attempt2/index.sqlite",
+      "bytes": 5117845504,
+      "sha256": "3c68916fc8c443f6f7ab12b512dfbaa3c0ca2b786fa94912388bfbef45779a1f",
+      "retention": "Expired failed native test DB; small sidecars/logs remain, exact DB replay intentionally expires under new authorization"
+    },
+    {
+      "path": "performance-round1-20261017/snapshot.sqlite",
+      "bytes": 5410697216,
+      "sha256": "68bd22081af1eb5ec9164037407cb6c9c13349a7f8e460fa9aa682b3286b5b29",
+      "retention": "Superseded historical installation rollback or benchmark snapshot; latest true rollback retained"
+    },
+    {
+      "path": "recovery-refresh-20261023/installation/rollback/index.sqlite",
+      "bytes": 5117845504,
+      "sha256": "ba6f642423e9b16737dfe09c055b9d1a398d7ec761dd27bf1db413a14d7f3c50",
+      "retention": "Superseded historical installation rollback or benchmark snapshot; latest true rollback retained"
+    },
+    {
+      "path": "recovery-batch-20261025/isolated-raw/frozen-input/index.sqlite",
+      "bytes": 5117845504,
+      "sha256": "ba6f642423e9b16737dfe09c055b9d1a398d7ec761dd27bf1db413a14d7f3c50",
+      "retention": "Expired benchmark input/master; source and measurements remain, exact old input replay expires"
+    },
+    {
+      "path": "recovery-batch-20261025/isolated-raw/validation/catchup-aba/mother.sqlite",
+      "bytes": 5117849600,
+      "sha256": "24f6965b216af024a2f95383601e9c1ed725ca6243bf8aeffb19bfc5b41183f8",
+      "retention": "Expired benchmark input/master; source and measurements remain, exact old input replay expires"
+    },
+    {
+      "path": "topk-consistency-20261019/install-state/live-backup.sqlite",
+      "bytes": 5498101760,
+      "sha256": "9ad4610dc0926cbeeb2b6d47b2087b65df04976b3b52e4aa3da2b33548c670fd",
+      "retention": "Superseded historical installation rollback or benchmark snapshot; latest true rollback retained"
+    }
+  ],
+  "latest_retained_rollback": {
+    "path": "scanner-only-20261025/installation/rollback/index.sqlite",
+    "bytes": 5118906368,
+    "sha256": "971e88895e300539072977743a8ee53f49b7561bdc2c016fad5a6717821e0ea9",
+    "retention": "Latest closed actual rollback, paired with original b027 App; retain"
+  },
+  "large_kept_metadata_only_count": 25,
+  "private_receipts": {
+    "preflight.local.json": "47af6e5da91ff25ab6a7cb7593d0dcc9d3487a483378ee2ea339941a8364c23d",
+    "completed.local.json": "5ced29fb3d81ccd95b0e1b1f358d611856f0265c9e9d1aa31ad24da5d1007570",
+    "execution-start.local.json": "234ab3a37401d81058890a01198ae9e4e416e33d8e74655f57013337a413bfcc",
+    "source-audit.local.json": "629dfd4a44322e91d1d5d94cec111e4180b6bcefa3cfc1da0ae2f8950eb5557f",
+    "prepared-script.py": "79ebfb1d9b69948ea1b096d098ff6d33b8f9da98babe50acf89c0e42c44fb63f",
+    "executed-script.py": "10993d9eeaa2172c47c9a71203b1bd53ea53426ae3c64a0ccbe24674f46d779e"
+  },
+  "tombstone_semantics": "Per-path removal intent is written before unlink. Per-file deleted-XX receipts and completed.local.json confirm all17 removed. Historical SHA/preservation manifests retain original bytes.",
+  "lost_replay_capability": "Expired benchmark/master/native-incident DB main bytes are gone; retained WAL/SHM/logs and SHA cannot reconstruct exact old DB inputs or unknown live-incident net changes.",
+  "accounting_boundary": "83.9247GiB apparent unlink is not physical reclaimed space; APFS sharing and concurrent host writes explain different volume free delta. No system snapshot cleanup."
+}
